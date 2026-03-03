@@ -6,14 +6,7 @@ import { apiCall, getRoomImageUrl, getUserImageUrl } from '../services/api';
 import ChatRoom from '../components/ChatRoom';
 import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
-
-interface Room {
-    id: string;
-    name: string;
-    picture: string | null;
-    owner_id: number;
-    description?: string;
-}
+import type { Room } from '../types/chat';
 
 export default function Dashboard() {
     const { user, logoutState } = useAuth();

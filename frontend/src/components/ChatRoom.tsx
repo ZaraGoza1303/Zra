@@ -3,43 +3,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Send, Users, Info, ArrowLeft, LogOut, ShieldAlert, UserMinus, MoreVertical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getUserImageUrl } from '../services/api';
-import { BACKEND_URL, FRONTEND_JOIN_URL } from '../config';
-
-interface Message {
-    id: string;
-    room_id: string;
-    user_id: number;
-    username: string;
-    type: string;
-    content: string;
-    timestamp: string;
-}
-
-interface ChatRoomProps {
-    roomId: string;
-    roomName: string;
-    roomPicture?: string;
-    onBack?: () => void;
-}
-
-interface RoomMember {
-    user_id: number;
-    user_profile_picture?: string;
-    username: string;
-    user_bio?: string;
-    role: string;
-}
-
-interface RoomResponse {
-    id: string;
-    owner_id: number;
-    picture?: string;
-    name: string;
-    description?: string;
-    room_link: string;
-    created_at: string;
-    updated_at: string;
-}
+import { BACKEND_URL } from '../config';
+import type { Message, ChatRoomProps, RoomMember, RoomResponse } from '../types/chat';
 
 export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: ChatRoomProps) {
     const { user, token } = useAuth();
@@ -57,6 +22,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
 
     const [roomDetails, setRoomDetails] = useState<RoomResponse | null>(null);
     const [fetchingInfo, setFetchingInfo] = useState(false);
+    const [fetchingHistory, setFetchingHistory] = useState(false);
 
     // Check if current user is admin
     const isAdmin = roomMembers.some(m => m.user_id === user?.id && m.role === 'admin');
@@ -67,6 +33,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
 
     useEffect(() => {
         if (!roomId || !user || !token) return;
+
+        const fetchChatHistory = async () => {
+            setFetchingHistory(true);
+            try {
+                const resp = await apiCall<{ data: Message[] }>(`/room/${roomId}/history`, { method: 'GET' });
+                setMessages(resp.data || []);
+            } catch (e) {
+                console.error("Failed to fetch chat history", e);
+            } finally {
+                setFetchingHistory(false);
+            }
+        };
 
         const connectWs = () => {
             const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
@@ -95,6 +73,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
             };
         };
 
+        fetchChatHistory();
         connectWs();
 
         return () => {
@@ -223,7 +202,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-                {messages.length === 0 ? (
+                {fetchingHistory ? (
+                    <div className="m-auto text-gray-400 text-center">
+                        Loading messages...
+                    </div>
+                ) : messages.length === 0 ? (
                     <div className="m-auto text-gray-400 text-center">
                         No messages yet. Start the conversation!
                     </div>

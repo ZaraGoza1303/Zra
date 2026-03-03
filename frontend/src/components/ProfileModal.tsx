@@ -289,12 +289,18 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                             </small>
                         </div>
 
-
+                        <div className="input-group">
+                            <label className="input-label">Bio</label>
+                            <input
+                                type="text" className="input-field"
+                                value={bio} onChange={e => setBio(e.target.value)}
+                            />
+                        </div>
 
                         <button
                             type="submit"
                             className="btn btn-primary w-full"
-                            disabled={loading || (name === user?.name && !profilePicture)}
+                            disabled={loading || (name === user?.name && bio === (user?.bio || '') && !profilePicture)}
                         >
                             <Save size={18} />
                             {loading ? 'Saving...' : 'Save Changes'}
