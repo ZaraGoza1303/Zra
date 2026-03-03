@@ -1,6 +1,6 @@
 // src/components/ProfileModal.tsx
 import React, { useState, useRef } from 'react';
-import { X, Camera, Lock, User as UserIcon, Eye, EyeOff, Save } from 'lucide-react';
+import { X, Camera, Lock, User as UserIcon, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getUserImageUrl } from '../services/api';
 import type { ProfileModalProps, UserProfile } from '../types/chat';
@@ -100,29 +100,22 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         show: boolean;
         onToggle: () => void;
     }) => (
-        <div className="input-group">
-            <label className="input-label">{label}</label>
-            <div style={{ position: 'relative' }}>
+        <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">{label}</label>
+            <div className="relative">
                 <input
                     type={show ? 'text' : 'password'}
-                    className="input-field"
                     value={value}
                     onChange={e => onChange(e.target.value)}
                     required
-                    style={{ paddingRight: '40px' }}
+                    className="w-full px-4 py-3 pr-10 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] text-sm focus:outline-none focus:border-blue-500/60 transition-colors"
                 />
                 <button
                     type="button"
                     onClick={onToggle}
-                    style={{
-                        position: 'absolute', right: '12px', top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'transparent', border: 'none',
-                        color: 'var(--text-muted)', cursor: 'pointer', padding: 0,
-                        display: 'flex', alignItems: 'center',
-                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8b949e] hover:text-[#e6edf3] transition-colors"
                 >
-                    {show ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {show ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
             </div>
         </div>
@@ -131,207 +124,192 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     return (
         <div
             onClick={onClose}
-            className="animate-fade-in"
-            style={{
-                position: 'fixed', inset: 0,
-                background: 'rgba(0,0,0,0.7)',
-                backdropFilter: 'blur(8px)',
-                zIndex: 1000,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]"
         >
             <div
-                className="glass-panel animate-slide-up"
                 onClick={e => e.stopPropagation()}
-                style={{
-                    width: '90%', maxWidth: '400px',
-                    maxHeight: '90vh', overflowY: 'auto',
-                    padding: '24px',
-                }}
+                className="w-full max-w-[420px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
             >
-                {/* Header */}
-                <div style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'center', marginBottom: '20px',
-                }}>
-                    <h2 style={{ fontSize: '1.25rem' }}>Profile Settings</h2>
-                    <button className="btn-icon" onClick={onClose}>
-                        <X size={20} />
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+                    <h2 className="text-base font-semibold text-[#e6edf3]">Edit Profile</h2>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                    >
+                        <X size={18} />
                     </button>
                 </div>
 
                 {/* Tabs */}
-                <div style={{
-                    display: 'flex', gap: '8px',
-                    marginBottom: '20px',
-                    borderBottom: '1px solid var(--glass-border)',
-                    paddingBottom: '12px',
-                }}>
+                <div className="flex gap-1 px-4 pt-4">
                     {(['profile', 'password'] as const).map(tab => (
                         <button
                             key={tab}
-                            onClick={() => setActiveTab(tab)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                padding: '8px 16px',
-                                background: activeTab === tab ? 'var(--primary)' : 'transparent',
-                                border: 'none',
-                                color: activeTab === tab ? 'white' : 'var(--text-muted)',
-                                cursor: 'pointer',
-                                borderRadius: 'var(--border-radius-sm)',
-                                transition: 'all 0.2s',
-                                fontFamily: 'inherit',
-                                fontSize: '0.9rem',
-                            }}
+                            onClick={() => { setActiveTab(tab); setError(''); setSuccess(''); }}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                                ${activeTab === tab
+                                    ? 'bg-white/10 text-[#e6edf3]'
+                                    : 'text-[#8b949e] hover:text-[#e6edf3] hover:bg-white/5'
+                                }`}
                         >
-                            {tab === 'profile' ? <UserIcon size={18} /> : <Lock size={18} />}
+                            {tab === 'profile' ? <UserIcon size={14} /> : <Lock size={14} />}
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
                         </button>
                     ))}
                 </div>
 
-                {/* Alerts */}
-                {error && (
-                    <div style={{
-                        padding: '12px', borderRadius: 'var(--border-radius-sm)',
-                        marginBottom: '16px', fontSize: '0.875rem',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        color: 'var(--danger)',
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                    }}>{error}</div>
-                )}
-                {success && (
-                    <div style={{
-                        padding: '12px', borderRadius: 'var(--border-radius-sm)',
-                        marginBottom: '16px', fontSize: '0.875rem',
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        color: 'var(--success)',
-                        border: '1px solid rgba(16, 185, 129, 0.2)',
-                    }}>{success}</div>
-                )}
+                {/* Content */}
+                <div className="px-6 py-5">
+                    {/* Alerts */}
+                    {error && (
+                        <div className="flex items-center gap-2 px-4 py-3 mb-4 rounded-xl text-sm text-red-400 bg-red-500/10 border border-red-500/20">
+                            <span>⚠</span> {error}
+                        </div>
+                    )}
+                    {success && (
+                        <div className="flex items-center gap-2 px-4 py-3 mb-4 rounded-xl text-sm text-green-400 bg-green-500/10 border border-green-500/20">
+                            <span>✓</span> {success}
+                        </div>
+                    )}
 
-                {/* Profile Tab */}
-                {activeTab === 'profile' && (
-                    <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {/* Avatar Upload */}
-                        <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto 4px' }}>
-                            <div style={{
-                                width: '100%', height: '100%',
-                                borderRadius: '50%', overflow: 'hidden',
-                                border: '3px solid var(--primary)',
-                                boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)',
-                            }}>
-                                {previewUrl ? (
-                                    <img src={previewUrl} alt="Profile"
-                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                ) : (
-                                    <div style={{
-                                        width: '100%', height: '100%',
-                                        background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '3rem', fontWeight: 'bold', color: 'white',
-                                    }}>
-                                        {user?.name?.charAt(0).toUpperCase()}
+                    {/* PROFILE TAB */}
+                    {activeTab === 'profile' && (
+                        <form onSubmit={handleUpdateProfile} className="flex flex-col gap-4">
+                            {/* Avatar */}
+                            <div className="flex flex-col items-center gap-2 mb-2">
+                                <div
+                                    className="relative cursor-pointer group"
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-blue-500/50 transition-colors">
+                                        {previewUrl ? (
+                                            <img
+                                                src={previewUrl}
+                                                alt="Profile"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-3xl">
+                                                {user?.name?.charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                    {/* Camera Overlay */}
+                                    <div className="absolute bottom-0.5 right-0.5 w-7 h-7 rounded-full bg-[#1c2128] border-2 border-[#161b22] flex items-center justify-center text-[#8b949e] group-hover:text-blue-400 group-hover:bg-blue-600/20 transition-all">
+                                        <Camera size={13} />
+                                    </div>
+                                </div>
+                                <p className="text-[11px] text-[#8b949e]">Click icon to change photo</p>
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    accept="image/*"
+                                    className="hidden"
+                                />
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                style={{
-                                    position: 'absolute', bottom: 0, right: 0,
-                                    width: '32px', height: '32px', borderRadius: '50%',
-                                    background: 'var(--primary)', color: 'white',
-                                    border: '2px solid var(--glass-bg)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                <Camera size={16} />
-                            </button>
-                            <input
-                                type="file" ref={fileInputRef}
-                                onChange={handleFileChange}
-                                accept="image/*"
-                                style={{ display: 'none' }}
+
+                            {/* Display Name */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Display Name</label>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    required
+                                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] text-sm focus:outline-none focus:border-blue-500/60 transition-colors"
+                                />
+                            </div>
+
+                            {/* Email (read-only) */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Email Address</label>
+                                <input
+                                    type="email"
+                                    value={user?.email || ''}
+                                    disabled
+                                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#8b949e] text-sm cursor-not-allowed opacity-60"
+                                />
+                            </div>
+
+                            {/* Bio */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Bio</label>
+                                <textarea
+                                    value={bio}
+                                    onChange={e => setBio(e.target.value)}
+                                    rows={3}
+                                    placeholder="Tell something about yourself..."
+                                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] text-sm focus:outline-none focus:border-blue-500/60 transition-colors resize-none font-[inherit] placeholder-[#8b949e]"
+                                />
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3 mt-1">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading || (name === user?.name && bio === (user?.bio || '') && !profilePicture)}
+                                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#1c2128] hover:bg-[#252d37] border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {loading ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+
+                    {/* PASSWORD TAB */}
+                    {activeTab === 'password' && (
+                        <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+                            <PasswordField
+                                label="Current Password"
+                                value={currentPassword}
+                                onChange={setCurrentPassword}
+                                show={showCurrentPassword}
+                                onToggle={() => setShowCurrentPassword(!showCurrentPassword)}
                             />
-                        </div>
-
-                        <div className="input-group">
-                            <label className="input-label">Name</label>
-                            <input
-                                type="text" className="input-field"
-                                value={name} onChange={e => setName(e.target.value)} required
+                            <PasswordField
+                                label="New Password"
+                                value={newPassword}
+                                onChange={setNewPassword}
+                                show={showNewPassword}
+                                onToggle={() => setShowNewPassword(!showNewPassword)}
                             />
-                        </div>
-
-
-                        <div className="input-group">
-                            <label className="input-label">Email</label>
-                            <input
-                                type="email" className="input-field"
-                                value={user?.email || ''} disabled
-                                style={{ opacity: 0.7, cursor: 'not-allowed' }}
+                            <PasswordField
+                                label="Confirm New Password"
+                                value={confirmPassword}
+                                onChange={setConfirmPassword}
+                                show={showConfirmPassword}
+                                onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
                             />
-                            <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                Email cannot be changed
-                            </small>
-                        </div>
 
-                        <div className="input-group">
-                            <label className="input-label">Bio</label>
-                            <input
-                                type="text" className="input-field"
-                                value={bio} onChange={e => setBio(e.target.value)}
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            className="btn btn-primary w-full"
-                            disabled={loading || (name === user?.name && bio === (user?.bio || '') && !profilePicture)}
-                        >
-                            <Save size={18} />
-                            {loading ? 'Saving...' : 'Save Changes'}
-                        </button>
-                    </form>
-                )}
-
-                {/* Password Tab */}
-                {activeTab === 'password' && (
-                    <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <PasswordField
-                            label="Current Password"
-                            value={currentPassword}
-                            onChange={setCurrentPassword}
-                            show={showCurrentPassword}
-                            onToggle={() => setShowCurrentPassword(!showCurrentPassword)}
-                        />
-                        <PasswordField
-                            label="New Password"
-                            value={newPassword}
-                            onChange={setNewPassword}
-                            show={showNewPassword}
-                            onToggle={() => setShowNewPassword(!showNewPassword)}
-                        />
-                        <PasswordField
-                            label="Confirm New Password"
-                            value={confirmPassword}
-                            onChange={setConfirmPassword}
-                            show={showConfirmPassword}
-                            onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-                        />
-
-                        <button
-                            type="submit"
-                            className="btn btn-primary w-full"
-                            disabled={loading || !currentPassword || !newPassword || !confirmPassword}
-                        >
-                            <Lock size={18} />
-                            {loading ? 'Changing...' : 'Change Password'}
-                        </button>
-                    </form>
-                )}
+                            <div className="flex gap-3 mt-1">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+                                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-600/20"
+                                >
+                                    <Lock size={14} className="inline mr-1.5" />
+                                    {loading ? 'Changing...' : 'Change Password'}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </div>
             </div>
         </div>
     );

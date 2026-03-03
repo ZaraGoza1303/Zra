@@ -1,12 +1,17 @@
 // src/pages/Dashboard.tsx
 import React, { useEffect, useState, useRef } from 'react';
-import { LogOut, Plus, Search, MessageSquare, Image as ImageIcon, Settings } from 'lucide-react';
+import {
+    LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
+    Settings, Home, Users, Bell, X
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getRoomImageUrl, getUserImageUrl } from '../services/api';
 import ChatRoom from '../components/ChatRoom';
 import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
 import type { Room } from '../types/chat';
+
+type NavItem = 'home' | 'chats' | 'contacts' | 'settings';
 
 export default function Dashboard() {
     const { user, logoutState } = useAuth();
@@ -23,11 +28,10 @@ export default function Dashboard() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [activeNav, setActiveNav] = useState<NavItem>('chats');
 
     useEffect(() => {
         const roomIdToOpen = searchParams.get('open');
-
-        // Jika ada ID room di URL dan daftar rooms sudah ter-load
         if (roomIdToOpen && rooms.length > 0) {
             const foundRoom = rooms.find(r => r.id === roomIdToOpen);
             if (foundRoom) {
@@ -90,302 +94,281 @@ export default function Dashboard() {
         }
     };
 
+    const formatTime = (dateStr?: string) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diff = now.getTime() - d.getTime();
+        const days = Math.floor(diff / 86400000);
+        if (days === 0) return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        if (days === 1) return 'Yesterday';
+        if (days < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const navItems: { key: NavItem; icon: React.ReactNode; label: string }[] = [
+        { key: 'home', icon: <Home size={20} />, label: 'Home' },
+        { key: 'chats', icon: <MessageSquare size={20} />, label: 'Chats' },
+        { key: 'contacts', icon: <Users size={20} />, label: 'Contacts' },
+        { key: 'settings', icon: <Settings size={20} />, label: 'Settings' },
+    ];
+
     return (
-        <div className="flex-center w-full h-full" style={{ padding: '20px' }}>
-            <div className="glass-panel" style={{
-                width: '100%',
-                maxWidth: '1280px',
-                height: '90vh',
-                display: 'flex',
-                overflow: 'hidden',
-            }}>
-                {/* SIDEBAR */}
-                <div style={{
-                    width: '320px',
-                    minWidth: '320px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    borderRight: '1px solid var(--glass-border)',
-                    background: 'rgba(15, 23, 42, 0.4)',
-                }}>
-                    {/* User Profile */}
-                    <div
-                        onClick={() => setIsProfileModalOpen(true)}
-                        style={{
-                            padding: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            borderBottom: '1px solid var(--glass-border)',
-                            cursor: 'pointer',
-                            transition: 'background 0.2s',
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                        <div style={{
-                            width: '44px', height: '44px',
-                            borderRadius: '50%', overflow: 'hidden',
-                            border: '2px solid var(--primary)', flexShrink: 0,
-                            background: 'rgba(0,0,0,0.2)'
-                        }}>
-                            {user?.profile_picture ? (
-                                <img
-                                    src={getUserImageUrl(user.profile_picture)}
-                                    alt={user.name}
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        e.currentTarget.parentElement!.innerHTML = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg, var(--primary), #8b5cf6);color:white;font-weight:bold;">${user?.name?.charAt(0).toUpperCase()}</div>`;
-                                    }}
-                                />
-                            ) : (
-                                <div style={{
-                                    width: '100%', height: '100%',
-                                    background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: 'white', fontWeight: 'bold', fontSize: '1.1rem',
-                                }}>
-                                    {user?.name?.charAt(0).toUpperCase()}
-                                </div>
+        <div className="flex w-full h-screen bg-[#0d1117] text-[#e6edf3] overflow-hidden">
+
+            {/* NARROW ICON SIDEBAR */}
+            <div className="flex flex-col items-center py-5 px-2 gap-2 w-16 min-w-[64px] bg-[#0d1117] border-r border-white/5 z-10">
+                {/* Logo */}
+                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30">
+                    <MessageSquare size={18} className="text-white" />
+                </div>
+
+                {/* Nav Items */}
+                <div className="flex flex-col gap-1 flex-1">
+                    {navItems.map(item => (
+                        <button
+                            key={item.key}
+                            onClick={() => {
+                                setActiveNav(item.key);
+                                if (item.key === 'settings') setIsProfileModalOpen(true);
+                            }}
+                            title={item.label}
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative group
+                                ${activeNav === item.key
+                                    ? 'bg-blue-600/20 text-blue-400'
+                                    : 'text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3]'
+                                }`}
+                        >
+                            {item.icon}
+                            {activeNav === item.key && (
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-500 rounded-r-full -ml-2" />
                             )}
-                        </div>
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            <div style={{
-                                fontWeight: 600, fontSize: '0.95rem',
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                            }}>{user?.name}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--success)' }}>● Online</div>
-                        </div>
-                        <button
-                            className="btn-icon"
-                            onClick={e => { e.stopPropagation(); setIsProfileModalOpen(true); }}
-                            style={{ opacity: 0.7 }}
-                        >
-                            <Settings size={18} />
                         </button>
-                    </div>
+                    ))}
+                </div>
 
-                    {/* Search & Actions */}
-                    <div style={{ padding: '16px' }}>
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                            padding: '8px 12px',
-                            background: 'rgba(0,0,0,0.2)',
-                            border: '1px solid var(--glass-border)',
-                            borderRadius: 'var(--border-radius-md)',
-                            marginBottom: '12px',
-                        }}>
-                            <Search size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                            <input
-                                type="text"
-                                placeholder="Search rooms..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                style={{
-                                    background: 'transparent', border: 'none',
-                                    color: 'inherit', outline: 'none',
-                                    width: '100%', fontSize: '0.9rem',
-                                }}
-                            />
+                {/* User Avatar */}
+                <button
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="w-9 h-9 rounded-full overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all duration-200 focus:outline-none"
+                    title={user?.name}
+                >
+                    {user?.profile_picture ? (
+                        <img
+                            src={getUserImageUrl(user.profile_picture)}
+                            alt={user.name}
+                            className="w-full h-full object-cover"
+                            onError={e => {
+                                e.currentTarget.style.display = 'none';
+                            }}
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm">
+                            {user?.name?.charAt(0).toUpperCase()}
                         </div>
+                    )}
+                </button>
+            </div>
+
+            {/* ROOM LIST PANEL */}
+            <div className="flex flex-col w-[300px] min-w-[260px] bg-[#111318] border-r border-white/5">
+                {/* Panel Header */}
+                <div className="flex items-center justify-between px-5 pt-6 pb-4">
+                    <h1 className="text-xl font-bold text-[#e6edf3]">Chats</h1>
+                    <div className="flex gap-1">
                         <button
-                            className="btn btn-primary"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            title="Notifications"
+                        >
+                            <Bell size={16} />
+                        </button>
+                        <button
                             onClick={() => setIsModalOpen(true)}
-                            style={{ width: '100%', padding: '10px', fontSize: '0.9rem' }}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/30"
+                            title="New Room"
                         >
-                            <Plus size={18} /> New Room
+                            <Plus size={16} />
                         </button>
                     </div>
+                </div>
 
-                    {/* Room List */}
-                    <div style={{ flex: 1, overflowY: 'auto' }}>
-                        {rooms.length === 0 ? (
-                            <div style={{
-                                padding: '40px 20px', textAlign: 'center',
-                                color: 'var(--text-muted)', fontSize: '0.9rem',
-                            }}>
-                                No rooms found. Create one!
-                            </div>
-                        ) : (
-                            rooms.map(room => (
-                                <div
-                                    key={room.id}
-                                    onClick={() => setSelectedRoom(room)}
-                                    style={{
-                                        padding: '12px 20px',
-                                        display: 'flex', alignItems: 'center', gap: '12px',
-                                        cursor: 'pointer', transition: 'all 0.2s',
-                                        background: selectedRoom?.id === room.id
-                                            ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                                        borderLeft: selectedRoom?.id === room.id
-                                            ? '4px solid var(--primary)' : '4px solid transparent',
-                                    }}
-                                    onMouseEnter={e => {
-                                        if (selectedRoom?.id !== room.id)
-                                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                                    }}
-                                    onMouseLeave={e => {
-                                        if (selectedRoom?.id !== room.id)
-                                            e.currentTarget.style.background = 'transparent';
-                                    }}
-                                >
+                {/* Search */}
+                <div className="px-4 pb-3">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[#1c2128] rounded-xl border border-white/5">
+                        <Search size={14} className="text-[#8b949e] shrink-0" />
+                        <input
+                            type="text"
+                            placeholder="Search conversations..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            className="bg-transparent border-none text-sm text-[#e6edf3] placeholder-[#8b949e] outline-none w-full"
+                        />
+                    </div>
+                </div>
+
+                {/* Room List */}
+                <div className="flex-1 overflow-y-auto px-2">
+                    {rooms.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-40 text-[#8b949e] text-sm gap-2">
+                            <MessageSquare size={28} className="opacity-30" />
+                            <span>No rooms found. Create one!</span>
+                        </div>
+                    ) : (
+                        rooms.map(room => (
+                            <button
+                                key={room.id}
+                                onClick={() => setSelectedRoom(room)}
+                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-left mb-0.5
+                                    ${selectedRoom?.id === room.id
+                                        ? 'bg-blue-600/15 border border-blue-600/20'
+                                        : 'hover:bg-white/4 border border-transparent'
+                                    }`}
+                            >
+                                {/* Avatar */}
+                                <div className="relative shrink-0">
                                     {room.picture ? (
-                                        <img src={getRoomImageUrl(room.picture)} alt={room.name}
-                                            style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                                        <img
+                                            src={getRoomImageUrl(room.picture)}
+                                            alt={room.name}
+                                            className="w-12 h-12 rounded-full object-cover"
+                                        />
                                     ) : (
-                                        <div style={{
-                                            width: '40px', height: '40px', borderRadius: '50%',
-                                            background: 'var(--secondary)',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            color: 'white', fontWeight: 'bold', fontSize: '1rem', flexShrink: 0,
-                                        }}>
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-bold text-base">
                                             {room.name.charAt(0).toUpperCase()}
                                         </div>
                                     )}
-                                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                                        <div style={{
-                                            fontWeight: 500, fontSize: '0.9rem',
-                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                        }}>{room.name}</div>
-                                        <div style={{
-                                            fontSize: '0.75rem', color: 'var(--text-muted)',
-                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                        }}>Tap to join chat</div>
+                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
+                                </div>
+
+                                {/* Info */}
+                                <div className="flex-1 overflow-hidden">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="font-medium text-sm text-[#e6edf3] truncate">
+                                            {room.name}
+                                        </span>
+                                        <span className="text-[10px] text-[#8b949e] shrink-0">
+                                            {formatTime(room.updated_at)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between mt-0.5">
+                                        <span className="text-xs text-[#8b949e] truncate">
+                                            {room.description || 'Tap to join chat'}
+                                        </span>
                                     </div>
                                 </div>
-                            ))
-                        )}
-                    </div>
-
-                    {/* Logout */}
-                    <button
-                        className="btn btn-secondary"
-                        onClick={handleLogout}
-                        style={{ margin: '16px', justifyContent: 'flex-start' }}
-                    >
-                        <LogOut size={18} /> Logout
-                    </button>
+                            </button>
+                        ))
+                    )}
                 </div>
 
-                {/* CHAT AREA */}
-                <div style={{
-                    flex: 1, position: 'relative',
-                    display: 'flex', flexDirection: 'column',
-                    background: 'rgba(0,0,0,0.2)',
-                }}>
-                    {selectedRoom ? (
-                        <ChatRoom
-                            roomId={selectedRoom.id}
-                            roomName={selectedRoom.name}
-                            roomPicture={getRoomImageUrl(selectedRoom.picture)}
-                            onBack={() => setSelectedRoom(null)}
-                        />
-                    ) : (
-                        <div style={{
-                            flex: 1, display: 'flex', flexDirection: 'column',
-                            alignItems: 'center', justifyContent: 'center',
-                            color: 'var(--text-muted)', textAlign: 'center',
-                        }}>
-                            <div style={{
-                                padding: '40px',
-                                background: 'rgba(255,255,255,0.03)',
-                                borderRadius: '50%', marginBottom: '20px',
-                            }}>
-                                <MessageSquare size={64} style={{ opacity: 0.3 }} />
-                            </div>
-                            <h2 style={{ color: 'var(--text-main)', marginBottom: '8px' }}>
-                                Select or Create a Room
-                            </h2>
-                            <p style={{ maxWidth: '300px', lineHeight: 1.5 }}>
-                                Pick a conversation from the sidebar to start messaging your friends.
-                            </p>
-                        </div>
-                    )}
+                {/* Logout at bottom */}
+                <div className="p-3 border-t border-white/5">
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[#8b949e] hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 text-sm font-medium"
+                    >
+                        <LogOut size={16} />
+                        <span>Logout</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Create Room Modal */}
+            {/* CHAT AREA */}
+            <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117]">
+                {selectedRoom ? (
+                    <ChatRoom
+                        roomId={selectedRoom.id}
+                        roomName={selectedRoom.name}
+                        roomPicture={getRoomImageUrl(selectedRoom.picture)}
+                        onBack={() => setSelectedRoom(null)}
+                    />
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-[#8b949e] text-center gap-4">
+                        <div className="w-24 h-24 rounded-full bg-white/3 border border-white/5 flex items-center justify-center">
+                            <MessageSquare size={40} className="opacity-20" />
+                        </div>
+                        <div>
+                            <h2 className="text-[#e6edf3] font-semibold text-xl mb-1">Select a Conversation</h2>
+                            <p className="text-sm max-w-xs leading-relaxed">
+                                Pick a room from the sidebar to start messaging, or create a new one.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/30"
+                        >
+                            <Plus size={16} /> New Room
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* CREATE ROOM MODAL */}
             {isModalOpen && (
                 <div
                     onClick={() => setIsModalOpen(false)}
-                    style={{
-                        position: 'fixed', inset: 0,
-                        background: 'rgba(0,0,0,0.7)',
-                        backdropFilter: 'blur(8px)',
-                        zIndex: 100,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
                 >
                     <div
-                        className="glass-panel"
                         onClick={e => e.stopPropagation()}
-                        style={{ width: '90%', maxWidth: '400px', padding: '28px' }}
+                        className="w-full max-w-md bg-[#161b22] border border-white/10 rounded-2xl p-6 shadow-2xl"
                     >
-                        <h2 style={{ marginBottom: '20px' }}>Create New Room</h2>
-                        <form onSubmit={handleCreateRoom}>
-                            <div className="input-group">
-                                <label className="input-label">Room Name *</label>
+                        <div className="flex items-center justify-between mb-5">
+                            <h2 className="text-lg font-semibold text-[#e6edf3]">Create New Room</h2>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateRoom} className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Room Name *</label>
                                 <input
                                     type="text"
-                                    className="input-field"
                                     placeholder="e.g. Gamers Indo"
                                     value={newRoomName}
                                     onChange={e => setNewRoomName(e.target.value)}
                                     required
                                     autoFocus
+                                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] placeholder-[#8b949e] text-sm focus:outline-none focus:border-blue-500/60 transition-colors"
                                 />
                             </div>
-                            <div className="input-group">
-                                <label className="input-label">Description (Optional)</label>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Description</label>
                                 <textarea
-                                    className="input-field"
                                     placeholder="What's this room about?"
                                     value={newRoomDescription}
                                     onChange={e => setNewRoomDescription(e.target.value)}
                                     rows={3}
-                                    style={{ resize: 'vertical', minHeight: '80px', fontFamily: 'inherit' }}
+                                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] placeholder-[#8b949e] text-sm focus:outline-none focus:border-blue-500/60 transition-colors resize-none font-[inherit]"
                                 />
                             </div>
-                            <div className="input-group">
-                                <label className="input-label">Room Image (Optional)</label>
+
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Room Image</label>
                                 <div
                                     onClick={() => fileInputRef.current?.click()}
-                                    style={{
-                                        border: '2px dashed var(--glass-border)',
-                                        padding: '30px',
-                                        borderRadius: 'var(--border-radius-md)',
-                                        cursor: 'pointer',
-                                        background: 'rgba(0,0,0,0.3)',
-                                        textAlign: 'center',
-                                        transition: 'border-color 0.2s',
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--glass-border)')}
+                                    className="flex flex-col items-center justify-center gap-2 py-6 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5 transition-all text-[#8b949e]"
                                 >
                                     {newRoomImage ? (
-                                        <div>
-                                            <div style={{ color: 'var(--success)', fontWeight: 600, marginBottom: '4px' }}>
-                                                File Selected
-                                            </div>
-                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', wordBreak: 'break-all' }}>
-                                                {newRoomImage.name}
-                                            </div>
-                                        </div>
+                                        <>
+                                            <span className="text-green-400 font-medium text-sm">✓ File Selected</span>
+                                            <span className="text-xs truncate max-w-[200px]">{newRoomImage.name}</span>
+                                        </>
                                     ) : (
-                                        <div style={{
-                                            display: 'flex', flexDirection: 'column',
-                                            alignItems: 'center', gap: '8px',
-                                            color: 'var(--text-muted)',
-                                        }}>
-                                            <ImageIcon size={28} />
-                                            <span>Click to upload room picture</span>
-                                        </div>
+                                        <>
+                                            <ImageIcon size={24} className="opacity-50" />
+                                            <span className="text-sm">Click to upload room picture</span>
+                                        </>
                                     )}
                                     <input
                                         type="file"
                                         ref={fileInputRef}
-                                        style={{ display: 'none' }}
+                                        className="hidden"
                                         accept="image/*"
                                         onChange={e => {
                                             if (e.target.files?.[0]) setNewRoomImage(e.target.files[0]);
@@ -393,20 +376,19 @@ export default function Dashboard() {
                                     />
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+
+                            <div className="flex gap-3 mt-2">
                                 <button
                                     type="button"
-                                    className="btn btn-secondary"
                                     onClick={() => setIsModalOpen(false)}
-                                    style={{ flex: 1 }}
+                                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
-                                    className="btn btn-primary"
                                     disabled={creating || !newRoomName.trim()}
-                                    style={{ flex: 1 }}
+                                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-600/20"
                                 >
                                     {creating ? 'Creating...' : 'Create Room'}
                                 </button>
@@ -416,7 +398,7 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Profile Modal */}
+            {/* PROFILE MODAL */}
             <ProfileModal
                 isOpen={isProfileModalOpen}
                 onClose={() => setIsProfileModalOpen(false)}

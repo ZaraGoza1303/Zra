@@ -1,6 +1,10 @@
 // src/components/ChatRoom.tsx
 import React, { useEffect, useState, useRef } from 'react';
-import { Send, Users, Info, ArrowLeft, LogOut, ShieldAlert, UserMinus, MoreVertical } from 'lucide-react';
+import {
+    Send, Users, ArrowLeft, LogOut, ShieldAlert,
+    UserMinus, MoreVertical, Video, Phone, MoreHorizontal,
+    Smile, Plus, X, Pencil
+} from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getUserImageUrl } from '../services/api';
 import { BACKEND_URL } from '../config';
@@ -107,14 +111,12 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                 await apiCall(`/room/${roomId}/kick?user_id=${targetUserId}`, { method: 'DELETE' });
                 alert('User kicked successfully!');
                 setTargetUserId(null);
-                // Refresh members list
                 await fetchRoomMembers();
             } else if (action === 'admin') {
                 if (targetUserId === null) return alert('Please select a user to make admin.');
                 await apiCall(`/room/${roomId}/to-admin?user_id=${targetUserId}`, { method: 'PUT' });
                 alert('User is now an admin!');
                 setTargetUserId(null);
-                // Refresh members list
                 await fetchRoomMembers();
             }
         } catch (error: any) {
@@ -128,13 +130,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
     const handleOpenInfoModal = async () => {
         setShowInfoModal(true);
         setFetchingInfo(true);
+        setFetchingMembers(true);
         try {
-            const resp = await apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' });
-            setRoomDetails(resp.data);
+            const [infoResp] = await Promise.all([
+                apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' }),
+                fetchRoomMembers(),
+            ]);
+            setRoomDetails(infoResp.data);
         } catch (e) {
             console.error("Failed to fetch room info", e);
         } finally {
             setFetchingInfo(false);
+            setFetchingMembers(false);
         }
     };
 
@@ -154,192 +161,384 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
         setFetchingMembers(false);
     };
 
+    // Group messages by date for date separators
+    const getDateLabel = (timestamp: string) => {
+        const d = new Date(timestamp);
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        if (d.toDateString() === today.toDateString()) return 'TODAY';
+        if (d.toDateString() === yesterday.toDateString()) return 'YESTERDAY';
+        return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
+    };
+
+    const formatMsgTime = (timestamp: string) => {
+        const d = new Date(timestamp);
+        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    };
+
+    // Build message list with date separators
+    const renderMessages = () => {
+        const elements: React.ReactNode[] = [];
+        let lastDateLabel = '';
+
+        messages.forEach((msg, idx) => {
+            const isSystem = msg.type === 'join' || msg.type === 'leave' || msg.type === 'system';
+
+            if (!isSystem && msg.timestamp) {
+                const label = getDateLabel(msg.timestamp);
+                if (label !== lastDateLabel) {
+                    lastDateLabel = label;
+                    elements.push(
+                        <div key={`sep-${idx}`} className="flex items-center justify-center my-3">
+                            <span className="px-4 py-1 text-[10px] font-semibold tracking-widest text-[#8b949e] bg-[#161b22] rounded-full border border-white/5">
+                                {label}
+                            </span>
+                        </div>
+                    );
+                }
+            }
+
+            if (isSystem) {
+                elements.push(
+                    <div key={msg.id || idx} className="flex justify-center my-1">
+                        <span className="px-4 py-1.5 rounded-full text-xs text-[#8b949e] bg-white/5">
+                            {msg.content}
+                        </span>
+                    </div>
+                );
+                return;
+            }
+
+            const isMe = msg.user_id === user?.id;
+            elements.push(
+                <div key={msg.id || idx} className={`flex items-end gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {/* Avatar for others */}
+                    {!isMe && (
+                        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1">
+                            <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                                {msg.username?.charAt(0).toUpperCase()}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className={`flex flex-col max-w-[65%] ${isMe ? 'items-end' : 'items-start'}`}>
+                        {!isMe && (
+                            <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
+                        )}
+                        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words
+                            ${isMe
+                                ? 'bg-[#1d3a6e] text-[#cdd9f0] rounded-br-sm'
+                                : 'bg-[#1c2128] text-[#e6edf3] rounded-bl-sm border border-white/5'
+                            }`}
+                        >
+                            {msg.content}
+                        </div>
+                        {msg.timestamp && (
+                            <span className="text-[10px] text-[#8b949e] mt-1 mx-1">
+                                {formatMsgTime(msg.timestamp)}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            );
+        });
+
+        return elements;
+    };
+
     return (
-        <div className="flex flex-col h-full w-full">
-            {/* Header */}
-            <div className="px-6 py-4 flex justify-between items-center border-b border-white/10">
+        <div className="flex flex-col h-full w-full bg-[#0d1117]">
+            {/* HEADER */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border-b border-white/5 shrink-0">
                 <div className="flex items-center gap-3">
                     {onBack && (
                         <button
-                            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
                             onClick={onBack}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
                         >
-                            <ArrowLeft size={20} />
+                            <ArrowLeft size={18} />
                         </button>
                     )}
-                    {roomPicture ? (
-                        <img src={roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
-                    ) : (
-                        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
-                            {roomName.charAt(0).toUpperCase()}
+                    <div
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={handleOpenInfoModal}
+                    >
+                        {roomPicture ? (
+                            <img src={roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-bold text-base">
+                                {roomName.charAt(0).toUpperCase()}
+                            </div>
+                        )}
+                        <div>
+                            <h3 className="text-sm font-semibold text-[#e6edf3] leading-tight group-hover:text-blue-400 transition-colors">
+                                {roomName}
+                            </h3>
+                            <p className="text-[11px] text-[#8b949e] leading-tight">
+                                {roomMembers.length > 0
+                                    ? `${roomMembers.length} members • ${roomMembers.length} online`
+                                    : 'Click to view info'
+                                }
+                            </p>
                         </div>
-                    )}
-                    <div>
-                        <h3 className="text-base font-medium m-0">{roomName}</h3>
-                        <span className="text-xs text-green-500 flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-                            Online
-                        </span>
                     </div>
                 </div>
-                <div className="flex gap-2">
+
+                <div className="flex items-center gap-1">
                     <button
-                        className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                        onClick={handleOpenInfoModal}
-                        title="Room Info"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        title="Video Call"
                     >
-                        <Info size={20} />
+                        <Video size={18} />
                     </button>
                     <button
-                        className="p-2 hover:bg-white/5 rounded-lg transition-colors"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        title="Voice Call"
+                    >
+                        <Phone size={18} />
+                    </button>
+                    <button
                         onClick={handleOpenUsersModal}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
                         title="Members"
                     >
-                        <Users size={20} />
+                        <Users size={18} />
+                    </button>
+                    <button
+                        onClick={handleOpenInfoModal}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        title="More"
+                    >
+                        <MoreHorizontal size={18} />
                     </button>
                 </div>
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+            {/* MESSAGES AREA */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3">
                 {fetchingHistory ? (
-                    <div className="m-auto text-gray-400 text-center">
-                        Loading messages...
+                    <div className="m-auto flex flex-col items-center gap-3 text-[#8b949e]">
+                        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm">Loading messages...</span>
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="m-auto text-gray-400 text-center">
-                        No messages yet. Start the conversation!
+                    <div className="m-auto text-[#8b949e] text-sm text-center">
+                        <p>No messages yet.</p>
+                        <p className="text-xs mt-1 opacity-70">Start the conversation! 👋</p>
                     </div>
                 ) : (
-                    messages.map((msg, idx) => {
-                        const isSystem = msg.type === 'join' || msg.type === 'leave' || msg.type === 'system';
-
-                        if (isSystem) {
-                            return (
-                                <div key={msg.id || idx} className="w-full flex justify-center my-1">
-                                    <span className="bg-white/10 px-4 py-1.5 rounded-full text-xs text-gray-400">
-                                        {msg.content}
-                                    </span>
-                                </div>
-                            );
-                        }
-
-                        const isMe = msg.user_id === user?.id;
-                        return (
-                            <div key={msg.id || idx} className={`flex flex-col max-w-full ${isMe ? 'items-end' : 'items-start'}`}>
-                                {!isMe && (
-                                    <span className="text-xs text-gray-400 mb-1 ml-3">{msg.username}</span>
-                                )}
-                                <div className={`p-3 max-w-[70%] rounded-2xl shadow-lg break-words ${isMe
-                                    ? 'bg-blue-600 text-white rounded-br-md'
-                                    : 'bg-white/10 text-gray-200 rounded-bl-md'
-                                    }`}>
-                                    {msg.content}
-                                </div>
-                            </div>
-                        );
-                    })
+                    renderMessages()
                 )}
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="p-6 border-t border-white/10">
-                <form onSubmit={sendMessage} className="flex gap-3">
-                    <input
-                        type="text"
-                        className="flex-1 px-4 py-3 bg-black/20 border border-white/10 rounded-lg text-gray-200 focus:outline-none focus:border-blue-600"
-                        placeholder="Type your message..."
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                    />
+            {/* INPUT BAR */}
+            <div className="px-5 py-4 bg-[#0d1117] border-t border-white/5 shrink-0">
+                <form onSubmit={sendMessage} className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        className="w-9 h-9 rounded-full flex items-center justify-center bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] hover:border-white/20 transition-all shrink-0"
+                    >
+                        <Plus size={16} />
+                    </button>
+
+                    <div className="flex-1 flex items-center gap-2 px-4 py-2.5 bg-[#1c2128] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
+                        <input
+                            type="text"
+                            placeholder="Type a message..."
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            className="flex-1 bg-transparent border-none text-sm text-[#e6edf3] placeholder-[#8b949e] outline-none"
+                        />
+                        <button
+                            type="button"
+                            className="text-[#8b949e] hover:text-[#e6edf3] transition-colors shrink-0"
+                        >
+                            <Smile size={18} />
+                        </button>
+                    </div>
+
                     <button
                         type="submit"
-                        className="p-3 rounded-full bg-blue-600 text-white hover:bg-blue-700 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                         disabled={!input.trim()}
+                        className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 transition-all shadow-lg shadow-blue-600/30 shrink-0"
                     >
-                        <Send size={20} />
+                        <Send size={16} />
                     </button>
                 </form>
             </div>
 
-            {/* Info Modal */}
+            {/* INFO MODAL */}
             {showInfoModal && (
                 <div
-                    className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center"
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
                     onClick={() => setShowInfoModal(false)}
                 >
-                    <div className="w-[90%] max-w-[360px] p-6 max-h-[80vh] flex flex-col bg-white/10 backdrop-blur-lg rounded-xl border border-white/20" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-xl font-semibold mb-4">Room Info</h2>
+                    <div
+                        className="w-full max-w-[380px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Modal Header Bar */}
+                        <div className="flex justify-end p-4 border-b border-white/5">
+                            <button
+                                onClick={() => setShowInfoModal(false)}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
 
-                        {fetchingInfo ? (
-                            <div className="text-center py-5 text-gray-400">Loading...</div>
-                        ) : roomDetails ? (
-                            <div className="mb-6 text-sm flex flex-col gap-2">
-                                <div className="flex flex-col gap-1">
-                                    <strong className="text-gray-400 text-xs">Name:</strong>
-                                    <span>{roomDetails.name}</span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <strong className="text-gray-400 text-xs">Description:</strong>
-                                    <span>{roomDetails.description || '-'}</span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <strong className="text-gray-400 text-xs">Link/Code:</strong>
-                                    <span className="font-mono bg-black/20 px-2 py-1 rounded text-xs break-all">
-                                        {`${roomDetails.room_link}`}
-                                    </span>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <strong className="text-gray-400 text-xs">Created:</strong>
-                                    <span>{new Date(roomDetails.created_at).toLocaleDateString()}</span>
-                                </div>
+                        {/* Room Icon & Info */}
+                        <div className="px-6 pb-5">
+                            <div className="w-16 h-16 rounded-2xl bg-[#1c2128] border border-white/5 flex items-center justify-center mb-4">
+                                {roomPicture ? (
+                                    <img src={roomPicture} alt={roomName} className="w-full h-full object-cover rounded-2xl" />
+                                ) : (
+                                    <Users size={28} className="text-[#8b949e]" />
+                                )}
                             </div>
-                        ) : (
-                            <div className="text-center py-5 text-gray-400">Failed to load room details.</div>
+
+                            {fetchingInfo ? (
+                                <div className="flex items-center gap-2 text-[#8b949e] text-sm py-4">
+                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                    Loading...
+                                </div>
+                            ) : roomDetails ? (
+                                <>
+                                    <div className="flex items-start justify-between mb-1">
+                                        <h2 className="text-lg font-bold text-[#e6edf3]">{roomDetails.name}</h2>
+                                        <button className="text-[#8b949e] hover:text-[#e6edf3] transition-colors mt-0.5">
+                                            <Pencil size={14} />
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-[#8b949e] mb-4">
+                                        Created on {new Date(roomDetails.created_at || '').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </p>
+
+                                    {roomDetails.description && (
+                                        <div className="mb-4">
+                                            <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2">Description</p>
+                                            <p className="text-sm text-[#cdd9f0] leading-relaxed">{roomDetails.description}</p>
+                                        </div>
+                                    )}
+
+                                    {roomDetails.room_link && (
+                                        <div className="mb-4">
+                                            <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2">Room Link</p>
+                                            <code className="text-xs bg-[#0d1117] border border-white/5 px-3 py-2 rounded-lg block break-all text-blue-400">
+                                                {roomDetails.room_link}
+                                            </code>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-sm text-[#8b949e] py-4">Failed to load room details.</p>
+                            )}
+                        </div>
+
+                        {/* Members Section */}
+                        {roomDetails && (
+                            <div className="px-6 pb-4 border-t border-white/5 pt-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase">
+                                        Members ({roomMembers.length || '—'})
+                                    </p>
+                                </div>
+                                {roomMembers.length > 0 ? (
+                                    <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto">
+                                        {roomMembers.map(member => (
+                                            <div key={member.user_id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg hover:bg-white/3 transition-colors">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                                                        {member.user_profile_picture ? (
+                                                            <img src={getUserImageUrl(member.user_profile_picture)} alt={member.username} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                                                                {member.username?.charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-sm text-[#e6edf3] font-medium truncate max-w-[160px]">
+                                                        {member.user_id === user?.id ? 'You' : member.username}
+                                                    </span>
+                                                </div>
+                                                <button className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                                                    <MoreVertical size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : fetchingMembers ? (
+                                    <div className="flex items-center gap-2 text-[#8b949e] text-xs py-2">
+                                        <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                        Loading members...
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-[#8b949e] py-1">No members found.</p>
+                                )}
+                            </div>
                         )}
 
-                        <div className="flex flex-col gap-3 mt-4">
+                        {/* Leave Room Button */}
+                        <div className="p-4 border-t border-white/5">
                             <button
-                                className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                 onClick={() => handleRoomAction('leave')}
                                 disabled={actionLoading}
+                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
-                                <LogOut size={18} /> Leave Room
-                            </button>
-                            <button
-                                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                                onClick={() => setShowInfoModal(false)}
-                            >
-                                Close
+                                <LogOut size={16} />
+                                Leave Room
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Users Modal */}
+            {/* MEMBERS MODAL */}
             {showUsersModal && (
                 <div
-                    className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center"
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
                     onClick={() => setShowUsersModal(false)}
                 >
-                    <div className="w-[90%] max-w-[360px] p-6 max-h-[80vh] flex flex-col bg-white/10 backdrop-blur-lg rounded-xl border border-white/20" onClick={e => e.stopPropagation()}>
-                        <h2 className="text-xl font-semibold mb-2">Manage Members</h2>
-                        <p className="text-sm text-gray-400 mb-4">Select a member to apply admin actions:</p>
+                    <div
+                        className="w-full max-w-[380px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-5 border-b border-white/5 shrink-0">
+                            <div>
+                                <h2 className="text-base font-semibold text-[#e6edf3]">Members</h2>
+                                <p className="text-xs text-[#8b949e] mt-0.5">{roomMembers.length} people in this room</p>
+                            </div>
+                            <button
+                                onClick={() => { setShowUsersModal(false); setTargetUserId(null); }}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
 
-                        <div className="flex-1 overflow-y-auto mb-4 border border-white/10 rounded-lg p-2">
+                        {/* Member List */}
+                        <div className="flex-1 overflow-y-auto p-3">
                             {fetchingMembers ? (
-                                <div className="text-center py-5 text-gray-400">Loading...</div>
+                                <div className="flex items-center justify-center py-8 gap-2 text-[#8b949e]">
+                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                    <span className="text-sm">Loading...</span>
+                                </div>
                             ) : roomMembers.length > 0 ? (
-                                roomMembers.map((member) => (
+                                roomMembers.map(member => (
                                     <div
                                         key={member.user_id}
-                                        className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-all ${targetUserId === member.user_id ? 'bg-blue-600/20 border-l-4 border-blue-600' : 'hover:bg-white/5'
-                                            }`}
                                         onClick={() => member.user_id !== user?.id && setTargetUserId(member.user_id)}
+                                        className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all mb-0.5
+                                            ${targetUserId === member.user_id
+                                                ? 'bg-blue-600/15 border border-blue-600/20'
+                                                : member.user_id !== user?.id ? 'hover:bg-white/4 border border-transparent' : 'border border-transparent opacity-70 cursor-default'
+                                            }`}
                                     >
-                                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
                                             {member.user_profile_picture ? (
                                                 <img src={getUserImageUrl(member.user_profile_picture)} alt={member.username} className="w-full h-full object-cover" />
                                             ) : (
@@ -348,56 +547,64 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="flex-1 overflow-hidden">
-                                            <div className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis flex items-center gap-1">
-                                                {member.username}
-                                                {member.user_id === user?.id && <span className="text-xs text-gray-400 font-normal">(You)</span>}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-sm font-medium text-[#e6edf3] truncate">
+                                                    {member.username}
+                                                </span>
+                                                {member.user_id === user?.id && (
+                                                    <span className="text-[10px] text-[#8b949e] font-normal">(You)</span>
+                                                )}
                                             </div>
-                                            <div className={`text-xs px-1.5 py-0.5 rounded-full inline-block ${member.role === 'admin'
-                                                ? 'bg-yellow-500/20 text-yellow-500'
-                                                : 'bg-blue-500/20 text-blue-500'
-                                                }`}>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block font-medium
+                                                ${member.role === 'admin'
+                                                    ? 'bg-yellow-500/15 text-yellow-400'
+                                                    : 'bg-blue-500/15 text-blue-400'
+                                                }`}
+                                            >
                                                 {member.role}
-                                            </div>
+                                            </span>
                                         </div>
                                         {member.role !== 'admin' && member.user_id !== user?.id && isAdmin && (
-                                            <button className="p-1 opacity-50 hover:opacity-100">
-                                                <MoreVertical size={16} />
+                                            <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors">
+                                                <MoreVertical size={14} />
                                             </button>
                                         )}
                                     </div>
                                 ))
                             ) : (
-                                <div className="text-center py-5 text-gray-400">No members found.</div>
+                                <div className="text-center py-8 text-[#8b949e] text-sm">No members found.</div>
                             )}
                         </div>
 
-                        {/* Admin Actions - Only visible for admins */}
+                        {/* Admin Actions */}
                         {isAdmin && (
-                            <div className="flex flex-col gap-3 mb-4 p-4 bg-blue-600/10 rounded-lg border border-blue-600/20">
+                            <div className="p-4 border-t border-white/5 flex gap-2 shrink-0">
                                 <button
-                                    className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     onClick={() => handleRoomAction('kick')}
                                     disabled={actionLoading || targetUserId === null || targetUserId === user?.id}
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                 >
-                                    <UserMinus size={18} /> Kick Selected
+                                    <UserMinus size={14} /> Kick
                                 </button>
                                 <button
-                                    className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                     onClick={() => handleRoomAction('admin')}
                                     disabled={actionLoading || targetUserId === null || targetUserId === user?.id}
+                                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-medium text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                                 >
-                                    <ShieldAlert size={18} /> Make Admin
+                                    <ShieldAlert size={14} /> Make Admin
                                 </button>
                             </div>
                         )}
 
-                        <button
-                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                            onClick={() => { setShowUsersModal(false); setTargetUserId(null); }}
-                        >
-                            Done
-                        </button>
+                        <div className="p-4 pt-0" hidden={isAdmin}>
+                            <button
+                                onClick={() => { setShowUsersModal(false); setTargetUserId(null); }}
+                                className="w-full py-2.5 rounded-xl text-sm font-medium text-[#e6edf3] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                            >
+                                Done
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
