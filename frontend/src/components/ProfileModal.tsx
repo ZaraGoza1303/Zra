@@ -3,19 +3,7 @@ import React, { useState, useRef } from 'react';
 import { X, Camera, Lock, User as UserIcon, Eye, EyeOff, Save } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getUserImageUrl } from '../services/api';
-
-interface ProfileModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-}
-
-interface UserProfile {
-    id: number;
-    name: string;
-    bio: string;
-    email: string;
-    profile_picture?: string;
-}
+import type { ProfileModalProps, UserProfile } from '../types/chat';
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const { user, loginState } = useAuth();
@@ -69,6 +57,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 loginState(localStorage.getItem('token') || '', {
                     ...user,
                     name: response.data.name,
+                    bio: response.data.bio,
                     profile_picture: response.data.profile_picture || user.profile_picture,
                 });
             }

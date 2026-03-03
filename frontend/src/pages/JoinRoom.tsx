@@ -4,16 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Users, Calendar, LogIn, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getRoomImageUrl } from '../services/api';
-
-interface RoomDetail {
-    id: string;
-    name: string;
-    picture: string | null;
-    description: string;
-    room_link: string;
-    created_at: string;
-    updated_at: string;
-}
+import type { RoomDetail } from '../types/chat';
 
 type PageState = 'loading' | 'invite' | 'already_member' | 'joining' | 'joined' | 'not_found' | 'error';
 

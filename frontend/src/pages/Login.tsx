@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall } from '../services/api';
+import type { User } from '../types/chat';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -51,9 +52,10 @@ export default function Login() {
                         id: userId,
                         email: resp.data.email,
                         name: resp.data.name,
+                        bio: resp.data.bio || '',
                         profile_picture: resp.data.profile_picture,
                         refresh_token: resp.data.refresh_token,
-                    });
+                    } as User);
                     navigate(redirectTo);
                 } catch (e) {
                     setError('Failed to parse session token.');

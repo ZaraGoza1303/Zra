@@ -1,14 +1,7 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
-interface User {
-    id: number;
-    email: string;
-    name: string;
-    bio: string;
-    profile_picture?: string;
-    refresh_token?: string;
-}
+import type { User } from '../types/chat';
 
 interface AuthContextType {
     token: string | null;
