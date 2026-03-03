@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"chatapp/core"
-	"chatapp/dto"
 	"chatapp/internal/models"
 	"context"
 
@@ -215,12 +214,10 @@ func (r *roomRepositories) GetAllRoomMembers(ctx context.Context, room_id string
 }
 
 // GetChatHistory implements [core.RoomRepositories].
-func (r *roomRepositories) GetChatHistory(room_id string, limit int) ([]dto.Message, error) {
-	var messages []dto.Message
+func (r *roomRepositories) GetChatHistory(ctx context.Context, room_id string, limit int) ([]models.Message, error) {
+	var messages []models.Message
 
-	result := r.DB.Where("room_id = ?", room_id).
-		Order("created_at desc").
-		Limit(limit).
+	result := r.DB.WithContext(ctx).Where("room_id = ?", room_id).Order("created_at desc").Limit(limit).
 		Find(&messages)
 
 	if result.Error != nil {

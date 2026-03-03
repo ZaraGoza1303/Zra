@@ -8,6 +8,6 @@ type Message struct {
 	UserID    uint      `json:"user_id"`
 	Username  string    `json:"username"`
 	Content   string    `json:"content"`
-	TimeStamp time.Time `json:"time_stamp"`
 	Type      string    `json:"type"`
+	TimeStamp time.Time `json:"time_stamp"`
 }

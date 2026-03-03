@@ -23,7 +23,7 @@ type RoomRepositories interface {
 
 	// Buat Websocket
 	SaveMessage(msg models.Message) error
-	GetChatHistory(room_id string, limit int) ([]dto.Message, error)
+	GetChatHistory(ctx context.Context, room_id string, limit int) ([]models.Message, error)
 }
 
 type RoomServices interface {
@@ -35,6 +35,7 @@ type RoomServices interface {
 
 	FindRoomPreview(ctx context.Context, room_id string) (*dto.RoomResponse, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error)
+	TakeChatHistory(ctx context.Context, room_id string, limit int) ([]dto.Message, error)
 	JoinRoom(ctx context.Context, member *dto.RoomMemberRequest) error
 	MakeAdmin(ctx context.Context, room_id string, target_id uint) error
 	LeaveRoom(ctx context.Context, room_id string) error

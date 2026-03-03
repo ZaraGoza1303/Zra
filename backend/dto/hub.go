@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -54,17 +55,6 @@ func (h *Hub) handleJoin(client *Client) {
 	h.Rooms[client.RoomID][client] = true
 	h.RoomMu.Unlock()
 
-	joinMsg := Message{
-		ID:        GenerateId(),
-		RoomID:    client.RoomID,
-		UserID:    client.UserID,
-		Username:  client.Username,
-		Content:   client.Username + " joined the chat",
-		TimeStamp: time.Now(),
-		Type:      "join",
-	}
-
-	h.Broadcast <- joinMsg
 }
 
 func (h *Hub) handleLeave(client *Client) {
@@ -80,46 +70,6 @@ func (h *Hub) handleLeave(client *Client) {
 		}
 	}
 	h.RoomMu.Unlock()
-
-	leaveMsg := Message{
-		ID:        GenerateId(),
-		RoomID:    client.RoomID,
-		UserID:    client.UserID,
-		Username:  client.Username,
-		Content:   client.Username + " left the chat",
-		TimeStamp: time.Now(),
-		Type:      "leave",
-	}
-
-	h.Broadcast <- leaveMsg
-	close(client.Send)
-}
-
-func (h *Hub) handleKick(client *Client) {
-	h.ClientMu.Lock()
-	delete(h.Clients, client.UserID)
-	h.ClientMu.Unlock()
-
-	h.RoomMu.Lock()
-	if room, ok := h.Rooms[client.RoomID]; ok {
-		delete(room, client)
-		if len(room) == 0 {
-			delete(h.Rooms, client.RoomID)
-		}
-	}
-	h.RoomMu.Unlock()
-
-	kickMsg := Message{
-		ID:        GenerateId(),
-		RoomID:    client.RoomID,
-		UserID:    client.UserID,
-		Username:  client.Username,
-		Content:   client.Username + " left the chat",
-		TimeStamp: time.Now(),
-		Type:      "leave",
-	}
-
-	h.Broadcast <- kickMsg
 	close(client.Send)
 }
 
@@ -155,29 +105,16 @@ func (h *Hub) GetRoomMembers(room_id string) []uint {
 	return members
 }
 
-func (h *Hub) RemoveUserFromRoom(room_id string, user_Id uint) {
-	h.RoomMu.Lock()
-	defer h.RoomMu.Unlock()
+func (h *Hub) GetClientById(user_id uint) (*Client, bool) {
+	h.ClientMu.RLock()
+	defer h.ClientMu.Unlock()
 
-	var kickMsg Message
-
-	if room, ok := h.Rooms[room_id]; ok {
-		for client := range room {
-			if client.UserID == user_Id {
-				kickMsg.ID = GenerateId()
-				kickMsg.RoomID = room_id
-				kickMsg.UserID = user_Id
-				kickMsg.Username = client.Username
-				kickMsg.Content = client.Username + "Has been kicked"
-				kickMsg.TimeStamp = time.Now()
-
-				delete(room, client)
-				break
-			}
-		}
+	client, ok := h.Clients[user_id]
+	if !ok {
+		return nil, false
 	}
 
-	h.Broadcast <- kickMsg
+	return client, true
 }
 
 func GenerateId() string {
@@ -188,7 +125,7 @@ func RandomString(n int) string {
 	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
 }

@@ -178,10 +178,12 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	}
 
 	response := dto.UserLoginResponse{
-		Email:        user.Email,
-		Name:         user.Name,
-		AccessToken:  genToken.SignedAccessKey,
-		RefreshToken: genToken.SignedRefreshKey,
+		Name:           user.Name,
+		Email:          user.Email,
+		Bio:            user.Bio,
+		ProfilePicture: *user.ProfilePicture,
+		AccessToken:    genToken.SignedAccessKey,
+		RefreshToken:   genToken.SignedRefreshKey,
 	}
 
 	return &response, nil

@@ -15,6 +15,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type authRepositories struct {
@@ -95,8 +96,7 @@ func (r *authRepositories) InsertRefreshToken(ctx context.Context, req dto.Inser
 	pipe.SAdd(ctx, userKey, refreshKey)
 	pipe.Expire(ctx, userKey, req.RefreshDuration)
 
-	_, err := pipe.Exec(ctx)
-	if err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("redis pipeline failed: %w", err)
 	}
 
@@ -104,9 +104,15 @@ func (r *authRepositories) InsertRefreshToken(ctx context.Context, req dto.Inser
 		UserID:       req.UserID,
 		RefreshToken: req.RefreshToken,
 		ExpiresAt:    time.Now().Add(req.RefreshDuration),
+		CreatedAt:    time.Now(),
 	}
 
-	return r.DB.WithContext(ctx).Create(&newToken).Error
+	upsertConflict := clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"refresh_token", "expires_at", "created_at"}),
+	}
+
+	return r.DB.WithContext(ctx).Clauses(upsertConflict).Create(&newToken).Error
 }
 
 func (r *authRepositories) UpdateRefreshToken(ctx context.Context, req dto.UpdateRefreshRequest) error {

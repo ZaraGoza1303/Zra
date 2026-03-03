@@ -27,10 +27,12 @@ type UserLoginRequest struct {
 }
 
 type UserLoginResponse struct {
-	Email        string `json:"email"`
-	Name         string `json:"name"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	Name           string `json:"name"`
+	Email          string `json:"email"`
+	Bio            string `json:"bio"`
+	ProfilePicture string `json:"profile_picture"`
+	AccessToken    string `json:"access_token"`
+	RefreshToken   string `json:"refresh_token"`
 }
 
 type ForgotPasswordRequest struct {

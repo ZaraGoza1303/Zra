@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -25,6 +26,7 @@ func NewRoom(router fiber.Router, roomService core.RoomServices, middleware fibe
 	route.Get("/room", handler.FindAll)
 	route.Get("/room/:id", handler.FindById)
 	route.Get("/room/:id/members", handler.GetAllRoomMember)
+	route.Get("/room/:id/history", handler.TakeChatHistory)
 	route.Post("/room", handler.CreateRoom)
 	route.Post("room/:id/join", handler.JoinRoom)
 	route.Put("/room/:id", handler.UpdateRoom)
@@ -143,7 +145,11 @@ func (h *roomHandler) UpdateRoom(c *fiber.Ctx) error {
 	var roomReq dto.RoomUpdateRequest
 	if err := c.BodyParser(&roomReq); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
 
+	existsRoom, err := h.roomServices.FindById(ctx, roomId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
 	picture, err := c.FormFile("picture")
@@ -159,6 +165,11 @@ func (h *roomHandler) UpdateRoom(c *fiber.Ctx) error {
 		if err := c.SaveFile(picture, filePath); err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 		}
+
+		if existsRoom.Picture != nil {
+			_ = os.Remove("./public/rooms/" + *existsRoom.Picture)
+		}
+
 		roomReq.Picture = &fileName
 	}
 
@@ -186,6 +197,7 @@ func (h *roomHandler) DeleteRoom(c *fiber.Ctx) error {
 	userId := c.Locals("user_id")
 	ctx = context.WithValue(ctx, "user_id", userId)
 	roomId := c.Params("id")
+
 	if err := h.roomServices.Delete(ctx, roomId); err != nil {
 		if errors.Is(err, helper.ErrNotAllowed) {
 			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
@@ -297,5 +309,23 @@ func (h *roomHandler) MakeAdmin(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("User is now Admin!", nil))
+}
+
+func (h *roomHandler) TakeChatHistory(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	roomId := c.Params("id")
+	takeLimit := 20
+
+	messages, err := h.roomServices.TakeChatHistory(ctx, roomId, takeLimit)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Messages", messages))
 
 }

@@ -319,6 +319,40 @@ func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([
 	return response, nil
 }
 
+// TakeChatHistory implements [core.RoomServices].
+func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limit int) ([]dto.Message, error) {
+	_, err := r.roomRepositories.GetById(ctx, room_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("Room wiht id %s not found : %w", room_id, err)
+		}
+		return nil, err
+	}
+
+	messages, err := r.roomRepositories.GetChatHistory(ctx, room_id, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var msgResponse []dto.Message
+
+	for _, msg := range messages {
+		item := dto.Message{
+			ID:        msg.ID,
+			RoomID:    msg.RoomID,
+			UserID:    msg.UserID,
+			Username:  msg.Username,
+			Content:   msg.Content,
+			Type:      msg.Type,
+			TimeStamp: msg.CreatedAt,
+		}
+
+		msgResponse = append(msgResponse, item)
+	}
+
+	return msgResponse, nil
+}
+
 // KickUser implements [core.RoomServices].
 func (r *roomServices) KickUser(ctx context.Context, room_id string, target_id uint) error {
 	userId, _ := ctx.Value("user_id").(uint)
@@ -340,7 +374,20 @@ func (r *roomServices) KickUser(ctx context.Context, room_id string, target_id u
 		return err
 	}
 
-	r.hub.RemoveUserFromRoom(room_id, target_id)
+	client, ok := r.hub.GetClientById(userId)
+	if ok {
+		kickMsg := dto.Message{
+			ID:        dto.GenerateId(),
+			RoomID:    client.RoomID,
+			UserID:    client.UserID,
+			Username:  client.Username,
+			Type:      "kick",
+			Content:   client.Username + " has been kicked",
+			TimeStamp: time.Now(),
+		}
+
+		r.hub.Broadcast <- kickMsg
+	}
 
 	return nil
 }
@@ -368,6 +415,21 @@ func (r *roomServices) JoinRoom(ctx context.Context, member *dto.RoomMemberReque
 			return fmt.Errorf("Gagal memasukan memeber: %w", err)
 		}
 		return err
+	}
+
+	client, ok := r.hub.GetClientById(member.UserID)
+	if ok {
+		joinMsg := dto.Message{
+			ID:        dto.GenerateId(),
+			RoomID:    client.RoomID,
+			UserID:    client.UserID,
+			Username:  client.Username,
+			Type:      "join",
+			Content:   client.Username + " joined the chat",
+			TimeStamp: time.Now(),
+		}
+
+		r.hub.Broadcast <- joinMsg
 	}
 
 	return nil
@@ -407,7 +469,20 @@ func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 		return err
 	}
 
-	r.hub.RemoveUserFromRoom(room_id, userId)
+	client, ok := r.hub.GetClientById(userId)
+	if ok {
+		leaveMsg := dto.Message{
+			ID:        dto.GenerateId(),
+			RoomID:    client.RoomID,
+			UserID:    client.UserID,
+			Username:  client.Username,
+			Type:      "leave",
+			Content:   client.Username + " has leave the chat",
+			TimeStamp: time.Now(),
+		}
+
+		r.hub.Broadcast <- leaveMsg
+	}
 
 	return nil
 }

@@ -79,6 +79,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 	})
 
 	for {
+
 		var msg dto.Message
 		err := client.Conn.ReadJSON(&msg)
 		if err != nil {
