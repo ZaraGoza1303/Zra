@@ -268,8 +268,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                         {roomPicture ? (
                             <img src={roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
                         ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-bold text-base">
-                                {roomName.charAt(0).toUpperCase()}
+                            <div className="w-10 h-10 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
+                                <Users size={18} />
                             </div>
                         )}
                         <div>

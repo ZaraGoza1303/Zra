@@ -1,7 +1,7 @@
 // src/pages/JoinRoom.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Calendar, LogIn, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { Users, CheckCircle, AlertCircle, Asterisk } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getRoomImageUrl } from '../services/api';
 import type { RoomDetail } from '../types/chat';
@@ -17,6 +17,8 @@ export default function JoinRoom() {
     const [pageState, setPageState] = useState<PageState>('loading');
     const [errorMsg, setErrorMsg] = useState('');
     const [hasAutoJoinAttempted, setHasAutoJoinAttempted] = useState(false);
+    const [activeMemberCount, setActiveMemberCount] = useState<number | null>(null);
+    const [allMemberCount, setAllMemberCount] = useState<number | null>(null);
 
     useEffect(() => {
         if (!roomId) { setPageState('not_found'); return; }
@@ -33,6 +35,23 @@ export default function JoinRoom() {
         };
         loadRoom();
     }, [roomId]);
+
+    useEffect(() => {
+        if (!room?.id) return;
+        const fetchCounts = async () => {
+            try {
+                const [activeResp, allResp] = await Promise.all([
+                    apiCall<{ data: number }>(`/room/${room.id}/active-members-count`, { method: 'GET' }),
+                    apiCall<{ data: number }>(`/room/${room.id}/all-members-count`, { method: 'GET' }),
+                ]);
+                setActiveMemberCount(activeResp.data);
+                setAllMemberCount(allResp.data);
+            } catch (e) {
+                console.log(e);
+            }
+        };
+        fetchCounts();
+    }, [room?.id]);
 
     useEffect(() => {
         if (isAuthenticated && room && !hasAutoJoinAttempted) {
@@ -73,8 +92,6 @@ export default function JoinRoom() {
     useEffect(() => {
         if (isAuthenticated && pageState === 'already_member' && room) {
             console.log("Member terdeteksi, mengalihkan ke chat dengan parameter...");
-
-            // LANGSUNG redirect dengan parameter open, tanpa delay
             navigate(`/?open=${room.id}`);
         }
     }, [isAuthenticated, pageState, room, navigate]);
@@ -93,281 +110,237 @@ export default function JoinRoom() {
         }
     };
 
-    const formatDate = (dateStr: string) => {
-        if (!dateStr) return '';
-        return new Date(dateStr).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-    };
-
-    const RoomAvatar = ({ size = 96 }: { size?: number }) => {
+    // ─── Room Avatar ────────────────────────────────────────────────────────────
+    const RoomAvatar = ({ size = 80 }: { size?: number }) => {
         if (room?.picture) {
             return (
                 <img
                     src={getRoomImageUrl(room.picture)}
                     alt={room.name}
-                    style={{
-                        width: size, height: size, borderRadius: '50%', objectFit: 'cover',
-                        border: '3px solid var(--primary)',
-                        boxShadow: '0 0 0 6px rgba(59,130,246,0.15)',
-                    }}
+                    style={{ width: size, height: size }}
+                    className="rounded-2xl object-cover"
                 />
             );
         }
         return (
-            <div style={{
-                width: size, height: size, borderRadius: '50%',
-                background: 'linear-gradient(135deg, var(--primary), #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: size * 0.38, fontWeight: 700, color: 'white',
-                border: '3px solid rgba(255,255,255,0.15)',
-                boxShadow: '0 0 0 6px rgba(59,130,246,0.15)',
-            }}>
-                {room?.name?.charAt(0).toUpperCase() ?? <Users size={size * 0.4} />}
+            <div
+                style={{ width: size, height: size }}
+                className="rounded-2xl bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]"
+            >
+                <Users size={size * 0.4} />
             </div>
         );
     };
 
+    // ─── Wrapper card ────────────────────────────────────────────────────────────
     return (
-        <div className="flex-center w-full h-full animate-fade-in" style={{ padding: '20px', position: 'relative' }}>
+        <div className="min-h-screen w-full bg-[#0d1117] flex items-center justify-center p-6">
+            <div className="w-full max-w-[450px] bg-[#111318] border border-white/8 rounded-2xl overflow-hidden shadow-2xl">
 
-            {/* Background Blobs */}
-            <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
-                <div style={{
-                    position: 'absolute', top: '-20%', right: '-10%',
-                    width: '600px', height: '600px', borderRadius: '50%',
-                    background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
-                }} />
-                <div style={{
-                    position: 'absolute', bottom: '-20%', left: '-10%',
-                    width: '500px', height: '500px', borderRadius: '50%',
-                    background: 'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)',
-                }} />
-            </div>
+                {/* Card Header */}
+                <div className="flex items-center gap-2.5 px-6 py-4 border-b border-white/5">
+                    <Asterisk size={16} className="text-[#e6edf3]" />
+                    <span className="text-xs font-bold tracking-[0.15em] text-[#e6edf3] uppercase">Room Invite</span>
+                </div>
 
-            {/* Panel */}
-            <div className="glass-panel animate-slide-up" style={{
-                width: '100%', maxWidth: '460px',
-                overflow: 'hidden', position: 'relative', zIndex: 1,
-            }}>
-                {/* Top color band */}
-                <div style={{ height: '8px', background: 'linear-gradient(90deg, var(--primary), #8b5cf6)' }} />
+                {/* Card Body */}
+                <div className="px-7 py-9">
 
-                {/* Content */}
-                <div style={{ padding: '36px 32px 32px' }}>
-
-                    {/* LOADING */}
+                    {/* ── LOADING ── */}
                     {pageState === 'loading' && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <Loader size={40} style={{
-                                margin: '0 auto 14px', color: 'var(--primary)', display: 'block',
-                                animation: 'spin 1s linear infinite',
-                            }} />
-                            <p style={{ color: 'var(--text-muted)' }}>Loading room info...</p>
+                        <div className="flex flex-col items-center gap-4 py-6">
+                            <div className="w-16 h-16 rounded-2xl bg-[#1c2128] border border-white/10 flex items-center justify-center">
+                                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                            </div>
+                            <p className="text-sm text-[#8b949e]">Loading room info...</p>
                         </div>
                     )}
 
-                    {/* NOT FOUND */}
+                    {/* ── NOT FOUND ── */}
                     {pageState === 'not_found' && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{
-                                width: '72px', height: '72px', borderRadius: '50%',
-                                margin: '0 auto 20px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)',
-                            }}>
-                                <AlertCircle size={36} />
+                        <div className="flex flex-col items-center gap-4 py-4 text-center">
+                            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                                <AlertCircle size={28} />
                             </div>
-                            <h2 style={{ marginBottom: '8px' }}>Room Not Found</h2>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.6 }}>
-                                Invitation link is invalid or the room no longer exists.
-                            </p>
-                            <button className="btn btn-secondary w-full" onClick={() => navigate('/')}>
+                            <div>
+                                <h2 className="text-base font-bold text-[#e6edf3] mb-1">Room Not Found</h2>
+                                <p className="text-sm text-[#8b949e] leading-relaxed">
+                                    Invitation link is invalid or the room no longer exists.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => navigate('/')}
+                                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-[#1c2128] border border-white/10 hover:bg-[#252d37] transition-colors"
+                            >
                                 Back to Dashboard
                             </button>
                         </div>
                     )}
 
-                    {/* ERROR */}
+                    {/* ── ERROR ── */}
                     {pageState === 'error' && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{
-                                width: '72px', height: '72px', borderRadius: '50%',
-                                margin: '0 auto 20px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)',
-                            }}>
-                                <AlertCircle size={36} />
+                        <div className="flex flex-col items-center gap-4 py-4 text-center">
+                            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                                <AlertCircle size={28} />
                             </div>
-                            <h2 style={{ marginBottom: '8px' }}>Something Went Wrong</h2>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.6 }}>
-                                {errorMsg}
-                            </p>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={retryLoad}>Retry</button>
-                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => navigate('/')}>Dashboard</button>
+                            <div>
+                                <h2 className="text-base font-bold text-[#e6edf3] mb-1">Something Went Wrong</h2>
+                                <p className="text-sm text-[#8b949e] leading-relaxed">{errorMsg}</p>
+                            </div>
+                            <div className="flex gap-3 w-full">
+                                <button
+                                    onClick={retryLoad}
+                                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                                >
+                                    Retry
+                                </button>
+                                <button
+                                    onClick={() => navigate('/')}
+                                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                                >
+                                    Dashboard
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    {/* JOINING */}
+                    {/* ── JOINING ── */}
                     {pageState === 'joining' && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-                                <RoomAvatar size={72} />
+                        <div className="flex flex-col items-center gap-4 py-4 text-center">
+                            <div className="relative">
+                                <RoomAvatar size={80} />
+                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#111318]" />
                             </div>
-                            <Loader size={28} style={{
-                                margin: '0 auto 14px', color: 'var(--primary)', display: 'block',
-                                animation: 'spin 1s linear infinite',
-                            }} />
-                            <p style={{ color: 'var(--text-muted)' }}>
-                                Joining <strong style={{ color: 'var(--text-main)' }}>{room?.name}</strong>...
-                            </p>
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                <p className="text-sm text-[#8b949e]">
+                                    Joining <span className="text-[#e6edf3] font-medium">{room?.name}</span>...
+                                </p>
+                            </div>
                         </div>
                     )}
 
-                    {/* JOINED */}
+                    {/* ── JOINED ── */}
                     {pageState === 'joined' && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{
-                                width: '72px', height: '72px', borderRadius: '50%',
-                                margin: '0 auto 20px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)',
-                            }}>
-                                <CheckCircle size={36} />
+                        <div className="flex flex-col items-center gap-4 py-4 text-center">
+                            <div className="w-16 h-16 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400">
+                                <CheckCircle size={28} />
                             </div>
-                            <h2 style={{ marginBottom: '8px' }}>Welcome aboard! 🎉</h2>
-                            <p style={{ color: 'var(--text-muted)', marginBottom: '28px', lineHeight: 1.6 }}>
-                                You've successfully joined{' '}
-                                <strong style={{ color: 'var(--text-main)' }}>{room?.name ?? 'the room'}</strong>.
-                            </p>
-                            <button className="btn btn-primary w-full" onClick={() => navigate(`/?open=${roomId}`)}>
+                            <div>
+                                <h2 className="text-base font-bold text-[#e6edf3] mb-1">Welcome aboard! 🎉</h2>
+                                <p className="text-sm text-[#8b949e] leading-relaxed">
+                                    You've successfully joined{' '}
+                                    <span className="text-[#e6edf3] font-medium">{room?.name ?? 'the room'}</span>.
+                                    <br />Redirecting you now...
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => navigate(`/?open=${roomId}`)}
+                                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
+                            >
                                 Open Room Chat
                             </button>
                         </div>
                     )}
 
-                    {/* ALREADY MEMBER */}
+                    {/* ── ALREADY MEMBER ── */}
                     {pageState === 'already_member' && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-                                <RoomAvatar size={88} />
+                        <div className="flex flex-col items-center gap-4 py-4 text-center">
+                            <div className="relative">
+                                <RoomAvatar size={80} />
+                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#111318]" />
                             </div>
-                            <h2 style={{ marginBottom: '8px' }}>{room?.name}</h2>
-                            <p style={{
-                                color: 'var(--success)', fontSize: '0.875rem', marginBottom: '16px',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                            }}>
-                                <CheckCircle size={14} /> You're already a member
-                            </p>
-                            {room?.description && (
-                                <p style={{
-                                    color: 'var(--text-muted)', lineHeight: 1.7,
-                                    fontSize: '0.92rem', marginBottom: '20px', padding: '0 8px',
-                                }}>
-                                    {room.description}
+                            <div>
+                                <h2 className="text-base font-bold text-[#e6edf3] mb-1">{room?.name}</h2>
+                                <p className="text-sm text-green-400 flex items-center justify-center gap-1.5">
+                                    <CheckCircle size={13} /> You're already a member
                                 </p>
-                            )}
-                            {room?.created_at && (
-                                <div style={{
-                                    display: 'flex', justifyContent: 'center', gap: '6px',
-                                    fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '28px',
-                                }}>
-                                    <Calendar size={13} style={{ color: 'var(--primary)' }} />
-                                    <span>Since {formatDate(room.created_at)}</span>
-                                </div>
-                            )}
-                            <button className="btn btn-primary w-full" onClick={() => navigate(`/?open=${roomId}`)}>
+                            </div>
+                            <button
+                                onClick={() => navigate(`/?open=${roomId}`)}
+                                className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
+                            >
                                 Open Room Chat
                             </button>
                         </div>
                     )}
 
-                    {/* INVITE PREVIEW */}
+                    {/* ── INVITE PREVIEW ── */}
                     {pageState === 'invite' && room && (
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-                                <RoomAvatar size={96} />
+                        <div className="flex flex-col items-center text-center gap-2.5">
+                            {/* Room Avatar with online dot */}
+                            <div className="relative mb-5">
+                                <RoomAvatar size={80} />
+                                <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#111318]" />
                             </div>
 
-                            <h2 style={{ fontSize: '1.5rem', marginBottom: '6px' }}>{room.name}</h2>
+                            {/* Room Name */}
+                            <h2 className="text-xl font-bold text-[#e6edf3] mb-2">{room.name}</h2>
 
-                            {room.description ? (
-                                <p style={{
-                                    color: 'var(--text-muted)', lineHeight: 1.7,
-                                    fontSize: '0.92rem', marginBottom: '20px', padding: '0 8px',
-                                }}>
-                                    {room.description}
-                                </p>
-                            ) : (
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '20px' }}>
-                                    No description provided.
-                                </p>
-                            )}
+                            {/* Description */}
+                            <p className="text-sm text-[#8b949e] leading-relaxed mb-4 px-2">
+                                {room.description || 'Join this room to start chatting.'}
+                            </p>
 
-                            {/* Meta chips */}
-                            <div style={{
-                                display: 'flex', justifyContent: 'center', gap: '16px',
-                                flexWrap: 'wrap', marginBottom: '24px', padding: '12px',
-                                background: 'rgba(255,255,255,0.04)',
-                                borderRadius: 'var(--border-radius-md)',
-                                border: '1px solid var(--glass-border)',
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                    <Users size={13} style={{ color: 'var(--primary)' }} />
-                                    <span>Group Room</span>
-                                </div>
-                                {room.created_at && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                        <Calendar size={13} style={{ color: 'var(--primary)' }} />
-                                        <span>Since {formatDate(room.created_at)}</span>
+                            {/* Invite from badge */}
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c2128] border border-white/8 rounded-full mb-5">
+                                <Users size={12} className="text-[#8b949e]" />
+                                <span className="text-xs text-[#8b949e]">Invite from Room Link</span>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-2 gap-4 w-full mb-6">
+                                <div className="flex flex-col items-center justify-center gap-1.5 py-5 px-3 bg-[#1c2128] border border-white/8 rounded-xl">
+                                    <span className="text-2xl font-bold text-[#e6edf3]">
+                                        {activeMemberCount !== null ? activeMemberCount : '—'}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+                                        <span className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase">Online</span>
                                     </div>
-                                )}
+                                </div>
+                                <div className="flex flex-col items-center justify-center gap-1.5 py-5 px-3 bg-[#1c2128] border border-white/8 rounded-xl">
+                                    <span className="text-2xl font-bold text-[#e6edf3]">
+                                        {allMemberCount !== null ? allMemberCount : '—'}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                                        <span className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase">Members</span>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Auth notice */}
                             {!isAuthenticated && (
-                                <div style={{
-                                    background: 'rgba(245, 158, 11, 0.1)',
-                                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                                    borderRadius: 'var(--border-radius-sm)',
-                                    padding: '10px 14px', fontSize: '0.82rem',
-                                    color: '#f59e0b', marginBottom: '20px', textAlign: 'left',
-                                }}>
+                                <div className="w-full flex items-center gap-2 px-4 py-3 mb-5 rounded-xl text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 text-left">
                                     ⚠️ You must be logged in to join this room.
                                 </div>
                             )}
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <button className="btn btn-primary w-full" onClick={() => handleJoin()}>
-                                    <LogIn size={18} />
-                                    {isAuthenticated ? 'Join Room' : 'Login to Join'}
-                                </button>
-                                <button className="btn btn-secondary w-full" onClick={() => navigate('/')}>
-                                    Maybe Later
-                                </button>
-                            </div>
+                            {/* CTA Buttons */}
+                            <button
+                                onClick={() => handleJoin()}
+                                className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#1c2535] hover:bg-[#213048] cursor-pointer border border-blue-500/20 transition-all duration-200 mb-3 shadow-lg"
+                            >
+                                Accept Invite
+                            </button>
+                            <button
+                                onClick={() => navigate('/')}
+                                className="text-sm text-[#8b949e] hover:text-[#e6edf3] cursor-pointer transition-colors py-2"
+                            >
+                                No thanks, I'll browse first
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* Footer */}
-                <div style={{
-                    padding: '14px 32px',
-                    borderTop: '1px solid var(--glass-border)',
-                    textAlign: 'center', fontSize: '0.78rem',
-                    color: 'var(--text-muted)',
-                    background: 'rgba(0,0,0,0.1)',
-                }}>
-                    ChatApp · Invitation Link
+                {/* Card Footer */}
+                <div className="px-7 py-5 border-t border-white/5 bg-[#0d1117]/50">
+                    <p className="text-[10px] font-semibold tracking-[0.12em] text-[#8b949e] uppercase text-center">
+                        By joining, you agree to our community guidelines
+                    </p>
                 </div>
             </div>
-
-            <style>{`
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
         </div>
     );
 }

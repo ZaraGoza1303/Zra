@@ -233,8 +233,8 @@ export default function Dashboard() {
                                             className="w-12 h-12 rounded-full object-cover"
                                         />
                                     ) : (
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-white font-bold text-base">
-                                            {room.name.charAt(0).toUpperCase()}
+                                        <div className="w-12 h-12 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
+                                            <Users size={20} />
                                         </div>
                                     )}
                                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
