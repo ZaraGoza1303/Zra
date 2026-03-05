@@ -7,7 +7,8 @@ type User struct {
 	ProfilePicture *string   `gorm:"size:255"`
 	Email          string    `gorm:"size:255;not null;unique"`
 	Bio            string    `gorm:"size:255"`
-	Name           string    `gorm:"size:255;not null"`
+	Username       string    `gorm:"size:255;not null"`
+	Name           string    `gorm:"size:255"`
 	Password       string    `gorm:"size:255;not null"`
 	IsVerified     bool      `gorm:"default:false;not null"`
 	VerifyToken    *string   `gorm:"type:text"`

@@ -41,17 +41,54 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 	var response []dto.UserResponse
 
 	for _, user := range users {
+		var profilePicture string
+		if user.ProfilePicture != nil {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+		} else {
+			profilePicture = ""
+		}
+
 		item := dto.UserResponse{
-			ID:        user.ID,
-			Email:     user.Email,
-			Name:      user.Name,
-			CreatedAt: user.CreatedAt,
+			ID:             user.ID,
+			Email:          user.Email,
+			ProfilePicture: profilePicture,
+			Username:       user.Username,
+			Name:           user.Name,
+			CreatedAt:      user.CreatedAt,
 		}
 
 		response = append(response, item)
 	}
 
 	return response, nil
+}
+
+// FindByUsername implements [core.UserServices].
+func (u *userServices) FindByUsername(ctx context.Context, username string) (*dto.UserResponse, error) {
+	user, err := u.UserRepositories.GetByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+
+	var profilePicture string
+	if user.ProfilePicture != nil {
+		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+	} else {
+		profilePicture = ""
+	}
+
+	response := dto.UserResponse{
+		ID:             user.ID,
+		ProfilePicture: profilePicture,
+		Email:          user.Email,
+		Bio:            user.Bio,
+		Username:       user.Username,
+		Name:           user.Name,
+		IsVerified:     user.IsVerified,
+		CreatedAt:      user.CreatedAt,
+	}
+
+	return &response, nil
 }
 
 func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse, error) {
@@ -72,12 +109,87 @@ func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Bio:            user.Bio,
+		Username:       user.Username,
 		Name:           user.Name,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
 	}
 
 	return &response, nil
+}
+
+// FindListFriend implements [core.UserServices].
+func (u *userServices) FindListFriend(ctx context.Context, filter string) ([]dto.UserResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	users, err := u.UserRepositories.GetListFriend(ctx, filter, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.UserResponse
+
+	for _, user := range users {
+		var profilePicture string
+		if user.Receiver.ProfilePicture != nil {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.Receiver.ProfilePicture)
+		} else {
+			profilePicture = ""
+		}
+
+		item := dto.UserResponse{
+			ID:             user.Receiver.ID,
+			Email:          user.Receiver.Email,
+			ProfilePicture: profilePicture,
+			Username:       user.Receiver.Username,
+			Name:           user.Receiver.Name,
+			CreatedAt:      user.CreatedAt,
+		}
+
+		response = append(response, item)
+	}
+
+	return response, nil
+}
+
+// FIndListFriendRequest implements [core.UserServices].
+func (u *userServices) FindListFriendRequest(ctx context.Context, filter string) ([]dto.UserResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	users, err := u.UserRepositories.GetListFriendRequest(ctx, filter, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.UserResponse
+
+	for _, user := range users {
+		var profilePicture string
+		if user.Sender.ProfilePicture != nil {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.Sender.ProfilePicture)
+		} else {
+			profilePicture = ""
+		}
+
+		item := dto.UserResponse{
+			ID:             user.Sender.ID,
+			Email:          user.Sender.Email,
+			ProfilePicture: profilePicture,
+			Username:       user.Sender.Username,
+			Name:           user.Sender.Name,
+			CreatedAt:      user.CreatedAt,
+		}
+
+		response = append(response, item)
+	}
+
+	return response, nil
 }
 
 func (u *userServices) FindByToken(ctx context.Context, token string) (*dto.UserResponse, error) {
@@ -98,6 +210,7 @@ func (u *userServices) FindByToken(ctx context.Context, token string) (*dto.User
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Bio:            user.Bio,
+		Username:       user.Username,
 		Name:           user.Name,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
@@ -127,6 +240,7 @@ func (u *userServices) FindByEmail(ctx context.Context, email string) (*dto.User
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Bio:            user.Bio,
+		Username:       user.Username,
 		Name:           user.Name,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
@@ -155,13 +269,84 @@ func (u *userServices) FindByEmailAndProvider(ctx context.Context, email, provid
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Bio:            user.Bio,
+		Username:       user.Username,
 		Name:           user.Name,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
 	}
 
 	return &response, nil
+}
 
+// MakeFriendRequest implements [core.UserServices].
+func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	if userId == target_id {
+		return fmt.Errorf("kamu tidak bisa menambahkan diri sendiri")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Target id not found %w", err)
+		}
+		return err
+	}
+
+	alreadyFriend, err := u.UserRepositories.GetFriendship(ctx, userId, target_id)
+	if err != nil {
+		return err
+	}
+
+	if alreadyFriend {
+		return errors.New("friend request already exists or you are already friends")
+	}
+
+	newFriend := models.Friend{
+		UserID:    userId,
+		FriendID:  target_id,
+		Status:    "pending",
+		CreatedAt: time.Now(),
+	}
+
+	if err := u.UserRepositories.InsertFriendRequest(ctx, &newFriend); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateFriendRequest implements [core.UserServices].
+func (u *userServices) UpdateFriendRequest(ctx context.Context, target_id uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Target id not found %w", err)
+		}
+		return err
+	}
+
+	friendReq := models.Friend{
+		UserID:    target_id,
+		FriendID:  userId,
+		Status:    "accepted",
+		UpdatedAt: time.Now(),
+	}
+
+	if err := u.UserRepositories.UpdateFriendRequest(ctx, &friendReq); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (u *userServices) Update(ctx context.Context, userId uint, req *dto.UpdateUserRequest) (*models.User, error) {
@@ -232,6 +417,28 @@ func (u *userServices) Delete(ctx context.Context, id uint) error {
 
 	err = u.UserRepositories.Delete(ctx, id)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RejectFriendRequest implements [core.UserServices].
+func (u *userServices) RejectFriendRequest(ctx context.Context, target_id uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Target id not found : %w", err)
+		}
+		return err
+	}
+
+	if err := u.UserRepositories.DeleteFriendRequest(ctx, target_id, userId); err != nil {
 		return err
 	}
 
@@ -314,7 +521,41 @@ func (u *userServices) ExecuteReset(ctx context.Context, token string, req dto.R
 	}
 
 	return nil
+}
 
+// Unfriend implements [core.UserServices].
+func (u *userServices) Unfriend(ctx context.Context, target_id uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	if userId == target_id {
+		return errors.New("You can't unfriend yourself")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Target id not found : %w", err)
+		}
+		return err
+	}
+
+	alreadyFriend, err := u.UserRepositories.GetFriendship(ctx, userId, target_id)
+	if err != nil {
+		return err
+	}
+
+	if !alreadyFriend {
+		return errors.New("Not in Friendship!")
+	}
+
+	if err := u.UserRepositories.DeleteFriendship(ctx, target_id, userId); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // FindByIdWithoutCtx implements [core.UserServices].
@@ -339,6 +580,7 @@ func (u *userServices) FindByIdWithoutCtx(id uint) (*dto.UserResponse, error) {
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Bio:            user.Bio,
+		Username:       user.Username,
 		Name:           user.Name,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,

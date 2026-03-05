@@ -8,6 +8,7 @@ type UserResponse struct {
 	Email              string    `json:"email"`
 	Bio                string    `json:"bio"`
 	Provider           string    `json:"provider"`
+	Username           string    `json:"username"`
 	Name               string    `json:"name"`
 	IsVerified         bool      `json:"is_verified"`
 	VerifyToken        string    `json:"-"`

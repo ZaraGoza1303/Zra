@@ -4,6 +4,7 @@ import (
 	"chatapp/core"
 	"chatapp/dto"
 	"chatapp/internal/helper"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -23,8 +24,118 @@ func NewUser(router fiber.Router, service core.UserServices, middleware fiber.Ha
 	handler := userHandler{UserServices: service}
 
 	route := router.Group("/api")
-	route.Put("/user/change-password", middleware, handler.ChangePassword)
+	route.Get("/user", middleware, handler.FindAll)
+	route.Get("/user/list-friend", middleware, handler.FindListFriend)
+	route.Get("/user/list-friend-requests", middleware, handler.FindListFriendRequest)
+	route.Get("/user/:username", middleware, handler.FindByUsername)
+	route.Post("/user/make-friend-requests/:target-id", middleware, handler.MakeFriendRequest)
 	route.Put("/user/:id", middleware, handler.Update)
+	route.Put("/user/accept-friend-requests/:target-id", middleware, handler.UpdateFriendRequest)
+	route.Put("/user/change-password", middleware, handler.ChangePassword)
+	route.Delete("/user/reject-friend-requests/:target-id", middleware, handler.RejectFriendRequest)
+	route.Delete("/user/unfriend/:target-id", middleware, handler.Unfriend)
+}
+
+func (h *userHandler) FindAll(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	filter := c.Query("filter")
+
+	users, err := h.UserServices.FindAll(ctx, filter)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing users", users))
+}
+
+func (h *userHandler) FindByUsername(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	username := c.Params("username")
+
+	user, err := h.UserServices.FindByUsername(ctx, username)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing user", user))
+}
+
+func (h *userHandler) FindListFriend(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	filter := c.Query("filter")
+
+	users, err := h.UserServices.FindListFriend(ctx, filter)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing friend lists", users))
+}
+
+func (h *userHandler) FindListFriendRequest(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	filter := c.Query("filter")
+
+	users, err := h.UserServices.FindListFriendRequest(ctx, filter)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing friend lists requests", users))
+}
+
+func (h *userHandler) MakeFriendRequest(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.MakeFriendRequest(ctx, uint(targetId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Friend Request Created", nil))
+}
+
+func (h *userHandler) UpdateFriendRequest(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.UpdateFriendRequest(ctx, uint(targetId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Friend Request Updated", nil))
 }
 
 func (h *userHandler) Update(c *fiber.Ctx) error {
@@ -137,4 +248,42 @@ func (h *userHandler) ChangePassword(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Password Updated", nil))
+}
+
+func (h *userHandler) RejectFriendRequest(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.RejectFriendRequest(ctx, uint(targetId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Friend Request Rejected", nil))
+}
+
+func (h *userHandler) Unfriend(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.Unfriend(ctx, uint(targetId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Unfriend Successfully", nil))
 }

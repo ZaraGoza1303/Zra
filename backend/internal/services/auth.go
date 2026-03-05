@@ -59,7 +59,7 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 	}
 
 	newUser := models.User{
-		Name:        req.Name,
+		Username:    req.Username,
 		Email:       req.Email,
 		Password:    hashedPassword,
 		VerifyToken: &otpCode,
@@ -119,7 +119,7 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 
 	response := dto.UserRegisterResponse{
 		Email:    newUser.Email,
-		Name:     newUser.Name,
+		Username: newUser.Username,
 		Password: newUser.Password, // Perhatian: Mengembalikan password yang di-hash di response biasanya tidak disarankan untuk production.
 		Notes:    notes,
 	}
@@ -178,7 +178,7 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	}
 
 	response := dto.UserLoginResponse{
-		Name:           user.Name,
+		Username:       user.Username,
 		Email:          user.Email,
 		Bio:            user.Bio,
 		ProfilePicture: *user.ProfilePicture,

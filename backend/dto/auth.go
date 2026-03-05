@@ -4,14 +4,14 @@ import "time"
 
 type UserRegisterRequest struct {
 	Email           string `json:"email" validate:"required"`
-	Name            string `json:"name" validate:"required"`
+	Username        string `json:"username" validate:"required"`
 	Password        string `json:"password" validate:"required"`
 	ConfirmPassword string `json:"confirm_password" validate:"required"`
 }
 
 type UserRegisterResponse struct {
 	Email    string `json:"email" `
-	Name     string `json:"name" `
+	Username string `json:"username" `
 	Password string `json:"password" `
 	Notes    string `json:"notes"`
 }
@@ -27,7 +27,7 @@ type UserLoginRequest struct {
 }
 
 type UserLoginResponse struct {
-	Name           string `json:"name"`
+	Username       string `json:"username"`
 	Email          string `json:"email"`
 	Bio            string `json:"bio"`
 	ProfilePicture string `json:"profile_picture"`
