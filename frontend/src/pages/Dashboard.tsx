@@ -197,7 +197,7 @@ export default function Dashboard() {
                             }}
                         />
                     ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm">
+                        <div className="w-full h-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
                             <User size={18} />
                         </div>
                     )}
