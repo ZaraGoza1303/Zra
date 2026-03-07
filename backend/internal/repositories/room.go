@@ -24,7 +24,12 @@ func (r *roomRepositories) GetAll(ctx context.Context, filter string, user_id ui
 
 	query := r.DB.WithContext(ctx).Model(&models.Room{})
 
-	query = query.Joins("INNER JOIN room_members ON room_members.room_id = rooms.id").
+	query = query.Preload("Members").
+		Preload("Members.User").
+		Joins("INNER JOIN room_members ON room_members.room_id = rooms.id").
+		Joins("INNER JOIN messages ON messages.room_id = rooms.id").
+		Group("rooms.id").
+		Order("MAX(messages.created_at) DESC").
 		Where("room_members.user_id = ?", user_id)
 
 	if filter != "" {
@@ -213,11 +218,94 @@ func (r *roomRepositories) GetAllRoomMembers(ctx context.Context, room_id string
 	return members, nil
 }
 
+// GetPrivateRoom implements [core.RoomRepositories].
+func (r *roomRepositories) GetIdPrivateRoom(ctx context.Context, userID uint, targetID uint) (string, error) {
+	var roomID string
+
+	err := r.DB.WithContext(ctx).Table("rooms").
+		Select("rooms.id").
+		Joins("JOIN room_members rm ON rm.room_id = rooms.id").
+		Where("rooms.type = 'private'").
+		Where("rm.user_id IN (?, ?)", userID, targetID).
+		Group("rooms.id").
+		Having("COUNT(DISTINCT rm.user_id) = 2").
+		Scan(&roomID).Error
+
+	if err != nil {
+		return "", err
+	}
+
+	if roomID == "" {
+		return "", gorm.ErrRecordNotFound
+	}
+
+	return roomID, nil
+}
+
+// InsertPrivateRoom implements [core.RoomRepositories].
+func (r *roomRepositories) InsertPrivateRoom(ctx context.Context, room *models.Room, user_id []uint) error {
+	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&room).Error; err != nil {
+			return err
+		}
+
+		var members []models.RoomMember
+		for _, id := range user_id {
+			members = append(members, models.RoomMember{
+				RoomID: room.ID,
+				UserID: id,
+			})
+		}
+
+		if err := tx.Create(&members).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+// GetMemberCount implements [core.RoomRepositories].
+func (r *roomRepositories) GetMemberCount(ctx context.Context, room_id string) (int64, error) {
+	var memberCount int64
+
+	result := r.DB.WithContext(ctx).Model(&models.RoomMember{}).
+		Where("room_id = ?", room_id).
+		Count(&memberCount)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return memberCount, nil
+}
+
+// GetLastMessages implements [core.RoomRepositories].
+func (r *roomRepositories) GetLastMessages(ctx context.Context, roomIds []string) ([]models.Message, error) {
+	var messages []models.Message
+
+	result := r.DB.WithContext(ctx).
+		Preload("User").
+		Where("id IN (?)",
+			r.DB.Model(&models.Message{}).
+				Select("MAX(id)").
+				Where("room_id IN ?", roomIds).
+				Group("room_id"),
+		).
+		Find(&messages)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return messages, nil
+}
+
 // GetChatHistory implements [core.RoomRepositories].
 func (r *roomRepositories) GetChatHistory(ctx context.Context, room_id string, limit int) ([]models.Message, error) {
 	var messages []models.Message
 
-	result := r.DB.WithContext(ctx).Where("room_id = ?", room_id).Order("created_at desc").Limit(limit).
+	result := r.DB.WithContext(ctx).Where("room_id = ?", room_id).Order("created_at asc").Limit(limit).
 		Find(&messages)
 
 	if result.Error != nil {

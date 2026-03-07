@@ -8,7 +8,7 @@ type RoomMemberRequest struct {
 
 type RoomMemberResponse struct {
 	UserID             uint   `json:"user_id"`
-	UserProfilePicture string `json:"user_profile_picutre"`
+	UserProfilePicture string `json:"user_profile_picture"`
 	Username           string `json:"username"`
 	UserBio            string `json:"user_bio"`
 	Role               string `json:"role"`

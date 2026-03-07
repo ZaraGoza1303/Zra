@@ -14,8 +14,8 @@ type UserRepositories interface {
 	GetByToken(ctx context.Context, token string) (*models.User, error)
 	GetByPassResetToken(ctx context.Context, token string) (*models.PasswordReset, error)
 	GetByEmailAndProvider(ctx context.Context, email, provider string) (*models.User, error)
-	GetListFriend(ctx context.Context, filter string, user_id uint) ([]models.Friend, error)
-	GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.Friend, error)
+	GetListFriend(ctx context.Context, filter string, user_id uint) ([]models.User, error)
+	GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.User, error)
 	GetFriendship(ctx context.Context, user_id uint, target_id uint) (bool, error)
 	InsertFriendRequest(ctx context.Context, req *models.Friend) error
 	Update(ctx context.Context, id uint, req *models.User) error

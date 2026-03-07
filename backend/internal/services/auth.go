@@ -59,6 +59,7 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 	}
 
 	newUser := models.User{
+		Name:        req.Name,
 		Username:    req.Username,
 		Email:       req.Email,
 		Password:    hashedPassword,
@@ -177,11 +178,17 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 		return nil, errors.New("Failed to generate token")
 	}
 
+	var profilePicture string
+	if user.ProfilePicture != nil {
+		profilePicture = *user.ProfilePicture
+	}
+
 	response := dto.UserLoginResponse{
 		Username:       user.Username,
+		Name:           user.Name,
 		Email:          user.Email,
 		Bio:            user.Bio,
-		ProfilePicture: *user.ProfilePicture,
+		ProfilePicture: profilePicture,
 		AccessToken:    genToken.SignedAccessKey,
 		RefreshToken:   genToken.SignedRefreshKey,
 	}

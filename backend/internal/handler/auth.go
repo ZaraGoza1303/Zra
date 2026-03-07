@@ -44,6 +44,8 @@ func (h *authHandler) Register(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
+	user.Name = user.Username
+
 	errValidate := helper.Validate(user)
 	if errValidate != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", errValidate))

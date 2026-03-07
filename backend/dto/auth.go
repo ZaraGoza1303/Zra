@@ -5,6 +5,7 @@ import "time"
 type UserRegisterRequest struct {
 	Email           string `json:"email" validate:"required"`
 	Username        string `json:"username" validate:"required"`
+	Name            string `json:"name" validate:"required"`
 	Password        string `json:"password" validate:"required"`
 	ConfirmPassword string `json:"confirm_password" validate:"required"`
 }
@@ -28,6 +29,7 @@ type UserLoginRequest struct {
 
 type UserLoginResponse struct {
 	Username       string `json:"username"`
+	Name           string `json:"name"`
 	Email          string `json:"email"`
 	Bio            string `json:"bio"`
 	ProfilePicture string `json:"profile_picture"`

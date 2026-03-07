@@ -134,18 +134,18 @@ func (u *userServices) FindListFriend(ctx context.Context, filter string) ([]dto
 
 	for _, user := range users {
 		var profilePicture string
-		if user.Receiver.ProfilePicture != nil {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.Receiver.ProfilePicture)
+		if user.ProfilePicture != nil {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
 		} else {
 			profilePicture = ""
 		}
 
 		item := dto.UserResponse{
-			ID:             user.Receiver.ID,
-			Email:          user.Receiver.Email,
+			ID:             user.ID,
+			Email:          user.Email,
 			ProfilePicture: profilePicture,
-			Username:       user.Receiver.Username,
-			Name:           user.Receiver.Name,
+			Username:       user.Username,
+			Name:           user.Name,
 			CreatedAt:      user.CreatedAt,
 		}
 
@@ -171,18 +171,18 @@ func (u *userServices) FindListFriendRequest(ctx context.Context, filter string)
 
 	for _, user := range users {
 		var profilePicture string
-		if user.Sender.ProfilePicture != nil {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.Sender.ProfilePicture)
+		if user.ProfilePicture != nil {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
 		} else {
 			profilePicture = ""
 		}
 
 		item := dto.UserResponse{
-			ID:             user.Sender.ID,
-			Email:          user.Sender.Email,
+			ID:             user.ID,
+			Email:          user.Email,
 			ProfilePicture: profilePicture,
-			Username:       user.Sender.Username,
-			Name:           user.Sender.Name,
+			Username:       user.Username,
+			Name:           user.Name,
 			CreatedAt:      user.CreatedAt,
 		}
 
@@ -530,6 +530,8 @@ func (u *userServices) Unfriend(ctx context.Context, target_id uint) error {
 		return fmt.Errorf("user_id not found")
 	}
 
+	fmt.Printf("DEBUG: userId: %v, targetId: %v, ok: %v\n", userId, target_id, ok)
+
 	if userId == target_id {
 		return errors.New("You can't unfriend yourself")
 	}
@@ -551,7 +553,7 @@ func (u *userServices) Unfriend(ctx context.Context, target_id uint) error {
 		return errors.New("Not in Friendship!")
 	}
 
-	if err := u.UserRepositories.DeleteFriendship(ctx, target_id, userId); err != nil {
+	if err := u.UserRepositories.DeleteFriendship(ctx, userId, target_id); err != nil {
 		return err
 	}
 

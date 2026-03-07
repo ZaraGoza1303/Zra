@@ -15,7 +15,11 @@ type RoomRepositories interface {
 
 	GetByLink(ctx context.Context, room_link string) (*models.Room, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]models.RoomMember, error)
-	InsertRoomMembers(ctx context.Context, memmber *models.RoomMember) error
+	GetIdPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
+	GetMemberCount(ctx context.Context, room_id string) (int64, error)
+	GetLastMessages(ctx context.Context, roomIds []string) ([]models.Message, error)
+	InsertPrivateRoom(ctx context.Context, room *models.Room, user_id []uint) error
+	InsertRoomMembers(ctx context.Context, member *models.RoomMember) error
 	IsMember(ctx context.Context, room_id string, user_id uint) (bool, error)
 	IsAdmin(ctx context.Context, room_id string, user_id uint) (bool, error)
 	UpdateToAdmin(ctx context.Context, room_id string, user_id uint) error
@@ -35,6 +39,9 @@ type RoomServices interface {
 
 	FindRoomPreview(ctx context.Context, room_id string) (*dto.RoomResponse, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error)
+	GetMemberCount(ctx context.Context, room_id string) (int64, error)
+	GetPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
+	MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) error
 	TakeChatHistory(ctx context.Context, room_id string, limit int) ([]dto.Message, error)
 	JoinRoom(ctx context.Context, member *dto.RoomMemberRequest) error
 	MakeAdmin(ctx context.Context, room_id string, target_id uint) error
@@ -42,6 +49,7 @@ type RoomServices interface {
 	KickUser(ctx context.Context, room_id string, target_id uint) error
 
 	// Buat Websocket
+	GetActiveMemberCount(ctx context.Context, room_id string) (int64, error)
 	IsMember(room_id string, user_id uint) (bool, error)
 	SaveMessage(msg dto.Message) error
 }

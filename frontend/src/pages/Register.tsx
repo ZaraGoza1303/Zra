@@ -56,7 +56,7 @@ const IconInput = ({
 
 export default function Register() {
     const navigate = useNavigate();
-    const [name, setName] = React.useState('');
+    const [username, setUsername] = React.useState('');
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');
     const [confirmPassword, setConfirmPassword] = React.useState('');
@@ -73,14 +73,17 @@ export default function Register() {
         e.preventDefault();
         setError('');
         setValidationErrors({});
-        if (!name || !email || !password || !confirmPassword) { setError('Please fill in all fields'); return; }
+
+        if (!username || !email || !password || !confirmPassword) { setError('Please fill in all fields'); return; }
         if (password !== confirmPassword) { setError('Passwords do not match'); return; }
+        if (!isValidEmail(email)) { setError('Please enter a valid email address'); return; }
         setLoading(true);
+
         try {
             await apiCall('/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, email, password, confirm_password: confirmPassword }),
+                body: JSON.stringify({ username, email, password, confirm_password: confirmPassword }),
             });
             setIsOtpStep(true);
             setSuccess(true);
@@ -99,6 +102,19 @@ export default function Register() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const isValidEmail = (email: string) => {
+        // Harus ada @, domain minimal 2 karakter, TLD minimal 2 karakter (com, id, net, dll)
+        const regex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+        if (!regex.test(email)) return false;
+
+        // Blacklist TLD yang tidak valid / typo umum
+        const invalidTLDs = ['.co', '.c', '.om', '.cm'];
+        const lower = email.toLowerCase();
+        if (invalidTLDs.some(tld => lower.endsWith(tld))) return false;
+
+        return true;
     };
 
     const handleVerifyOtp = async (e: React.FormEvent) => {
@@ -158,18 +174,18 @@ export default function Register() {
                     <form onSubmit={handleSubmit}>
                         {/* Full Name */}
                         <div className="input-group">
-                            <label className="input-label">Full Name</label>
+                            <label className="input-label">Username</label>
                             <IconInput
                                 icon={<User size={18} />}
                                 type="text"
                                 placeholder="John Doe"
-                                value={name}
-                                onChange={setName}
-                                fieldError={getFieldError('name')}
+                                value={username}
+                                onChange={setUsername}
+                                fieldError={getFieldError('username')}
                             />
-                            {getFieldError('name') && (
+                            {getFieldError('username') && (
                                 <small style={{ color: 'var(--danger)', marginTop: '4px', display: 'block' }}>
-                                    {getFieldError('name')}
+                                    {getFieldError('username')}
                                 </small>
                             )}
                         </div>

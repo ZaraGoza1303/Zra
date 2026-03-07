@@ -1,6 +1,6 @@
 // Base URLs
 export const FRONTEND_URL = 'https://stylar-nonseverable-denver.ngrok-free.dev';
-export const BACKEND_URL = 'https://luke-warnings-controversial-phone.trycloudflare.com';
+export const BACKEND_URL = 'https://bunny-distinction-educated-novels.trycloudflare.com';
 
 // API Endpoints
 export const API_BASE_URL = `${BACKEND_URL}/api`;

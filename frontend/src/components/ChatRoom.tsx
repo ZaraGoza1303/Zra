@@ -3,14 +3,16 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
     Send, Users, ArrowLeft, LogOut, ShieldAlert,
     UserMinus, MoreVertical, Video, Phone, MoreHorizontal,
-    Smile, Plus, X, Pencil
+    Smile, Plus, X, Pencil,
+    User
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getUserImageUrl } from '../services/api';
 import { BACKEND_URL } from '../config';
 import type { Message, ChatRoomProps, RoomMember, RoomResponse } from '../types/chat';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage }: ChatRoomProps) {
+    const isPrivate = roomType === 'private';
     const { user, token } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -22,11 +24,20 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
     const [targetUserId, setTargetUserId] = useState<number | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [roomMembers, setRoomMembers] = useState<RoomMember[]>([]);
+    const [totalMemberCount, setTotalMemberCount] = useState<number | null>(null);
+    const [activeMemberCount, setActiveMemberCount] = useState<number | null>(null);
     const [fetchingMembers, setFetchingMembers] = useState(false);
 
     const [roomDetails, setRoomDetails] = useState<RoomResponse | null>(null);
     const [fetchingInfo, setFetchingInfo] = useState(false);
     const [fetchingHistory, setFetchingHistory] = useState(false);
+
+    const [privatePartner, setPrivatePartner] = useState<{
+        username: string;
+        name?: string;
+        user_bio?: string;
+        user_profile_picture?: string;
+    } | null>(null);
 
     // Check if current user is admin
     const isAdmin = roomMembers.some(m => m.user_id === user?.id && m.role === 'admin');
@@ -62,7 +73,16 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
             ws.current.onmessage = (event) => {
                 try {
                     const msg: Message = JSON.parse(event.data);
+                    console.log('msg.timestamp:', msg.time_stamp);
                     setMessages((prev) => [...prev, msg]);
+
+                    if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
+                        onNewMessage?.(roomId, {
+                            content: msg.content,
+                            username: msg.username,
+                            sent_at: msg.time_stamp,
+                        });
+                    }
                 } catch (e) {
                     console.error("Failed to parse message", e);
                 }
@@ -86,6 +106,24 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
             }
         };
     }, [roomId, user, token]);
+
+
+    useEffect(() => {
+        if (!roomId || isPrivate) return;
+        const fetchCounts = async () => {
+            try {
+                const [activeRes, totalRes] = await Promise.all([
+                    apiCall<{ data: number }>(`/room/${roomId}/active-members-count`, { method: 'GET' }),
+                    apiCall<{ data: number }>(`/room/${roomId}/all-members-count`, { method: 'GET' }),
+                ]);
+                setActiveMemberCount(activeRes.data);
+                setTotalMemberCount(totalRes.data);
+            } catch (e) {
+                console.error('Failed to fetch counts', e);
+            }
+        };
+        fetchCounts();
+    }, [roomId, isPrivate]);
 
     const sendMessage = (e: React.FormEvent) => {
         e.preventDefault();
@@ -129,6 +167,24 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
 
     const handleOpenInfoModal = async () => {
         setShowInfoModal(true);
+
+        if (isPrivate) {
+            // Fetch members untuk ambil info lawan bicara
+            setFetchingInfo(true);
+            try {
+                const resp = await apiCall<{ data: RoomMember[] }>(`/room/${roomId}/members`, { method: 'GET' });
+                const members = resp.data || [];
+                const partner = members.find(m => m.user_id !== user?.id);
+                if (partner) setPrivatePartner(partner);
+            } catch (e) {
+                console.error("Failed to fetch partner info", e);
+            } finally {
+                setFetchingInfo(false);
+            }
+            return; // stop di sini, tidak fetch room detail
+        }
+
+        // Group room logic yang sudah ada
         setFetchingInfo(true);
         setFetchingMembers(true);
         try {
@@ -186,8 +242,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
         messages.forEach((msg, idx) => {
             const isSystem = msg.type === 'join' || msg.type === 'leave' || msg.type === 'system';
 
-            if (!isSystem && msg.timestamp) {
-                const label = getDateLabel(msg.timestamp);
+            if (!isSystem && msg.time_stamp) {
+                const label = getDateLabel(msg.time_stamp);
                 if (label !== lastDateLabel) {
                     lastDateLabel = label;
                     elements.push(
@@ -215,16 +271,20 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
             elements.push(
                 <div key={msg.id || idx} className={`flex items-end gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     {/* Avatar for others */}
-                    {!isMe && (
+                    {!isMe && !isPrivate && (
                         <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1">
-                            <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
-                                {msg.username?.charAt(0).toUpperCase()}
-                            </div>
+                            {msg.profile_picture ? (
+                                <img src={getUserImageUrl(msg.profile_picture)} alt={msg.username} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                                    {msg.username?.charAt(0).toUpperCase()}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     <div className={`flex flex-col max-w-[65%] ${isMe ? 'items-end' : 'items-start'}`}>
-                        {!isMe && (
+                        {!isMe && !isPrivate && (
                             <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
                         )}
                         <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words
@@ -235,9 +295,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                         >
                             {msg.content}
                         </div>
-                        {msg.timestamp && (
+                        {msg.time_stamp && (
                             <span className="text-[10px] text-[#8b949e] mt-1 mx-1">
-                                {formatMsgTime(msg.timestamp)}
+                                {formatMsgTime(msg.time_stamp)}
                             </span>
                         )}
                     </div>
@@ -269,7 +329,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                             <img src={roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
                         ) : (
                             <div className="w-10 h-10 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
-                                <Users size={18} />
+                                {isPrivate ? <User size={18} /> : <Users size={18} />}
                             </div>
                         )}
                         <div>
@@ -277,9 +337,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                                 {roomName}
                             </h3>
                             <p className="text-[11px] text-[#8b949e] leading-tight">
-                                {roomMembers.length > 0
-                                    ? `${roomMembers.length} members • ${roomMembers.length} online`
-                                    : 'Click to view info'
+                                {isPrivate
+                                    ? 'Direct Message'
+                                    : totalMemberCount !== null
+                                        ? `${totalMemberCount} members • ${activeMemberCount ?? '?'} online`
+                                        : 'Click to view info'
                                 }
                             </p>
                         </div>
@@ -299,20 +361,25 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                     >
                         <Phone size={18} />
                     </button>
-                    <button
-                        onClick={handleOpenUsersModal}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
-                        title="Members"
-                    >
-                        <Users size={18} />
-                    </button>
-                    <button
-                        onClick={handleOpenInfoModal}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
-                        title="More"
-                    >
-                        <MoreHorizontal size={18} />
-                    </button>
+                    {!isPrivate && (
+
+                        <button
+                            onClick={handleOpenUsersModal}
+                            className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            title="Members"
+                        >
+                            <Users size={18} />
+                        </button>
+                    )}
+                    {!isPrivate && (
+                        <button
+                            onClick={handleOpenInfoModal}
+                            className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            title="More"
+                        >
+                            <MoreHorizontal size={18} />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -380,7 +447,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                         className="w-full max-w-[380px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
-                        {/* Modal Header Bar */}
                         <div className="flex justify-end p-4 border-b border-white/5">
                             <button
                                 onClick={() => setShowInfoModal(false)}
@@ -390,108 +456,155 @@ export default function ChatRoom({ roomId, roomName, roomPicture, onBack }: Chat
                             </button>
                         </div>
 
-                        {/* Room Icon & Info */}
-                        <div className="px-6 pb-5">
-                            <div className="w-16 h-16 rounded-2xl bg-[#1c2128] border border-white/5 flex items-center justify-center mb-4">
-                                {roomPicture ? (
-                                    <img src={roomPicture} alt={roomName} className="w-full h-full object-cover rounded-2xl" />
+                        {/* PRIVATE: tampilkan profil lawan bicara */}
+                        {isPrivate ? (
+                            <div className="px-6 py-5">
+                                {fetchingInfo ? (
+                                    <div className="flex items-center gap-2 text-[#8b949e] text-sm py-4">
+                                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                        Loading...
+                                    </div>
+                                ) : privatePartner ? (
+                                    <div className="flex flex-col items-center text-center gap-3">
+                                        {/* Avatar */}
+                                        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-white/10">
+                                            {privatePartner.user_profile_picture ? (
+                                                <img
+                                                    src={getUserImageUrl(privatePartner.user_profile_picture)}
+                                                    alt={privatePartner.username}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-2xl">
+                                                    <User size={32} />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Name & username */}
+                                        <div>
+                                            <h2 className="text-lg font-bold text-[#e6edf3]">
+                                                {privatePartner.username}
+                                            </h2>
+                                            <p className="text-xs text-[#8b949e] mt-0.5">@{privatePartner.username}</p>
+                                        </div>
+
+                                        {/* Bio */}
+                                        {privatePartner.user_bio ? (
+                                            <div className="w-full mt-1">
+                                                <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2 text-left">Bio</p>
+                                                <p className="text-sm text-[#cdd9f0] leading-relaxed text-left bg-[#0d1117] px-4 py-3 rounded-xl border border-white/5">
+                                                    {privatePartner.user_bio}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-[#8b949e] italic">No bio yet.</p>
+                                        )}
+                                    </div>
                                 ) : (
-                                    <Users size={28} className="text-[#8b949e]" />
+                                    <p className="text-sm text-[#8b949e] py-4 text-center">Failed to load profile.</p>
                                 )}
                             </div>
-
-                            {fetchingInfo ? (
-                                <div className="flex items-center gap-2 text-[#8b949e] text-sm py-4">
-                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                                    Loading...
-                                </div>
-                            ) : roomDetails ? (
-                                <>
-                                    <div className="flex items-start justify-between mb-1">
-                                        <h2 className="text-lg font-bold text-[#e6edf3]">{roomDetails.name}</h2>
-                                        <button className="text-[#8b949e] hover:text-[#e6edf3] transition-colors mt-0.5">
-                                            <Pencil size={14} />
-                                        </button>
+                        ) : (
+                            /* GROUP: tampilan info room yang sudah ada */
+                            <>
+                                <div className="px-6 pb-5">
+                                    <div className="w-16 h-16 rounded-2xl bg-[#1c2128] border border-white/5 flex items-center justify-center mb-4">
+                                        {roomPicture ? (
+                                            <img src={roomPicture} alt={roomName} className="w-full h-full object-cover rounded-2xl" />
+                                        ) : (
+                                            <Users size={28} className="text-[#8b949e]" />
+                                        )}
                                     </div>
-                                    <p className="text-xs text-[#8b949e] mb-4">
-                                        Created on {new Date(roomDetails.created_at || '').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                    </p>
 
-                                    {roomDetails.description && (
-                                        <div className="mb-4">
-                                            <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2">Description</p>
-                                            <p className="text-sm text-[#cdd9f0] leading-relaxed">{roomDetails.description}</p>
+                                    {fetchingInfo ? (
+                                        <div className="flex items-center gap-2 text-[#8b949e] text-sm py-4">
+                                            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                            Loading...
                                         </div>
-                                    )}
-
-                                    {roomDetails.room_link && (
-                                        <div className="mb-4">
-                                            <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2">Room Link</p>
-                                            <code className="text-xs bg-[#0d1117] border border-white/5 px-3 py-2 rounded-lg block break-all text-blue-400">
-                                                {roomDetails.room_link}
-                                            </code>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="text-sm text-[#8b949e] py-4">Failed to load room details.</p>
-                            )}
-                        </div>
-
-                        {/* Members Section */}
-                        {roomDetails && (
-                            <div className="px-6 pb-4 border-t border-white/5 pt-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase">
-                                        Members ({roomMembers.length || '—'})
-                                    </p>
-                                </div>
-                                {roomMembers.length > 0 ? (
-                                    <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto">
-                                        {roomMembers.map(member => (
-                                            <div key={member.user_id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg hover:bg-white/3 transition-colors">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-                                                        {member.user_profile_picture ? (
-                                                            <img src={getUserImageUrl(member.user_profile_picture)} alt={member.username} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
-                                                                {member.username?.charAt(0).toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <span className="text-sm text-[#e6edf3] font-medium truncate max-w-[160px]">
-                                                        {member.user_id === user?.id ? 'You' : member.username}
-                                                    </span>
-                                                </div>
-                                                <button className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
-                                                    <MoreVertical size={14} />
+                                    ) : roomDetails ? (
+                                        <>
+                                            <div className="flex items-start justify-between mb-1">
+                                                <h2 className="text-lg font-bold text-[#e6edf3]">{roomDetails.name}</h2>
+                                                <button className="text-[#8b949e] hover:text-[#e6edf3] transition-colors mt-0.5">
+                                                    <Pencil size={14} />
                                                 </button>
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : fetchingMembers ? (
-                                    <div className="flex items-center gap-2 text-[#8b949e] text-xs py-2">
-                                        <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin" />
-                                        Loading members...
-                                    </div>
-                                ) : (
-                                    <p className="text-xs text-[#8b949e] py-1">No members found.</p>
-                                )}
-                            </div>
-                        )}
+                                            <p className="text-xs text-[#8b949e] mb-4">
+                                                Created on {new Date(roomDetails.created_at || '').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                            </p>
+                                            {roomDetails.description && (
+                                                <div className="mb-4">
+                                                    <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2">Description</p>
+                                                    <p className="text-sm text-[#cdd9f0] leading-relaxed">{roomDetails.description}</p>
+                                                </div>
+                                            )}
+                                            {roomDetails.room_link && (
+                                                <div className="mb-4">
+                                                    <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-2">Room Link</p>
+                                                    <code className="text-xs bg-[#0d1117] border border-white/5 px-3 py-2 rounded-lg block break-all text-blue-400">
+                                                        {roomDetails.room_link}
+                                                    </code>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-[#8b949e] py-4">Failed to load room details.</p>
+                                    )}
+                                </div>
 
-                        {/* Leave Room Button */}
-                        <div className="p-4 border-t border-white/5">
-                            <button
-                                onClick={() => handleRoomAction('leave')}
-                                disabled={actionLoading}
-                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                            >
-                                <LogOut size={16} />
-                                Leave Room
-                            </button>
-                        </div>
+                                {roomDetails && (
+                                    <div className="px-6 pb-4 border-t border-white/5 pt-4">
+                                        <p className="text-[10px] font-semibold tracking-widest text-[#8b949e] uppercase mb-3">
+                                            Members ({roomMembers.length || '—'})
+                                        </p>
+                                        {roomMembers.length > 0 ? (
+                                            <div className="flex flex-col gap-1 max-h-[160px] overflow-y-auto">
+                                                {roomMembers.map(member => (
+                                                    <div key={member.user_id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg hover:bg-white/3 transition-colors">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                                                                {member.user_profile_picture ? (
+                                                                    <img src={getUserImageUrl(member.user_profile_picture)} alt={member.username} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
+                                                                        {member.username?.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-sm text-[#e6edf3] font-medium truncate max-w-[160px]">
+                                                                {member.user_id === user?.id ? 'You' : member.username}
+                                                            </span>
+                                                        </div>
+                                                        <button className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                                                            <MoreVertical size={14} />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : fetchingMembers ? (
+                                            <div className="flex items-center gap-2 text-[#8b949e] text-xs py-2">
+                                                <div className="w-3 h-3 border border-blue-600 border-t-transparent rounded-full animate-spin" />
+                                                Loading members...
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-[#8b949e] py-1">No members found.</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="p-4 border-t border-white/5">
+                                    <button
+                                        onClick={() => handleRoomAction('leave')}
+                                        disabled={actionLoading}
+                                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-red-400 border border-red-500/20 hover:bg-red-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                    >
+                                        <LogOut size={16} />
+                                        Leave Room
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

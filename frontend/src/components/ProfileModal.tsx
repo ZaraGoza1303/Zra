@@ -1,6 +1,6 @@
 // src/components/ProfileModal.tsx
 import React, { useState, useRef } from 'react';
-import { X, Camera, Lock, User as UserIcon, Eye, EyeOff } from 'lucide-react';
+import { X, Camera, Lock, User as UserIcon, Eye, EyeOff, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getUserImageUrl } from '../services/api';
 import type { ProfileModalProps, UserProfile } from '../types/chat';
@@ -10,6 +10,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
 
     const [name, setName] = useState(user?.name || '');
+    const [username] = useState(user?.username || '');
     const [bio, setBio] = useState(user?.bio || '');
     const [profilePicture, setProfilePicture] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string>(user?.profile_picture ? getUserImageUrl(user.profile_picture) : '');
@@ -191,7 +192,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                                             />
                                         ) : (
                                             <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-3xl">
-                                                {user?.name?.charAt(0).toUpperCase()}
+                                                <User size={36} />
                                             </div>
                                         )}
                                     </div>
@@ -209,6 +210,23 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                                     className="hidden"
                                 />
                             </div>
+
+                            {/* Username - Read Only */}
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">
+                                    Username
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={username}
+                                        disabled
+                                        className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#8b949e] text-sm cursor-not-allowed opacity-60"
+                                    />
+                                </div>
+                                <p className="text-[11px] text-[#8b949e]">Username cannot be changed</p>
+                            </div>
+
 
                             {/* Display Name */}
                             <div className="flex flex-col gap-1.5">

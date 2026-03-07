@@ -28,12 +28,12 @@ func NewUser(router fiber.Router, service core.UserServices, middleware fiber.Ha
 	route.Get("/user/list-friend", middleware, handler.FindListFriend)
 	route.Get("/user/list-friend-requests", middleware, handler.FindListFriendRequest)
 	route.Get("/user/:username", middleware, handler.FindByUsername)
-	route.Post("/user/make-friend-requests/:target-id", middleware, handler.MakeFriendRequest)
+	route.Post("/user/make-friend-requests/:target_id", middleware, handler.MakeFriendRequest)
 	route.Put("/user/:id", middleware, handler.Update)
-	route.Put("/user/accept-friend-requests/:target-id", middleware, handler.UpdateFriendRequest)
+	route.Put("/user/accept-friend-requests/:target_id", middleware, handler.UpdateFriendRequest)
 	route.Put("/user/change-password", middleware, handler.ChangePassword)
-	route.Delete("/user/reject-friend-requests/:target-id", middleware, handler.RejectFriendRequest)
-	route.Delete("/user/unfriend/:target-id", middleware, handler.Unfriend)
+	route.Delete("/user/reject-friend-requests/:target_id", middleware, handler.RejectFriendRequest)
+	route.Delete("/user/unfriend/:target_id", middleware, handler.Unfriend)
 }
 
 func (h *userHandler) FindAll(c *fiber.Ctx) error {
@@ -285,5 +285,5 @@ func (h *userHandler) Unfriend(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Unfriend Successfully", nil))
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Unfriend Succesfully", nil))
 }

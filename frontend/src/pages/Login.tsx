@@ -25,11 +25,7 @@ export default function Login() {
             return;
         }
 
-        const isGmail = email.toLowerCase().endsWith('@gmail.com');
-        if (!isGmail) {
-            setError('Hanya akun dengan format @gmail.com yang diizinkan');
-            return;
-        }
+        if (!isValidEmail(email)) { setError('Please enter a valid email address'); return; }
 
         setLoading(true);
         setError('');
@@ -51,6 +47,7 @@ export default function Login() {
                     loginState(resp.data.access_token, {
                         id: userId,
                         email: resp.data.email,
+                        username: resp.data.username,
                         name: resp.data.name,
                         bio: resp.data.bio || '',
                         profile_picture: resp.data.profile_picture,
@@ -68,6 +65,19 @@ export default function Login() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const isValidEmail = (email: string) => {
+        // Harus ada @, domain minimal 2 karakter, TLD minimal 2 karakter (com, id, net, dll)
+        const regex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+        if (!regex.test(email)) return false;
+
+        // Blacklist TLD yang tidak valid / typo umum
+        const invalidTLDs = ['.co', '.c', '.om', '.cm'];
+        const lower = email.toLowerCase();
+        if (invalidTLDs.some(tld => lower.endsWith(tld))) return false;
+
+        return true;
     };
 
     return (

@@ -50,6 +50,21 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 		return nil, err
 	}
 
+	roomIds := make([]string, len(rooms))
+	for i, room := range rooms {
+		roomIds[i] = room.ID
+	}
+
+	lastMsg, err := r.roomRepositories.GetLastMessages(ctx, roomIds)
+	if err != nil {
+		return nil, err
+	}
+
+	lastMsgMap := make(map[string]models.Message)
+	for _, msg := range lastMsg {
+		lastMsgMap[msg.RoomID] = msg
+	}
+
 	var response []dto.RoomResponse
 	for _, room := range rooms {
 		var picture string
@@ -65,8 +80,31 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 			Name:        room.Name,
 			Description: room.Description,
 			RoomLink:    roomLink,
+			Type:        room.Type,
 			CreatedAt:   room.CreatedAt,
 			UpdatedAt:   room.UpdatedAt,
+		}
+
+		if room.Type == "private" {
+			for _, m := range room.Members {
+				pfp := ""
+				if m.User.ProfilePicture != nil {
+					pfp = fmt.Sprintf("%s%s%s", r.backendUrl, r.usersPath, *m.User.ProfilePicture)
+				}
+				item.Members = append(item.Members, dto.RoomMemberResponse{
+					UserID:             m.UserID,
+					Username:           m.User.Username,
+					UserProfilePicture: pfp,
+				})
+			}
+		}
+
+		if msg, ok := lastMsgMap[room.ID]; ok {
+			item.LastMessage = dto.LastMessageInfo{
+				Content:  msg.Content,
+				Username: msg.Username,
+				SentAt:   msg.CreatedAt,
+			}
 		}
 
 		response = append(response, item)
@@ -112,6 +150,7 @@ func (r *roomServices) FindById(ctx context.Context, room_id string) (*dto.RoomR
 		Name:        room.Name,
 		Description: room.Description,
 		RoomLink:    roomLink,
+		Type:        room.Type,
 		CreatedAt:   room.CreatedAt,
 		UpdatedAt:   room.UpdatedAt,
 	}
@@ -142,6 +181,7 @@ func (r *roomServices) FindRoomPreview(ctx context.Context, room_link string) (*
 		Name:        room.Name,
 		Description: room.Description,
 		RoomLink:    roomLink,
+		Type:        room.Type,
 		CreatedAt:   room.CreatedAt,
 		UpdatedAt:   room.UpdatedAt,
 	}
@@ -149,7 +189,7 @@ func (r *roomServices) FindRoomPreview(ctx context.Context, room_link string) (*
 	return &response, nil
 }
 
-// CreateRoom implements [core.RoomServices].
+// m implements [core.RoomServices].
 func (r *roomServices) CreateRoom(ctx context.Context, room dto.RoomCreateRequest) error {
 	roomLink := uuid.New().String()
 
@@ -158,6 +198,7 @@ func (r *roomServices) CreateRoom(ctx context.Context, room dto.RoomCreateReques
 		OwnerID:   room.OwnerID,
 		Name:      room.Name,
 		RoomLink:  roomLink,
+		Type:      "group",
 		CreatedAt: time.Now(),
 	}
 
@@ -308,7 +349,7 @@ func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([
 		item := dto.RoomMemberResponse{
 			UserID:             room.UserID,
 			UserProfilePicture: userProfilePicture,
-			Username:           room.User.Name,
+			Username:           room.User.Username,
 			UserBio:            room.User.Bio,
 			Role:               room.Role,
 		}
@@ -317,6 +358,38 @@ func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([
 	}
 
 	return response, nil
+}
+
+// GetOrCreatePrivateRoom implements [core.RoomServices].
+func (r *roomServices) GetPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error) {
+	roomId, err := r.roomRepositories.GetIdPrivateRoom(ctx, user_id, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", fmt.Errorf("room not found")
+		}
+
+		return "", err
+	}
+
+	return roomId, nil
+}
+
+// MakePrivateRoom implements [core.RoomServices].
+func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) error {
+	userId := []uint{user_id, target_id}
+
+	newRoom := models.Room{
+		ID:        uuid.New().String(),
+		OwnerID:   user_id,
+		Type:      "private",
+		CreatedAt: time.Now(),
+	}
+
+	if err := r.roomRepositories.InsertPrivateRoom(ctx, &newRoom, userId); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // TakeChatHistory implements [core.RoomServices].
@@ -338,13 +411,14 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 
 	for _, msg := range messages {
 		item := dto.Message{
-			ID:        msg.ID,
-			RoomID:    msg.RoomID,
-			UserID:    msg.UserID,
-			Username:  msg.Username,
-			Content:   msg.Content,
-			Type:      msg.Type,
-			TimeStamp: msg.CreatedAt,
+			ID:             msg.ID,
+			RoomID:         msg.RoomID,
+			UserID:         msg.UserID,
+			Username:       msg.Username,
+			Content:        msg.Content,
+			ProfilePicture: msg.ProfilePicture,
+			Type:           msg.Type,
+			TimeStamp:      msg.CreatedAt,
 		}
 
 		msgResponse = append(msgResponse, item)
@@ -487,16 +561,53 @@ func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 	return nil
 }
 
+// GetActiveMemberCount implements [core.RoomServices].
+func (r *roomServices) GetActiveMemberCount(ctx context.Context, room_id string) (int64, error) {
+	_, err := r.roomRepositories.GetById(ctx, room_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("Room id not found: %w", err)
+		}
+		return 0, err
+	}
+
+	activeMember, err := r.hub.GetActiveMemberCount(room_id)
+	if err != nil {
+		return 0, err
+	}
+
+	return activeMember, nil
+}
+
+// GetMemberCount implements [core.RoomServices].
+func (r *roomServices) GetMemberCount(ctx context.Context, room_id string) (int64, error) {
+	_, err := r.roomRepositories.GetById(ctx, room_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("Room id not found: %w", err)
+		}
+		return 0, err
+	}
+
+	memberCount, err := r.roomRepositories.GetMemberCount(ctx, room_id)
+	if err != nil {
+		return 0, err
+	}
+
+	return memberCount, nil
+}
+
 // SaveMessage implements [core.RoomServices].
 func (r *roomServices) SaveMessage(msg dto.Message) error {
 	message := models.Message{
-		ID:        msg.ID,
-		RoomID:    msg.RoomID,
-		UserID:    msg.UserID,
-		Username:  msg.Username,
-		Content:   msg.Content,
-		Type:      msg.Type,
-		CreatedAt: time.Now(),
+		ID:             msg.ID,
+		RoomID:         msg.RoomID,
+		UserID:         msg.UserID,
+		Username:       msg.Username,
+		Content:        msg.Content,
+		ProfilePicture: msg.ProfilePicture,
+		Type:           msg.Type,
+		CreatedAt:      time.Now(),
 	}
 
 	if err := r.roomRepositories.SaveMessage(message); err != nil {

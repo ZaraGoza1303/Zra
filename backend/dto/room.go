@@ -1,6 +1,8 @@
 package dto
 
-import "time"
+import (
+	"time"
+)
 
 // type RoomBaseResponse[T any] struct {
 // 	Success bool   `json:"success"`
@@ -8,14 +10,17 @@ import "time"
 // }
 
 type RoomResponse struct {
-	ID          string    `json:"id"`
-	OwnerID     uint      `json:"owner_id"`
-	Picture     *string   `json:"picture"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description"`
-	RoomLink    string    `json:"room_link"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string               `json:"id"`
+	OwnerID     uint                 `json:"owner_id"`
+	Picture     *string              `json:"picture"`
+	Name        string               `json:"name"`
+	Description *string              `json:"description"`
+	RoomLink    string               `json:"room_link"`
+	Type        string               `json:"type"`
+	Members     []RoomMemberResponse `json:"members"`
+	CreatedAt   time.Time            `json:"created_at"`
+	UpdatedAt   time.Time            `json:"updated_at"`
+	LastMessage LastMessageInfo      `json:"last_message"`
 }
 
 type RoomCreateRequest struct {
@@ -30,4 +35,10 @@ type RoomUpdateRequest struct {
 	Picture     *string `json:"picture"`
 	Name        *string `form:"name" json:"name"`
 	Description *string `form:"description" json:"description"`
+}
+
+type LastMessageInfo struct {
+	Content  string    `json:"content"`
+	Username string    `json:"username"`
+	SentAt   time.Time `json:"sent_at"`
 }

@@ -5,16 +5,25 @@ export interface Message {
     room_id: string;
     user_id: number;
     username: string;
+    profile_picture?: string;
     type: string;
     content: string;
-    timestamp: string;
+    time_stamp: string;
+}
+
+export interface LastMessage {
+    content: string;
+    username: string;
+    sent_at: string;
 }
 
 export interface ChatRoomProps {
     roomId: string;
     roomName: string;
     roomPicture?: string;
+    roomType?: 'group' | 'private';
     onBack?: () => void;
+    onNewMessage?: (roomId: string, message: LastMessage) => void;
 }
 
 export interface RoomMember {
@@ -32,8 +41,18 @@ export interface Room {
     owner_id?: number;
     description?: string;
     room_link?: string;
+    type?: 'group' | 'private';
+    members?: RoomMemberResponse[];
     created_at?: string;
     updated_at?: string;
+    last_message?: LastMessage;
+}
+
+export interface RoomMemberResponse {
+    user_id: number;
+    user_profile_picture?: string;
+    username: string;
+    user_bio: string;
 }
 
 // Keeping RoomResponse and RoomDetail for now as aliases or updated versions of Room
@@ -44,6 +63,7 @@ export interface User {
     id: number;
     email: string;
     name: string;
+    username: string;
     bio: string;
     profile_picture?: string;
     refresh_token?: string;

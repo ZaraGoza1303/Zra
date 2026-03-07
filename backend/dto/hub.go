@@ -107,7 +107,7 @@ func (h *Hub) GetRoomMembers(room_id string) []uint {
 
 func (h *Hub) GetClientById(user_id uint) (*Client, bool) {
 	h.ClientMu.RLock()
-	defer h.ClientMu.Unlock()
+	defer h.ClientMu.RUnlock()
 
 	client, ok := h.Clients[user_id]
 	if !ok {
@@ -115,6 +115,25 @@ func (h *Hub) GetClientById(user_id uint) (*Client, bool) {
 	}
 
 	return client, true
+}
+
+func (h *Hub) GetActiveMemberCount(room_id string) (int64, error) {
+	h.RoomMu.RLock()
+	defer h.RoomMu.RUnlock()
+
+	room, ok := h.Rooms[room_id]
+	if !ok {
+		return 0, nil
+	}
+
+	var count int64
+	for _, isActive := range room {
+		if isActive {
+			count++
+		}
+	}
+
+	return count, nil
 }
 
 func GenerateId() string {

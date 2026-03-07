@@ -53,11 +53,12 @@ func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
 	}
 
 	client := dto.Client{
-		Conn:     c,
-		UserID:   userId,
-		Username: user.Name,
-		RoomID:   roomId,
-		Send:     make(chan dto.Message, 256),
+		Conn:           c,
+		UserID:         userId,
+		Username:       user.Name,
+		ProfilePicture: user.ProfilePicture,
+		RoomID:         roomId,
+		Send:           make(chan dto.Message, 256),
 	}
 
 	h.hub.Join <- &client
@@ -93,6 +94,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		msg.RoomID = client.RoomID
 		msg.UserID = client.UserID
 		msg.Username = client.Username
+		msg.ProfilePicture = client.ProfilePicture
 		msg.TimeStamp = time.Now()
 		msg.Type = "chat"
 
@@ -108,7 +110,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 }
 
 func (h *webSocketHandler) writePump(client *dto.Client) {
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(25 * time.Second)
 	defer func() {
 		ticker.Stop()
 		client.Conn.Close()

@@ -34,7 +34,7 @@ export default function JoinRoom() {
             }
         };
         loadRoom();
-    }, [roomId]);
+    }, [roomId]);  
 
     useEffect(() => {
         if (!room?.id) return;

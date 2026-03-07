@@ -65,14 +65,14 @@ func (u *userRepositories) GetByEmailAndProvider(ctx context.Context, email, pro
 }
 
 // GetListFriend implements [core.UserRepositories].
-func (u *userRepositories) GetListFriend(ctx context.Context, filter string, user_id uint) ([]models.Friend, error) {
-	var friendLists []models.Friend
+func (u *userRepositories) GetListFriend(ctx context.Context, filter string, user_id uint) ([]models.User, error) {
+	var friendLists []models.User
 
-	query := u.DB.WithContext(ctx).Model(&models.Friend{}).
-		Preload("Receiver").
-		Joins("JOIN users ON users.id = friends.friend_id").
-		Where("friends.user_id = ?", user_id).
-		Where("friends.status = ?", "accepted")
+	query := u.DB.WithContext(ctx).Model(&models.User{}).
+		Joins("JOIN friends ON (friends.user_id = users.id OR friends.friend_id = users.id)").
+		Where("(friends.user_id = ? OR friends.friend_id = ?)", user_id, user_id).
+		Where("friends.status = ?", "accepted").
+		Where("users.id != ?", user_id)
 
 	if filter != "" {
 		query = query.Where("users.username LIKE ?", filter+"%")
@@ -86,12 +86,11 @@ func (u *userRepositories) GetListFriend(ctx context.Context, filter string, use
 }
 
 // GetListFriendRequest implements [core.UserRepositories].
-func (u *userRepositories) GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.Friend, error) {
-	var friendRequests []models.Friend
+func (u *userRepositories) GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.User, error) {
+	var friendRequests []models.User
 
-	query := u.DB.WithContext(ctx).Model(&models.Friend{}).
-		Preload("Sender").
-		Joins("JOIN users ON users.id = friends.user_id").
+	query := u.DB.WithContext(ctx).Model(&models.User{}).
+		Joins("JOIN friends ON friends.user_id = users.id").
 		Where("friends.friend_id = ?", user_id).
 		Where("friends.status = ?", "pending")
 
@@ -256,7 +255,7 @@ func (u *userRepositories) DeleteFriendship(ctx context.Context, user_id uint, t
 // DeleteFriendRequest implements [core.UserRepositories].
 func (u *userRepositories) DeleteFriendRequest(ctx context.Context, user_id uint, target_id uint) error {
 	result := u.DB.WithContext(ctx).
-		Where("user_id = ? AND friend_id = ?", user_id, target_id).
+		Where("user_id = ? AND friend_id = ? AND status = ?", user_id, target_id, "pending").
 		Delete(&models.Friend{})
 
 	if result.Error != nil {

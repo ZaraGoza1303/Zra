@@ -2,21 +2,24 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
-    Settings, Home, Users, Bell, X
+    Settings, Home, Users, Bell, X,
+    User
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiCall, getRoomImageUrl, getUserImageUrl } from '../services/api';
 import ChatRoom from '../components/ChatRoom';
+import ContactsPanel from '../components/contacts/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
 import type { Room } from '../types/chat';
 
-type NavItem = 'home' | 'chats' | 'contacts' | 'settings';
+type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
 export default function Dashboard() {
     const { user, logoutState } = useAuth();
     const [rooms, setRooms] = useState<Room[]>([]);
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+    const [dmRoom, setDmRoom] = useState<{ id: string; name: string; picture?: string } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -28,7 +31,7 @@ export default function Dashboard() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const [activeNav, setActiveNav] = useState<NavItem>('chats');
+    const [activeNav, setActiveNav] = useState<NavItem>('home');
 
     useEffect(() => {
         const roomIdToOpen = searchParams.get('open');
@@ -44,7 +47,15 @@ export default function Dashboard() {
     const fetchRooms = async () => {
         try {
             const res = await apiCall<{ data: Room[] }>(`/room?search=${searchTerm}`, { method: 'GET' });
-            setRooms(res.data || []);
+            const allRooms = res.data || [];
+
+            if (activeNav === 'home') {
+                setRooms(allRooms);
+            } else if (activeNav === 'rooms') {
+                setRooms(allRooms.filter(r => r.type === 'group'));
+            } else if (activeNav === 'chats') {
+                setRooms(allRooms.filter(r => r.type === 'private'));
+            }
         } catch (err) {
             console.error('Failed to fetch rooms', err);
         }
@@ -52,7 +63,7 @@ export default function Dashboard() {
 
     useEffect(() => {
         fetchRooms();
-    }, [searchTerm]);
+    }, [searchTerm, activeNav]);
 
     const handleLogout = async () => {
         try {
@@ -70,7 +81,7 @@ export default function Dashboard() {
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newRoomName.trim()) return;
+        if (!newRoomName.trim() || !newRoomDescription.trim()) return;
         setCreating(true);
         try {
             const formData = new FormData();
@@ -94,6 +105,25 @@ export default function Dashboard() {
         }
     };
 
+    const handleOpenDM = (roomId: string, targetName: string, targetPicture?: string) => {
+        setSelectedRoom(null)
+        setDmRoom({ id: roomId, name: targetName, picture: targetPicture });
+        setActiveNav('chats'); // switch ke tab chats
+    };
+
+    const getRoomDisplayInfo = (room: Room): { name: string; picture: string | null } => {
+        if (room.type !== 'private') {
+            return { name: room.name, picture: room.picture };
+        }
+        // Untuk private room, cari member yang bukan kita
+        const otherMember = room.members?.find(m => m.user_id !== user?.id);
+        return {
+            name: otherMember?.username || 'Direct Message',
+            picture: otherMember?.user_profile_picture || null,  // sudah full URL dari BE
+        };
+    };
+
+
     const formatTime = (dateStr?: string) => {
         if (!dateStr) return '';
         const d = new Date(dateStr);
@@ -108,6 +138,7 @@ export default function Dashboard() {
 
     const navItems: { key: NavItem; icon: React.ReactNode; label: string }[] = [
         { key: 'home', icon: <Home size={20} />, label: 'Home' },
+        { key: 'rooms', icon: <Users size={20} />, label: 'Rooms' },
         { key: 'chats', icon: <MessageSquare size={20} />, label: 'Chats' },
         { key: 'contacts', icon: <Users size={20} />, label: 'Contacts' },
         { key: 'settings', icon: <Settings size={20} />, label: 'Settings' },
@@ -119,7 +150,10 @@ export default function Dashboard() {
             {/* NARROW ICON SIDEBAR */}
             <div className="flex flex-col items-center py-5 px-2 gap-2 w-16 min-w-[64px] bg-[#0d1117] border-r border-white/5 z-10">
                 {/* Logo */}
-                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30">
+                <div
+                    onClick={() => setActiveNav('home')}
+                    className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30 cursor-pointer hover:bg-blue-700 transition-colors"
+                >
                     <MessageSquare size={18} className="text-white" />
                 </div>
 
@@ -164,123 +198,149 @@ export default function Dashboard() {
                         />
                     ) : (
                         <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm">
-                            {user?.name?.charAt(0).toUpperCase()}
+                            <User size={18} />
                         </div>
                     )}
                 </button>
             </div>
 
+            <ContactsPanel
+                isVisible={activeNav === 'contacts'}
+                onOpenDM={handleOpenDM}
+            />
+
             {/* ROOM LIST PANEL */}
-            <div className="flex flex-col w-[300px] min-w-[260px] bg-[#111318] border-r border-white/5">
-                {/* Panel Header */}
-                <div className="flex items-center justify-between px-5 pt-6 pb-4">
-                    <h1 className="text-xl font-bold text-[#e6edf3]">Chats</h1>
-                    <div className="flex gap-1">
-                        <button
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
-                            title="Notifications"
-                        >
-                            <Bell size={16} />
-                        </button>
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/30"
-                            title="New Room"
-                        >
-                            <Plus size={16} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Search */}
-                <div className="px-4 pb-3">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[#1c2128] rounded-xl border border-white/5">
-                        <Search size={14} className="text-[#8b949e] shrink-0" />
-                        <input
-                            type="text"
-                            placeholder="Search conversations..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="bg-transparent border-none text-sm text-[#e6edf3] placeholder-[#8b949e] outline-none w-full"
-                        />
-                    </div>
-                </div>
-
-                {/* Room List */}
-                <div className="flex-1 overflow-y-auto px-2">
-                    {rooms.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-[#8b949e] text-sm gap-2">
-                            <MessageSquare size={28} className="opacity-30" />
-                            <span>No rooms found. Create one!</span>
-                        </div>
-                    ) : (
-                        rooms.map(room => (
+            {activeNav !== 'contacts' && activeNav !== "settings" && (
+                <div className="flex flex-col w-[300px] min-w-[260px] bg-[#111318] border-r border-white/5">
+                    {/* Panel Header */}
+                    <div className="flex items-center justify-between px-5 pt-6 pb-4">
+                        <h1 className="text-xl font-bold text-[#e6edf3]">
+                            {activeNav === 'home' ? 'Home' : activeNav === 'rooms' ? 'Rooms' : 'Messages'}
+                        </h1>
+                        <div className="flex gap-1">
                             <button
-                                key={room.id}
-                                onClick={() => setSelectedRoom(room)}
-                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-left mb-0.5
-                                    ${selectedRoom?.id === room.id
-                                        ? 'bg-blue-600/15 border border-blue-600/20'
-                                        : 'hover:bg-white/4 border border-transparent'
-                                    }`}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                                title="Notifications"
                             >
-                                {/* Avatar */}
-                                <div className="relative shrink-0">
-                                    {room.picture ? (
-                                        <img
-                                            src={getRoomImageUrl(room.picture)}
-                                            alt={room.name}
-                                            className="w-12 h-12 rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="w-12 h-12 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
-                                            <Users size={20} />
-                                        </div>
-                                    )}
-                                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
-                                </div>
-
-                                {/* Info */}
-                                <div className="flex-1 overflow-hidden">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="font-medium text-sm text-[#e6edf3] truncate">
-                                            {room.name}
-                                        </span>
-                                        <span className="text-[10px] text-[#8b949e] shrink-0">
-                                            {formatTime(room.updated_at)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between mt-0.5">
-                                        <span className="text-xs text-[#8b949e] truncate">
-                                            {room.description || 'Tap to join chat'}
-                                        </span>
-                                    </div>
-                                </div>
+                                <Bell size={16} />
                             </button>
-                        ))
-                    )}
-                </div>
+                            {activeNav === 'rooms' && (
+                                <button
+                                    onClick={() => setIsModalOpen(true)}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/30"
+                                    title="New Room"
+                                >
+                                    <Plus size={16} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
 
-                {/* Logout at bottom */}
-                <div className="p-3 border-t border-white/5">
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[#8b949e] hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 text-sm font-medium"
-                    >
-                        <LogOut size={16} />
-                        <span>Logout</span>
-                    </button>
+                    {/* Search */}
+                    <div className="px-4 pb-3">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-[#1c2128] rounded-xl border border-white/5">
+                            <Search size={14} className="text-[#8b949e] shrink-0" />
+                            <input
+                                type="text"
+                                placeholder="Search conversations..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                className="bg-transparent border-none text-sm text-[#e6edf3] placeholder-[#8b949e] outline-none w-full"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Room List */}
+                    <div className="flex-1 overflow-y-auto px-2">
+                        {rooms.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-40 text-[#8b949e] text-sm gap-2">
+                                <MessageSquare size={28} className="opacity-30" />
+                                {activeNav === "home" ? <span>No rooms found. Create one!</span> : <span>No chats found. Start a conversation!</span>}
+                            </div>
+                        ) : (
+                            rooms.map(room => {
+                                const display = getRoomDisplayInfo(room);
+                                return (
+                                    <button
+                                        key={room.id}
+                                        onClick={() => { setSelectedRoom(room); setDmRoom(null); }}
+                                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-left mb-0.5
+                ${selectedRoom?.id === room.id
+                                                ? 'bg-blue-600/15 border border-blue-600/20'
+                                                : 'hover:bg-white/4 border border-transparent'
+                                            }`}
+                                    >
+                                        <div className="relative shrink-0">
+                                            {display.picture ? (
+                                                <img
+                                                    src={display.picture}
+                                                    alt={display.name}
+                                                    className="w-12 h-12 rounded-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
+                                                    {room.type === 'private' ? <User size={20} /> : <Users size={20} />}
+                                                </div>
+                                            )}
+                                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
+                                        </div>
+
+                                        <div className="flex-1 overflow-hidden">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="font-medium text-sm text-[#e6edf3] truncate">
+                                                    {display.name}
+                                                </span>
+                                                <span className="text-[10px] text-[#8b949e] shrink-0">
+                                                    {formatTime(room.last_message?.sent_at || room.updated_at)}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between mt-0.5">
+                                                <span className="text-xs text-[#8b949e] truncate flex items-center gap-1">
+                                                    {room.last_message
+                                                        ? `${room.last_message.username}: ${room.last_message.content}`
+                                                        : (room.type === 'private' ? 'No messages yet' : room.description || 'Tap to join chat')
+                                                    }
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Logout at bottom */}
+                    <div className="p-3 border-t border-white/5">
+                        <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[#8b949e] hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 text-sm font-medium"
+                        >
+                            <LogOut size={16} />
+                            <span>Logout</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* CHAT AREA */}
             <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117]">
-                {selectedRoom ? (
+                {selectedRoom || dmRoom ? (
                     <ChatRoom
-                        roomId={selectedRoom.id}
-                        roomName={selectedRoom.name}
-                        roomPicture={getRoomImageUrl(selectedRoom.picture)}
-                        onBack={() => setSelectedRoom(null)}
+                        roomId={dmRoom ? dmRoom.id : selectedRoom!.id}
+                        roomName={dmRoom ? dmRoom.name : getRoomDisplayInfo(selectedRoom!).name}
+                        roomPicture={dmRoom
+                            ? (dmRoom.picture ? getUserImageUrl(dmRoom.picture) : undefined)
+                            : (getRoomDisplayInfo(selectedRoom!).picture || undefined)
+                        }
+                        roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
+                        onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
+                        onNewMessage={(roomId, message) => {
+                            setRooms(prev => prev.map(r =>
+                                r.id === roomId
+                                    ? { ...r, last_message: message }
+                                    : r
+                            ));
+                        }}
                     />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-[#8b949e] text-center gap-4">
@@ -387,7 +447,7 @@ export default function Dashboard() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={creating || !newRoomName.trim()}
+                                    disabled={creating || !newRoomName.trim() || !newRoomDescription.trim()}
                                     className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-600/20"
                                 >
                                     {creating ? 'Creating...' : 'Create Room'}

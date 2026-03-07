@@ -21,13 +21,17 @@ type roomHandler struct {
 func NewRoom(router fiber.Router, roomService core.RoomServices, middleware fiber.Handler) {
 	handler := roomHandler{roomServices: roomService}
 	router.Get("/api/room/:room_link/preview", handler.FindRoomPreview)
+	router.Get("/api/room/:id/active-members-count", handler.GetActiveMemberCount)
+	router.Get("/api/room/:id/all-members-count", handler.GetMemberCount)
 
 	route := router.Group("/api", middleware)
 	route.Get("/room", handler.FindAll)
 	route.Get("/room/:id", handler.FindById)
 	route.Get("/room/:id/members", handler.GetAllRoomMember)
 	route.Get("/room/:id/history", handler.TakeChatHistory)
+	route.Get("/room/:id/private", handler.GetPrivateRoom)
 	route.Post("/room", handler.CreateRoom)
+	route.Post("/room/:id/private", handler.MakePrivateRoom)
 	route.Post("room/:id/join", handler.JoinRoom)
 	route.Put("/room/:id", handler.UpdateRoom)
 	route.Put("/room/:id/to-admin", handler.MakeAdmin)
@@ -50,7 +54,6 @@ func (h *roomHandler) FindAll(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Data", rooms))
-
 }
 
 func (h *roomHandler) FindById(c *fiber.Ctx) error {
@@ -131,7 +134,41 @@ func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room Created", nil))
+}
 
+func (h *roomHandler) GetPrivateRoom(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id").(uint)
+	targetId, err := helper.GetParams(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	roomId, err := h.roomServices.GetPrivateRoom(ctx, userId, targetId)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Private Room ID Found", roomId))
+}
+
+func (h *roomHandler) MakePrivateRoom(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id").(uint)
+	targetId, err := helper.GetParams(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.roomServices.MakePrivateRoom(ctx, userId, targetId); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room private created", nil))
 }
 
 func (h *roomHandler) UpdateRoom(c *fiber.Ctx) error {
@@ -246,7 +283,32 @@ func (h *roomHandler) GetAllRoomMember(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing all members in room", members))
+}
 
+func (h *roomHandler) GetActiveMemberCount(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	roomId := c.Params("id")
+	memberCount, err := h.roomServices.GetActiveMemberCount(ctx, roomId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing result count", memberCount))
+}
+
+func (h *roomHandler) GetMemberCount(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	roomId := c.Params("id")
+	memberCount, err := h.roomServices.GetMemberCount(ctx, roomId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing result count", memberCount))
 }
 
 func (h *roomHandler) JoinRoom(c *fiber.Ctx) error {
@@ -327,5 +389,4 @@ func (h *roomHandler) TakeChatHistory(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Messages", messages))
-
 }
