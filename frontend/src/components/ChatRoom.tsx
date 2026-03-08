@@ -1,7 +1,7 @@
 // src/components/ChatRoom.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiCall, getUserImageUrl } from '../services/api';
+import { apiCall } from '../services/api';
 import { BACKEND_URL } from '../config';
 import ChatHeader from './chatroom/ChatHeader';
 import MessageList from './chatroom/MessageList';
@@ -9,7 +9,7 @@ import MessageInput from './chatroom/MessageInput';
 import RoomInfoSidebar from './chatroom/RoomInfoSidebar';
 import PreviewPictureModal from './chatroom/PreviewPictureModal';
 import MembersModal from './chatroom/MembersModal';
-import type { Message, ChatRoomProps, RoomMember, RoomResponse } from '../types/chat';
+import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } from '../types/chat';
 
 export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
@@ -18,6 +18,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const [input, setInput] = useState('');
     const ws = useRef<WebSocket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
 
     const [showUsersModal, setShowUsersModal] = useState(false);
     const [showInfoModal, setShowInfoModal] = useState(false);
@@ -31,6 +35,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const [roomDetails, setRoomDetails] = useState<RoomResponse | null>(null);
     const [fetchingInfo, setFetchingInfo] = useState(false);
     const [fetchingHistory, setFetchingHistory] = useState(false);
+
+    const [friendsList, setFriendsList] = useState<UserProfile[]>([]);
+    const [addingMember, setAddingMember] = useState(false);
 
     // Edit states
     const [editingName, setEditingName] = useState(false);
@@ -51,24 +58,61 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     // Check if current user is admin
     const isAdmin = roomMembers.some(m => m.user_id === user?.id && m.role === 'admin');
 
+    const handleScroll = async (e: React.UIEvent<HTMLDivElement>) => {
+        const container = e.currentTarget;
+        if (container.scrollTop === 0 && hasMore && !loadingMore) {
+            const oldestMsg = messages[0];
+            if (!oldestMsg?.time_stamp) return;
+
+            const prevScrollHeight = container.scrollHeight;
+
+            await fetchChatHistory(oldestMsg.time_stamp);
+
+            // Restore scroll position setelah messages prepend
+            requestAnimationFrame(() => {
+                if (messagesContainerRef.current) {
+                    messagesContainerRef.current.scrollTop =
+                        messagesContainerRef.current.scrollHeight - prevScrollHeight;
+                }
+            });
+        }
+    };
+
+    const fetchChatHistory = async (lastTimestamp?: string) => {
+        if (lastTimestamp) {
+            setLoadingMore(true);
+        } else {
+            setFetchingHistory(true);
+        }
+        try {
+            const url = lastTimestamp
+                ? `/room/${roomId}/history?limit=20&last_timestamp=${encodeURIComponent(lastTimestamp)}`
+                : `/room/${roomId}/history?limit=20`;
+
+            const resp = await apiCall<{ data: Message[] }>(url, { method: 'GET' });
+            const newMessages = resp.data || [];
+
+            if (lastTimestamp) {
+                setMessages(prev => [...newMessages, ...prev]); // prepend
+            } else {
+                setMessages(newMessages);
+            }
+
+            setHasMore(newMessages.length === 20); // kalau kurang dari limit, berarti sudah habis
+        } catch (e) {
+            console.error("Failed to fetch chat history", e);
+        } finally {
+            setFetchingHistory(false);
+            setLoadingMore(false);
+        }
+    };
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     useEffect(() => {
         if (!roomId || !user || !token) return;
-
-        const fetchChatHistory = async () => {
-            setFetchingHistory(true);
-            try {
-                const resp = await apiCall<{ data: Message[] }>(`/room/${roomId}/history`, { method: 'GET' });
-                setMessages(resp.data || []);
-            } catch (e) {
-                console.error("Failed to fetch chat history", e);
-            } finally {
-                setFetchingHistory(false);
-            }
-        };
 
         const connectWs = () => {
             const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
@@ -221,8 +265,30 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             } finally {
                 setFetchingInfo(false);
             }
+
             return; // stop di sini, tidak fetch room detail
         }
+
+        // Group room
+        setFetchingInfo(true);
+        setFetchingMembers(true);
+        try {
+            const [infoResp] = await Promise.all([
+                apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' }),
+                fetchRoomMembers(),
+            ]);
+            setRoomDetails(infoResp.data);
+
+            // ← pindah ke sini
+            const friendsResp = await apiCall<{ data: UserProfile[] }>(`/user/list-friend`, { method: 'GET' });
+            setFriendsList(friendsResp.data || []);
+        } catch (e) {
+            console.error("Failed to fetch room info", e);
+        } finally {
+            setFetchingInfo(false);
+            setFetchingMembers(false);
+        }
+
 
         // Group room logic yang sudah ada
         setFetchingInfo(true);
@@ -257,95 +323,20 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setFetchingMembers(false);
     };
 
-    // Group messages by date for date separators
-    const getDateLabel = (timestamp: string) => {
-        const d = new Date(timestamp);
-        const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        if (d.toDateString() === today.toDateString()) return 'TODAY';
-        if (d.toDateString() === yesterday.toDateString()) return 'YESTERDAY';
-        return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
-    };
-
-    const formatMsgTime = (timestamp: string) => {
-        const d = new Date(timestamp);
-        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    };
-
-    // Build message list with date separators
-    const renderMessages = () => {
-        const elements: React.ReactNode[] = [];
-        let lastDateLabel = '';
-
-        messages.forEach((msg, idx) => {
-            const isSystem = msg.type === 'join' || msg.type === 'leave' || msg.type === 'system';
-
-            if (!isSystem && msg.time_stamp) {
-                const label = getDateLabel(msg.time_stamp);
-                if (label !== lastDateLabel) {
-                    lastDateLabel = label;
-                    elements.push(
-                        <div key={`sep-${idx}`} className="flex items-center justify-center my-3">
-                            <span className="px-4 py-1 text-[10px] font-semibold tracking-widest text-[#8b949e] bg-[#161b22] rounded-full border border-white/5">
-                                {label}
-                            </span>
-                        </div>
-                    );
-                }
-            }
-
-            if (isSystem) {
-                elements.push(
-                    <div key={msg.id || idx} className="flex justify-center my-1">
-                        <span className="px-4 py-1.5 rounded-full text-xs text-[#8b949e] bg-white/5">
-                            {msg.content}
-                        </span>
-                    </div>
-                );
-                return;
-            }
-
-            const isMe = msg.user_id === user?.id;
-            elements.push(
-                <div key={msg.id || idx} className={`flex items-end gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                    {/* Avatar for others */}
-                    {!isMe && !isPrivate && (
-                        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-1">
-                            {msg.profile_picture ? (
-                                <img src={getUserImageUrl(msg.profile_picture)} alt={msg.username} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white font-bold text-xs">
-                                    {msg.username?.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div className={`flex flex-col max-w-[65%] ${isMe ? 'items-end' : 'items-start'}`}>
-                        {!isMe && !isPrivate && (
-                            <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
-                        )}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words
-                            ${isMe
-                                ? 'bg-[#1d3a6e] text-[#cdd9f0] rounded-br-sm'
-                                : 'bg-[#1c2128] text-[#e6edf3] rounded-bl-sm border border-white/5'
-                            }`}
-                        >
-                            {msg.content}
-                        </div>
-                        {msg.time_stamp && (
-                            <span className="text-[10px] text-[#8b949e] mt-1 mx-1">
-                                {formatMsgTime(msg.time_stamp)}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            );
-        });
-
-        return elements;
+    const handleAddMember = async (userId: number) => {
+        setAddingMember(true);
+        try {
+            await apiCall(`/room/${roomId}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId })
+            });
+            await fetchRoomMembers();
+        } catch (e: any) {
+            alert(`Failed to add member: ${e.message}`);
+        } finally {
+            setAddingMember(false);
+        }
     };
 
     return (
@@ -370,6 +361,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     isPrivate={isPrivate}
                     fetchingHistory={fetchingHistory}
                     messagesEndRef={messagesEndRef}
+                    messagesContainerRef={messagesContainerRef}
+                    onScroll={handleScroll}
+                    loadingMore={loadingMore}
                 />
 
                 <MessageInput
@@ -410,6 +404,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     handleRoomAction={handleRoomAction}
                     onClose={() => setShowInfoModal(false)}
                     editLoading={editLoading}
+                    friendsList={friendsList}
+                    addingMember={addingMember}
+                    onAddMember={handleAddMember}
                 />
             )}
 

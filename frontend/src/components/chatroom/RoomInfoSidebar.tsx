@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, User, Users, Pencil, UserPlus, Bell, Star, AlertTriangle, LogOut } from 'lucide-react';
 import { getUserImageUrl } from '../../services/api';
-import type { RoomMember, RoomResponse } from '../../types/chat';
+import type { RoomMember, RoomResponse, UserProfile } from '../../types/chat';
 
 interface RoomInfoSidebarProps {
     roomId: string;
@@ -22,7 +22,7 @@ interface RoomInfoSidebarProps {
     editingDesc: boolean;
     editName: string;
     editDesc: string;
-    pictureInputRef: React.RefObject<HTMLInputElement>;
+    pictureInputRef: React.RefObject<HTMLInputElement | null>;
     setPreviewPicture: (data: { file: File; url: string }) => void;
     setEditingName: (val: boolean) => void;
     setEditingDesc: (val: boolean) => void;
@@ -32,6 +32,9 @@ interface RoomInfoSidebarProps {
     handleRoomAction: (action: 'leave' | 'kick' | 'admin') => Promise<void>;
     onClose: () => void;
     editLoading: boolean;
+    friendsList: UserProfile[];
+    addingMember: boolean;
+    onAddMember: (userId: number) => Promise<void>;
 }
 
 export default function RoomInfoSidebar({
@@ -61,8 +64,12 @@ export default function RoomInfoSidebar({
     handleUpdateRoom,
     handleRoomAction,
     onClose,
-    editLoading
+    editLoading,
+    friendsList,
+    addingMember,
+    onAddMember
 }: RoomInfoSidebarProps) {
+    const [showAddMember, setShowAddMember] = useState(false);
     return (
         <div className="w-[340px] shrink-0 bg-[#161b22] border-l border-[#21262d] flex flex-col h-full overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[#21262d] shrink-0">
@@ -255,7 +262,7 @@ export default function RoomInfoSidebar({
                                                         <img src={getUserImageUrl(member.user_profile_picture)} alt={member.username} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full bg-[#2a3441] flex items-center justify-center text-[#cdd9f0] font-bold text-[15px]">
-                                                            {member.username?.charAt(0).toUpperCase()}
+                                                            <User size={18} strokeWidth={2} />
                                                         </div>
                                                     )}
                                                 </div>
@@ -278,9 +285,80 @@ export default function RoomInfoSidebar({
                             })}
                         </div>
 
-                        <button className="mt-6 w-full py-2.5 rounded-xl border border-dashed border-white/15 text-[#8b949e] text-[14px] font-medium flex items-center justify-center gap-2 hover:bg-white/5 hover:text-[#e6edf3] hover:border-white/30 transition-all">
+                        <button
+                            onClick={() => setShowAddMember(true)}
+                            className="mt-6 w-full py-2.5 rounded-xl border border-dashed border-white/15 text-[#8b949e] text-[14px] font-medium flex items-center justify-center gap-2 hover:bg-white/5 hover:text-[#e6edf3] hover:border-white/30 transition-all"
+                        >
                             <UserPlus size={18} /> Add Member
                         </button>
+
+
+                        {/* Add Member Modal */}
+                        {showAddMember && (
+                            <div
+                                className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+                                onClick={() => setShowAddMember(false)}
+                            >
+                                <div
+                                    className="w-full max-w-[360px] bg-[#161b22] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                                        <h3 className="text-sm font-semibold text-[#e6edf3]">Add Member</h3>
+                                        <button onClick={() => setShowAddMember(false)} className="text-[#8b949e] hover:text-[#e6edf3]">
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+
+                                    {/* Friends List */}
+                                    <div className="max-h-[360px] overflow-y-auto p-3">
+                                        {friendsList.length === 0 ? (
+                                            <div className="text-center py-8 text-[#8b949e] text-sm">
+                                                No friends to add.
+                                            </div>
+                                        ) : friendsList
+                                            .filter(f => !roomMembers.some(m => m.user_id === f.id)) // filter yang sudah member
+                                            .map(friend => (
+                                                <div
+                                                    key={friend.id}
+                                                    className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2a3441] flex items-center justify-center shrink-0">
+                                                            {friend.profile_picture ? (
+                                                                <img src={getUserImageUrl(friend.profile_picture)} alt={friend.name} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span className="text-[#cdd9f0] font-bold text-sm">
+                                                                    <User size={18} strokeWidth={2} />
+                                                                </span>
+                                                            )}
+
+                                                        </div>
+                                                        <span className="text-sm font-medium text-[#e6edf3]">{friend.name}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            await onAddMember(friend.id);
+                                                            // kalau sukses hide friend dari list
+                                                        }}
+                                                        disabled={addingMember}
+                                                        className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                                    >
+                                                        Add
+                                                    </button>
+                                                </div>
+                                            ))
+                                        }
+                                        {friendsList.length > 0 && friendsList.filter(f => !roomMembers.some(m => m.user_id === f.id)).length === 0 && (
+                                            <div className="text-center py-8 text-[#8b949e] text-sm">
+                                                All friends are already members.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Shared Media Placeholders */}

@@ -296,9 +296,9 @@ export default function Dashboard() {
                                             </div>
                                             <div className="flex items-center justify-between mt-0.5">
                                                 <span className="text-xs text-[#8b949e] truncate flex items-center gap-1">
-                                                    {room.last_message
+                                                    {room.last_message?.content
                                                         ? `${room.last_message.username}: ${room.last_message.content}`
-                                                        : (room.type === 'private' ? 'No messages yet' : room.description || 'Tap to join chat')
+                                                        : (room.type === 'private' ? 'No messages yet' : 'Tap to join chat')
                                                     }
                                                 </span>
                                             </div>

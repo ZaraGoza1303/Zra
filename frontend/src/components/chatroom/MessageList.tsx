@@ -9,6 +9,9 @@ interface MessageListProps {
     isPrivate: boolean;
     fetchingHistory: boolean;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
+    messagesContainerRef: React.RefObject<HTMLDivElement | null>;
+    onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
+    loadingMore: boolean;
 }
 
 export default function MessageList({
@@ -16,7 +19,10 @@ export default function MessageList({
     user,
     isPrivate,
     fetchingHistory,
-    messagesEndRef
+    messagesEndRef,
+    messagesContainerRef,
+    onScroll,
+    loadingMore
 }: MessageListProps) {
     // Group messages by date for date separators
     const getDateLabel = (timestamp: string) => {
@@ -109,7 +115,16 @@ export default function MessageList({
     };
 
     return (
-        <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3">
+        <div
+            ref={messagesContainerRef}
+            onScroll={onScroll}
+            className="flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3"
+        >
+            {loadingMore && (
+                <div className="flex justify-center py-2">
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+            )}
             {fetchingHistory ? (
                 <div className="m-auto flex flex-col items-center gap-3 text-[#8b949e]">
                     <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
