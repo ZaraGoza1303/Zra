@@ -4,6 +4,7 @@ import (
 	"chatapp/dto"
 	"chatapp/internal/models"
 	"context"
+	"time"
 )
 
 type RoomRepositories interface {
@@ -27,7 +28,7 @@ type RoomRepositories interface {
 
 	// Buat Websocket
 	SaveMessage(msg models.Message) error
-	GetChatHistory(ctx context.Context, room_id string, limit int) ([]models.Message, error)
+	GetChatHistory(ctx context.Context, room_id string, limit int, lastTime time.Time) ([]models.Message, error)
 }
 
 type RoomServices interface {
@@ -42,7 +43,7 @@ type RoomServices interface {
 	GetMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
 	MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) error
-	TakeChatHistory(ctx context.Context, room_id string, limit int) ([]dto.Message, error)
+	TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error)
 	JoinRoom(ctx context.Context, member *dto.RoomMemberRequest) error
 	MakeAdmin(ctx context.Context, room_id string, target_id uint) error
 	LeaveRoom(ctx context.Context, room_id string) error

@@ -100,8 +100,14 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 		}
 
 		if msg, ok := lastMsgMap[room.ID]; ok {
+			decryptedContent, err := helper.Decrypt(msg.Content)
+			if err != nil {
+				log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
+				decryptedContent = "Failed to load messages..."
+			}
+
 			item.LastMessage = dto.LastMessageInfo{
-				Content:  msg.Content,
+				Content:  decryptedContent,
 				Username: msg.Username,
 				SentAt:   msg.CreatedAt,
 			}
@@ -393,7 +399,7 @@ func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target
 }
 
 // TakeChatHistory implements [core.RoomServices].
-func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limit int) ([]dto.Message, error) {
+func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error) {
 	_, err := r.roomRepositories.GetById(ctx, room_id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -402,7 +408,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 		return nil, err
 	}
 
-	messages, err := r.roomRepositories.GetChatHistory(ctx, room_id, limit)
+	messages, err := r.roomRepositories.GetChatHistory(ctx, room_id, limit, lastTimeStamp)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +419,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 		decryptedContent, err := helper.Decrypt(msg.Content)
 		if err != nil {
 			log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
-			decryptedContent = "[Gagal memuat pesan]"
+			decryptedContent = "Failed to load messages..."
 		}
 
 		item := dto.Message{

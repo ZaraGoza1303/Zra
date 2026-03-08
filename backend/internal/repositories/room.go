@@ -4,6 +4,7 @@ import (
 	"chatapp/core"
 	"chatapp/internal/models"
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -27,7 +28,7 @@ func (r *roomRepositories) GetAll(ctx context.Context, filter string, user_id ui
 	query = query.Preload("Members").
 		Preload("Members.User").
 		Joins("INNER JOIN room_members ON room_members.room_id = rooms.id").
-		Joins("INNER JOIN messages ON messages.room_id = rooms.id").
+		Joins("LEFT JOIN messages ON messages.room_id = rooms.id").
 		Group("rooms.id").
 		Order("MAX(messages.created_at) DESC").
 		Where("room_members.user_id = ?", user_id)
@@ -302,11 +303,16 @@ func (r *roomRepositories) GetLastMessages(ctx context.Context, roomIds []string
 }
 
 // GetChatHistory implements [core.RoomRepositories].
-func (r *roomRepositories) GetChatHistory(ctx context.Context, room_id string, limit int) ([]models.Message, error) {
+func (r *roomRepositories) GetChatHistory(ctx context.Context, room_id string, limit int, lastTimeTstamp time.Time) ([]models.Message, error) {
 	var messages []models.Message
 
-	result := r.DB.WithContext(ctx).Where("room_id = ?", room_id).Order("created_at asc").Limit(limit).
-		Find(&messages)
+	query := r.DB.WithContext(ctx).Where("room_id = ?", room_id).Order("created_at asc").Limit(limit)
+
+	if !lastTimeTstamp.IsZero() {
+		query = query.Where("created_at < ?", lastTimeTstamp)
+	}
+
+	result := query.Find(&messages)
 
 	if result.Error != nil {
 		return nil, result.Error

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -379,8 +380,18 @@ func (h *roomHandler) TakeChatHistory(c *fiber.Ctx) error {
 
 	roomId := c.Params("id")
 	takeLimit := 20
+	timeStr := c.Params("last_timestamp")
 
-	messages, err := h.roomServices.TakeChatHistory(ctx, roomId, takeLimit)
+	var lastTimeStamp time.Time
+	if timeStr != "" {
+		t, err := time.Parse(time.RFC3339, timeStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Format waktu salah"})
+		}
+		lastTimeStamp = t
+	}
+
+	messages, err := h.roomServices.TakeChatHistory(ctx, roomId, takeLimit, lastTimeStamp)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
