@@ -3,6 +3,7 @@ package handler
 import (
 	"chatapp/core"
 	"chatapp/dto"
+	"chatapp/internal/helper"
 	"log"
 	"time"
 
@@ -101,7 +102,16 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		h.hub.Broadcast <- msg
 
 		go func(m dto.Message) {
-			err := h.roomService.SaveMessage(m)
+			encryptedContent, err := helper.Encrypt(m.Content)
+			if err != nil {
+				log.Printf("Gagal enkripsi: %v", err)
+				return
+			}
+
+			dbMsg := m
+			dbMsg.Content = encryptedContent
+
+			err = h.roomService.SaveMessage(dbMsg)
 			if err != nil {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
 			}

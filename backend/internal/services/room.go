@@ -407,15 +407,21 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 		return nil, err
 	}
 
-	var msgResponse []dto.Message
+	msgResponse := make([]dto.Message, 0, len(messages))
 
 	for _, msg := range messages {
+		decryptedContent, err := helper.Decrypt(msg.Content)
+		if err != nil {
+			log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
+			decryptedContent = "[Gagal memuat pesan]"
+		}
+
 		item := dto.Message{
 			ID:             msg.ID,
 			RoomID:         msg.RoomID,
 			UserID:         msg.UserID,
 			Username:       msg.Username,
-			Content:        msg.Content,
+			Content:        decryptedContent,
 			ProfilePicture: msg.ProfilePicture,
 			Type:           msg.Type,
 			TimeStamp:      msg.CreatedAt,
