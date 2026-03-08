@@ -9,6 +9,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import JoinRoom from './pages/JoinRoom';
 import ResetPassword from './pages/ResetPassword';
+import Toast from './components/Toast';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = useAuthStore((state) => state.token);
@@ -145,6 +146,7 @@ function App() {
 
   return (
     <Router>
+      <Toast />
       <Routes>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />

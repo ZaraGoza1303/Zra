@@ -4,6 +4,7 @@ import { X, Camera, Lock, User as UserIcon, Eye, EyeOff, User } from 'lucide-rea
 import { useAuthStore } from '../store/authStore';
 import { apiCall, getUserImageUrl } from '../services/api';
 import type { ProfileModalProps, UserProfile } from '../types/chat';
+import { useToastStore } from '../store/toastStore';
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const { user, loginState } = useAuthStore();
@@ -27,6 +28,8 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const [success, setSuccess] = useState('');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const { showToast } = useToastStore();
 
     if (!isOpen) return null;
 
@@ -62,10 +65,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     profile_picture: response.data.profile_picture || user.profile_picture,
                 });
             }
-            setSuccess('Profile updated successfully!');
+            showToast('Profile updated successfully!');
             setTimeout(() => { setSuccess(''); onClose(); }, 1500);
         } catch (err: any) {
-            setError(err.message || 'Failed to update profile');
+            showToast(err.message || 'Failed to update profile', 'error');
         } finally {
             setLoading(false);
         }
@@ -82,11 +85,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ old_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword }),
             });
-            setSuccess('Password changed successfully!');
+            showToast('Password changed successfully!');
             setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
             setTimeout(() => { setSuccess(''); onClose(); }, 1500);
         } catch (err: any) {
-            setError(err.message || 'Failed to change password');
+            showToast(err.message || 'Failed to change password', 'error');
         } finally {
             setLoading(false);
         }

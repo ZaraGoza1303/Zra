@@ -13,6 +13,7 @@ import ContactsPanel from '../components/contacts/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
 import type { Room } from '../types/chat';
+import { BACKEND_URL } from '../config';
 
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
@@ -34,6 +35,69 @@ export default function Dashboard() {
     const [newRoomDescription, setNewRoomDescription] = React.useState('');
     const [newRoomImage, setNewRoomImage] = React.useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const globalWs = useRef<WebSocket | null>(null);
+    const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { token } = useAuthStore();
+
+
+    const connectGlobalWs = React.useCallback(() => {
+        if (!token) return;
+
+        const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+        const ws = new WebSocket(`${wsBaseUrl}/ws/global?token=${token}`);
+        globalWs.current = ws;
+
+        ws.onopen = () => {
+            console.log('Global WS connected');
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'chat') {
+                    const { selectedRoom, dmRoom, rooms, setRooms } = useDashboardStore.getState();
+                    const isActiveRoom = selectedRoom?.id === msg.room_id || dmRoom?.id === msg.room_id;
+                    setRooms(rooms.map((r: Room) =>
+                        r.id === msg.room_id
+                            ? {
+                                ...r,
+                                last_message: {
+                                    content: msg.content,
+                                    username: msg.username,
+                                    sent_at: msg.time_stamp,
+                                },
+                                unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1
+                            }
+                            : r
+                    ));
+                }
+            } catch (e) {
+                console.error('Global WS error:', e);
+            }
+        };
+
+        ws.onclose = () => {
+            if (globalWs.current !== ws) return;
+            console.log('Global WS disconnected, reconnecting in 3s...');
+            reconnectTimeout.current = setTimeout(() => {
+                connectGlobalWs();
+            }, 3000);
+        };
+
+        ws.onerror = (err) => {
+            console.error('Global WS error:', err);
+            ws.close(); // trigger onclose → reconnect
+        };
+    }, [token]);
+
+    useEffect(() => {
+        connectGlobalWs();
+        return () => {
+            reconnectTimeout.current && clearTimeout(reconnectTimeout.current);
+            globalWs.current?.close();
+        };
+    }, [connectGlobalWs]);
 
     useEffect(() => {
         const roomIdToOpen = searchParams.get('open');
@@ -283,7 +347,15 @@ export default function Dashboard() {
                                                     {room.type === 'private' ? <User size={20} /> : <Users size={20} />}
                                                 </div>
                                             )}
-                                            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
+
+                                            {/* Badge unread */}
+                                            {room.unread_message && room.unread_message > 0 ? (
+                                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#111318]">
+                                                    {room.unread_message > 99 ? '99+' : room.unread_message}
+                                                </span>
+                                            ) : (
+                                                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
+                                            )}
                                         </div>
 
                                         <div className="flex-1 overflow-hidden">
@@ -335,10 +407,17 @@ export default function Dashboard() {
                         }
                         roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
                         onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
-                        onNewMessage={(roomId, message) => {
-                            setRooms(rooms.map(r =>
-                                r.id === roomId
-                                    ? { ...r, last_message: message }
+                        onNewMessage={(msgRoomId, message) => {
+                            const { selectedRoom, dmRoom, rooms, setRooms } = useDashboardStore.getState();
+                            const isActiveRoom = selectedRoom?.id === msgRoomId || dmRoom?.id === msgRoomId;
+
+                            setRooms(rooms.map((r: Room) =>
+                                r.id === msgRoomId
+                                    ? {
+                                        ...r,
+                                        last_message: message,
+                                        unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1
+                                    }
                                     : r
                             ));
                         }}

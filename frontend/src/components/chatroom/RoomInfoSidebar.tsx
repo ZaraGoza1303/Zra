@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, User, Users, Pencil, UserPlus, Bell, Star, AlertTriangle, LogOut } from 'lucide-react';
+import { X, User, Users, Pencil, UserPlus, Bell, Star, AlertTriangle, LogOut, Copy } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
+import { useToastStore } from '../../store/toastStore';
 
 
 interface RoomInfoSidebarProps {
@@ -49,6 +50,7 @@ export default function RoomInfoSidebar({
     } = useChatStore();
 
     const isPrivate = roomDetails?.type === 'private' || !totalMemberCount;
+    const { showToast } = useToastStore();
 
     return (
         <div className="w-[340px] shrink-0 bg-[#161b22] border-l border-[#21262d] flex flex-col h-full overflow-y-auto">
@@ -369,6 +371,27 @@ export default function RoomInfoSidebar({
                             <div className="flex-1 aspect-square rounded-[14px] bg-[#21262d] flex items-center justify-center text-[#8b949e] text-[13px] font-medium border border-white/5 hover:bg-[#2a3038] cursor-pointer transition-colors">
                                 +12
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Room Link */}
+                    <div className="flex flex-col p-6 border-b border-[#21262d] shrink-0">
+                        <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase mb-4">Room Link</h3>
+                        <div className="flex items-center gap-2">
+                            <div className="flex-1 px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-xl text-[13px] text-[#8b949e] truncate">
+                                {roomDetails?.room_link || '-'}
+                            </div>
+                            <button
+                                onClick={() => {
+                                    if (roomDetails?.room_link) {
+                                        navigator.clipboard.writeText(roomDetails.room_link);
+                                        showToast('Room link copied!');
+                                    }
+                                }}
+                                className="w-10 h-10 shrink-0 rounded-xl bg-blue-600 hover:bg-blue-700 flex items-center justify-center transition-colors"
+                            >
+                                <Copy size={16} className="text-white" />
+                            </button>
                         </div>
                     </div>
 

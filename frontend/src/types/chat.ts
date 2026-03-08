@@ -46,6 +46,7 @@ export interface Room {
     created_at?: string;
     updated_at?: string;
     last_message?: LastMessage;
+    unread_message?: number;
 }
 
 export interface RoomMemberResponse {

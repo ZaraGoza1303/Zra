@@ -12,6 +12,7 @@ import PreviewPictureModal from './chatroom/PreviewPictureModal';
 import MembersModal from './chatroom/MembersModal';
 import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } from '../types/chat';
 import { useDashboardStore } from '../store/dashboardStore';
+import { useToastStore } from '../store/toastStore';
 
 export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
@@ -45,6 +46,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const pictureInputRef = useRef<HTMLInputElement>(null);
+
+    const { showToast } = useToastStore();
 
     // Check if current user is admin
     const isAdmin = roomMembers.some(m => m.user_id === user?.id && m.role === 'admin');
@@ -120,7 +123,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             ws.current.onmessage = (event) => {
                 try {
                     const msg: Message = JSON.parse(event.data);
-                    console.log('msg.timestamp:', msg.time_stamp);
                     setMessages((prev) => [...prev, msg]);
 
                     if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
@@ -169,8 +171,22 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 console.error('Failed to fetch counts', e);
             }
         };
+
         fetchCounts();
     }, [roomId, isPrivate, setActiveMemberCount, setTotalMemberCount]);
+
+    useEffect(() => {
+        if (!roomId) return;
+        const markAsRead = async () => {
+            try {
+                await apiCall(`/room/${roomId}/read`, { method: 'PUT' });
+                updateRoom(roomId, { unread_message: 0 });
+            } catch (e) {
+                console.error('Failed to mark as read', e);
+            }
+        };
+        markAsRead();
+    }, [roomId]);
 
     const sendMessage = (e: React.FormEvent) => {
         e.preventDefault();
@@ -189,18 +205,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         try {
             if (action === 'leave') {
                 await apiCall(`/room/${roomId}/leave`, { method: 'DELETE' });
-                alert('Successfully left the room!');
+                showToast('Successfully left the room!');
                 onBack?.();
             } else if (action === 'kick') {
-                if (targetUserId === null) return alert('Please select a user to kick.');
+                if (targetUserId === null) return showToast('Please select a user to kick.', 'error');
                 await apiCall(`/room/${roomId}/kick?user_id=${targetUserId}`, { method: 'DELETE' });
-                alert('User kicked successfully!');
+                showToast('User kicked successfully!');
                 setTargetUserId(null);
                 await fetchRoomMembers();
             } else if (action === 'admin') {
-                if (targetUserId === null) return alert('Please select a user to make admin.');
+                if (targetUserId === null) return showToast('Please select a user to make admin.', 'error');
                 await apiCall(`/room/${roomId}/to-admin?user_id=${targetUserId}`, { method: 'PUT' });
-                alert('User is now an admin!');
+                showToast('User is now an admin!');
                 setTargetUserId(null);
                 await fetchRoomMembers();
             }
@@ -227,20 +243,23 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 setRoomDetails(roomDetails ? { ...roomDetails, name: value as string } : roomDetails);
                 setEditingName(false);
                 updateRoom(roomId, { name: value as string });
+                showToast('Room name updated successfully!');
             }
             if (field === 'description') {
                 setRoomDetails(roomDetails ? { ...roomDetails, description: value as string } : roomDetails);
                 setEditingDesc(false);
                 updateRoom(roomId, { description: value as string });
+                showToast('Room description updated successfully!');
             }
             if (field === 'picture') {
                 // refetch room details biar gambar baru muncul
                 const infoResp = await apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' });
                 setRoomDetails(infoResp.data);
                 updateRoom(roomId, { picture: infoResp.data.picture });
+                showToast('Room picture updated successfully!');
             }
         } catch (e: any) {
-            alert(`Update failed: ${e.message}`);
+            showToast(`Update failed: ${e.message}`, 'error');
         } finally {
             setEditLoading(false);
         }
@@ -305,14 +324,13 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         const { setAddingMember } = useChatStore.getState();
         setAddingMember(true);
         try {
-            await apiCall(`/room/${roomId}/join`, {
+            await apiCall(`/room/${roomId}/add-member?target_id=${userId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId })
             });
+            showToast('Member added successfully!');
             await fetchRoomMembers();
         } catch (e: any) {
-            alert(`Failed to add member: ${e.message}`);
+            showToast(`Failed to add member: ${e.message}`, 'error');
         } finally {
             setAddingMember(false);
         }

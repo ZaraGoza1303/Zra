@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, Users, Clock, X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Search, Users, Clock, X, Loader2 } from 'lucide-react';
 import { apiCall } from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
 import UserDetailDrawer from './UserDetailDrawer';
@@ -7,6 +7,7 @@ import SearchUserCard from './cards/SearchUserCard';
 import RequestCard from './cards/RequestCard';
 import FriendCard from './cards/FriendCard';
 import type { SearchedUser, FriendRequest, ActiveTab, FriendAction, ContactsPanelProps } from '../../types/contacts';
+import { useToastStore } from '../../store/toastStore';
 
 export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProps) {
     const { user } = useAuthStore();
@@ -20,14 +21,10 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
     const [searching, setSearching] = useState(false);
     const [actionLoading, setActionLoading] = useState<number | null>(null);
     const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
-    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [requestsLoaded, setRequestsLoaded] = useState(false);
     const [friendsLoaded, setFriendsLoaded] = useState(false);
 
-    const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 3000);
-    };
+    const { showToast } = useToastStore();
 
     useEffect(() => {
         if (activeTab !== 'search' || !searchQuery.trim()) { setSearchResults([]); return; }
@@ -87,7 +84,7 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
             setFriendRequests(prev => prev.filter(u => u.id !== targetId));
             setFriendsLoaded(false);
             if (selectedUser?.id === targetId) setSelectedUser(prev => prev ? { ...prev, friendship_status: 'friend' } : null);
-            showToast('Friend request accepted! 🎉');
+            showToast('Friend request accepted!');
         } catch (err: any) { showToast(err.message || 'Failed to accept', 'error'); }
         finally { setActionLoading(null); }
     };
@@ -167,14 +164,6 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
 
     return (
         <div className="relative flex flex-col w-[300px] min-w-[260px] bg-[#111318] border-r border-white/5 overflow-hidden">
-            {toast && (
-                <div className={`absolute top-3 left-3 right-3 z-50 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium shadow-lg
-                    ${toast.type === 'success' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'}`}>
-                    {toast.type === 'success' ? <CheckCircle size={15} /> : <XCircle size={15} />}
-                    {toast.msg}
-                </div>
-            )}
-
             {selectedUser && (
                 <UserDetailDrawer
                     user={selectedUser}

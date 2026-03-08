@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Smile, Send } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
 
 interface MessageInputProps {
     sendMessage: (e: React.FormEvent) => void;
@@ -8,6 +10,23 @@ interface MessageInputProps {
 
 export default function MessageInput({ sendMessage }: MessageInputProps) {
     const { input, setInput } = useChatStore();
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const pickerRef = useRef<HTMLDivElement>(null);
+
+    // Tutup picker kalau klik di luar
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleEmojiSelect = (emoji: any) => {
+        setInput(input + emoji.native);
+    };
 
     return (
         <div className="px-5 py-4 bg-[#0d1117] shrink-0">
@@ -27,12 +46,27 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
                         onChange={e => setInput(e.target.value)}
                         className="flex-1 bg-transparent border-none text-[15px] text-[#e6edf3] placeholder-[#8b949e] outline-none"
                     />
-                    <button
-                        type="button"
-                        className="text-[#8b949e] hover:text-[#e6edf3] transition-colors shrink-0"
-                    >
-                        <Smile size={20} />
-                    </button>
+                    <div className="relative" ref={pickerRef}>
+                        <button
+                            type="button"
+                            onClick={() => setShowEmojiPicker(prev => !prev)}
+                            className="text-[#8b949e] hover:text-[#e6edf3] transition-colors shrink-0"
+                        >
+                            <Smile size={20} />
+                        </button>
+
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-10 right-0 z-50">
+                                <Picker
+                                    data={data}
+                                    onEmojiSelect={handleEmojiSelect}
+                                    theme="dark"
+                                    previewPosition="none"
+                                    skinTonePosition="none"
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <button
