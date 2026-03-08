@@ -100,7 +100,7 @@ func main() {
 	authService := services.NewAuth(authRepository, userRepository, userService)
 
 	roomRepository := repositories.NewRoom(db)
-	roomService := services.NewRoomServices(hub, roomRepository)
+	roomService := services.NewRoomServices(hub, roomRepository, userRepository)
 
 	handler.NewAuth(app, authService, userService, jwtWare)
 	handler.NewUser(app, userService, jwtWare)

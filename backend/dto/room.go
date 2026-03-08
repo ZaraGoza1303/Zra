@@ -10,17 +10,18 @@ import (
 // }
 
 type RoomResponse struct {
-	ID          string               `json:"id"`
-	OwnerID     uint                 `json:"owner_id"`
-	Picture     *string              `json:"picture"`
-	Name        string               `json:"name"`
-	Description *string              `json:"description"`
-	RoomLink    string               `json:"room_link"`
-	Type        string               `json:"type"`
-	Members     []RoomMemberResponse `json:"members"`
-	CreatedAt   time.Time            `json:"created_at"`
-	UpdatedAt   time.Time            `json:"updated_at"`
-	LastMessage LastMessageInfo      `json:"last_message"`
+	ID            string               `json:"id"`
+	OwnerID       uint                 `json:"owner_id"`
+	Picture       *string              `json:"picture"`
+	Name          string               `json:"name"`
+	Description   *string              `json:"description"`
+	RoomLink      string               `json:"room_link"`
+	Type          string               `json:"type"`
+	Members       []RoomMemberResponse `json:"members"`
+	CreatedAt     time.Time            `json:"created_at"`
+	UpdatedAt     time.Time            `json:"updated_at"`
+	LastMessage   LastMessageInfo      `json:"last_message"`
+	UnreadMessage int64                `json:"unread_message"`
 }
 
 type RoomCreateRequest struct {

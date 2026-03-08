@@ -7,22 +7,24 @@ import (
 )
 
 type Hub struct {
-	Clients   map[uint]*Client
-	Rooms     map[string]map[*Client]bool
-	Broadcast chan Message
-	Join      chan *Client
-	Leave     chan *Client
-	RoomMu    sync.RWMutex
-	ClientMu  sync.RWMutex
+	Clients       map[uint]*Client
+	GlobalClients map[uint]*Client
+	Rooms         map[string]map[*Client]bool
+	Broadcast     chan Message
+	Join          chan *Client
+	Leave         chan *Client
+	RoomMu        sync.RWMutex
+	ClientMu      sync.RWMutex
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		Clients:   make(map[uint]*Client),
-		Rooms:     make(map[string]map[*Client]bool),
-		Broadcast: make(chan Message, 256),
-		Join:      make(chan *Client, 256),
-		Leave:     make(chan *Client, 256),
+		Clients:       make(map[uint]*Client),
+		GlobalClients: make(map[uint]*Client),
+		Rooms:         make(map[string]map[*Client]bool),
+		Broadcast:     make(chan Message, 256),
+		Join:          make(chan *Client, 256),
+		Leave:         make(chan *Client, 256),
 	}
 }
 
@@ -44,7 +46,11 @@ func (h *Hub) Run() {
 
 func (h *Hub) handleJoin(client *Client) {
 	h.ClientMu.Lock()
-	h.Clients[client.UserID] = client
+	if client.RoomID == "global" {
+		h.GlobalClients[client.UserID] = client
+	} else {
+		h.Clients[client.UserID] = client
+	}
 	h.ClientMu.Unlock()
 
 	h.RoomMu.Lock()
@@ -59,7 +65,11 @@ func (h *Hub) handleJoin(client *Client) {
 
 func (h *Hub) handleLeave(client *Client) {
 	h.ClientMu.Lock()
-	delete(h.Clients, client.UserID)
+	if client.RoomID == "global" {
+		delete(h.GlobalClients, client.UserID)
+	} else {
+		delete(h.Clients, client.UserID)
+	}
 	h.ClientMu.Unlock()
 
 	h.RoomMu.Lock()
@@ -86,6 +96,18 @@ func (h *Hub) handleBroadcast(message Message) {
 		case client.Send <- message:
 		default:
 			h.Leave <- client
+		}
+	}
+}
+
+func (h *Hub) SendGlobalClient(user_id uint, msg Message) {
+	h.ClientMu.RLock()
+	client, ok := h.GlobalClients[user_id]
+	h.ClientMu.RUnlock()
+	if ok {
+		select {
+		case client.Send <- msg:
+		default:
 		}
 	}
 }

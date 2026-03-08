@@ -19,6 +19,7 @@ import (
 type roomServices struct {
 	hub              *dto.Hub
 	roomRepositories core.RoomRepositories
+	userRepositories core.UserRepositories
 	frontendUrl      string
 	backendUrl       string
 	frontendJoinUrl  string
@@ -26,10 +27,11 @@ type roomServices struct {
 	usersPath        string
 }
 
-func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories) core.RoomServices {
+func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories) core.RoomServices {
 	return &roomServices{
 		hub:              hub,
 		roomRepositories: roomRepo,
+		userRepositories: userRepo,
 		frontendUrl:      os.Getenv("FRONTEND_URL"),
 		backendUrl:       os.Getenv("BACKEND_URL"),
 		frontendJoinUrl:  os.Getenv("FRONTEND_JOIN_URL"),
@@ -74,15 +76,21 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 
 		roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
 
+		unreadMessage, err := r.roomRepositories.GetUnreadMessagesCount(ctx, room.ID, userId)
+		if err != nil {
+			return nil, err
+		}
+
 		item := dto.RoomResponse{
-			ID:          room.ID,
-			Picture:     &picture,
-			Name:        room.Name,
-			Description: room.Description,
-			RoomLink:    roomLink,
-			Type:        room.Type,
-			CreatedAt:   room.CreatedAt,
-			UpdatedAt:   room.UpdatedAt,
+			ID:            room.ID,
+			Picture:       &picture,
+			Name:          room.Name,
+			Description:   room.Description,
+			RoomLink:      roomLink,
+			Type:          room.Type,
+			CreatedAt:     room.CreatedAt,
+			UpdatedAt:     room.UpdatedAt,
+			UnreadMessage: unreadMessage,
 		}
 
 		if room.Type == "private" {
@@ -456,31 +464,136 @@ func (r *roomServices) KickUser(ctx context.Context, room_id string, target_id u
 		return fmt.Errorf("you cannot kick yourself")
 	}
 
-	if err := r.roomRepositories.DeleteUser(ctx, room_id, target_id); err != nil {
+	var targetUsername string
+	client, isOnline := r.hub.GetClientById(target_id)
+	if isOnline {
+		targetUsername = client.Username
+	} else {
+		// Fetch username dari DB
+		targetUser, err := r.userRepositories.GetById(ctx, target_id)
+		if err == nil {
+			targetUsername = targetUser.Name
+		}
+	}
+
+	msgContent := targetUsername + " has been kicked"
+	encryptMsg, err := helper.Encrypt(msgContent)
+	if err != nil {
 		return err
 	}
 
-	client, ok := r.hub.GetClientById(userId)
-	if ok {
-		kickMsg := dto.Message{
-			ID:        dto.GenerateId(),
-			RoomID:    client.RoomID,
-			UserID:    client.UserID,
-			Username:  client.Username,
-			Type:      "kick",
-			Content:   client.Username + " has been kicked",
-			TimeStamp: time.Now(),
-		}
+	kickMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		RoomID:    room_id,
+		UserID:    target_id,
+		Username:  targetUsername,
+		Type:      "leave",
+		Content:   msgContent,
+		TimeStamp: time.Now(),
+	}
 
-		r.hub.Broadcast <- kickMsg
+	saveMsg := models.Message{
+		ID:        kickMsg.ID,
+		RoomID:    kickMsg.RoomID,
+		UserID:    kickMsg.UserID,
+		Username:  kickMsg.Username,
+		Type:      kickMsg.Type,
+		Content:   encryptMsg,
+		CreatedAt: kickMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- kickMsg
+
+	if err := r.roomRepositories.DeleteUser(ctx, room_id, target_id); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // JoinRoom implements [core.RoomServices].
-func (r *roomServices) JoinRoom(ctx context.Context, member *dto.RoomMemberRequest) error {
-	isAlreadyMember, err := r.roomRepositories.IsMember(ctx, member.RoomID, member.UserID)
+func (r *roomServices) JoinRoom(ctx context.Context, room_id string) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	isAlreadyMember, err := r.roomRepositories.IsMember(ctx, room_id, userId)
+	if err != nil {
+		return err
+	}
+
+	if isAlreadyMember {
+		return errors.New("You have joined this group")
+	}
+
+	newMember := models.RoomMember{
+		RoomID:   room_id,
+		UserID:   userId,
+		Role:     "admin",
+		JoinedAt: time.Now(),
+	}
+
+	if err := r.roomRepositories.InsertRoomMembers(ctx, &newMember); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Failed add member: %w", err)
+		}
+		return err
+	}
+
+	var targetUsername string
+	client, isOnline := r.hub.GetClientById(userId)
+	if isOnline {
+		targetUsername = client.Username
+	} else {
+		// Fetch username dari DB
+		targetUser, err := r.userRepositories.GetById(ctx, userId)
+		if err == nil {
+			targetUsername = targetUser.Name
+		}
+	}
+
+	msgContent := targetUsername + " joined the chat"
+	encryptMsg, err := helper.Encrypt(msgContent)
+	if err != nil {
+		return err
+	}
+
+	joinMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		RoomID:    room_id,
+		UserID:    userId,
+		Username:  targetUsername,
+		Type:      "join",
+		Content:   msgContent,
+		TimeStamp: time.Now(),
+	}
+
+	saveMsg := models.Message{
+		ID:        joinMsg.ID,
+		RoomID:    joinMsg.RoomID,
+		UserID:    joinMsg.UserID,
+		Username:  joinMsg.Username,
+		Type:      joinMsg.Type,
+		Content:   encryptMsg,
+		CreatedAt: joinMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- joinMsg
+
+	return nil
+}
+
+// AddMember implements [core.RoomServices].
+func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	isAlreadyMember, err := r.roomRepositories.IsMember(ctx, room_id, target_id)
 	if err != nil {
 		return err
 	}
@@ -489,10 +602,28 @@ func (r *roomServices) JoinRoom(ctx context.Context, member *dto.RoomMemberReque
 		return errors.New("kamu sudah bergabung di grup ini")
 	}
 
+	isAdmin, err := r.roomRepositories.IsAdmin(ctx, room_id, userId)
+	if err != nil {
+		return err
+	}
+
+	if !isAdmin {
+		return helper.ErrNotAllowed
+	}
+
+	isFriend, err := r.userRepositories.GetFriendship(ctx, userId, target_id)
+	if err != nil {
+		return err
+	}
+
+	if !isFriend {
+		return fmt.Errorf("You can't add members if they're not friends.")
+	}
+
 	newMember := models.RoomMember{
-		RoomID:   member.RoomID,
-		UserID:   member.UserID,
-		Role:     member.Role,
+		RoomID:   room_id,
+		UserID:   target_id,
+		Role:     "member",
 		JoinedAt: time.Now(),
 	}
 
@@ -503,20 +634,46 @@ func (r *roomServices) JoinRoom(ctx context.Context, member *dto.RoomMemberReque
 		return err
 	}
 
-	client, ok := r.hub.GetClientById(member.UserID)
-	if ok {
-		joinMsg := dto.Message{
-			ID:        dto.GenerateId(),
-			RoomID:    client.RoomID,
-			UserID:    client.UserID,
-			Username:  client.Username,
-			Type:      "join",
-			Content:   client.Username + " joined the chat",
-			TimeStamp: time.Now(),
+	var targetUsername string
+	client, isOnline := r.hub.GetClientById(target_id)
+	if isOnline {
+		targetUsername = client.Username
+	} else {
+		// Fetch username dari DB
+		targetUser, err := r.userRepositories.GetById(ctx, target_id)
+		if err == nil {
+			targetUsername = targetUser.Name
 		}
-
-		r.hub.Broadcast <- joinMsg
 	}
+
+	msgContent := targetUsername + " joined the chat"
+	encryptMsg, err := helper.Encrypt(msgContent)
+	if err != nil {
+		return err
+	}
+
+	joinMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		RoomID:    room_id,
+		UserID:    target_id,
+		Username:  targetUsername,
+		Type:      "join",
+		Content:   msgContent,
+		TimeStamp: time.Now(),
+	}
+
+	saveMsg := models.Message{
+		ID:        joinMsg.ID,
+		RoomID:    joinMsg.RoomID,
+		UserID:    joinMsg.UserID,
+		Username:  joinMsg.Username,
+		Type:      joinMsg.Type,
+		Content:   encryptMsg,
+		CreatedAt: joinMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- joinMsg
 
 	return nil
 }
@@ -534,10 +691,30 @@ func (r *roomServices) MakeAdmin(ctx context.Context, room_id string, target_id 
 	}
 
 	if isAdmin {
-		return fmt.Errorf("Role is already admin!")
+		if err := r.roomRepositories.UpdateToAdmin(ctx, room_id, target_id); err != nil {
+			return err
+		}
 	}
 
-	if err := r.roomRepositories.UpdateToAdmin(ctx, room_id, target_id); err != nil {
+	return nil
+}
+
+// UpdateLastReadMessages implements [core.RoomServices].
+func (r *roomServices) UpdateLastReadMessages(ctx context.Context, room_id string) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	_, err := r.roomRepositories.GetById(ctx, room_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Room id not found :%w", err)
+		}
+		return err
+	}
+
+	if err := r.roomRepositories.UpdateReadMessages(ctx, room_id, userId, time.Now()); err != nil {
 		return err
 	}
 
@@ -555,20 +732,46 @@ func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 		return err
 	}
 
-	client, ok := r.hub.GetClientById(userId)
-	if ok {
-		leaveMsg := dto.Message{
-			ID:        dto.GenerateId(),
-			RoomID:    client.RoomID,
-			UserID:    client.UserID,
-			Username:  client.Username,
-			Type:      "leave",
-			Content:   client.Username + " has leave the chat",
-			TimeStamp: time.Now(),
+	var targetUsername string
+	client, isOnline := r.hub.GetClientById(userId)
+	if isOnline {
+		targetUsername = client.Username
+	} else {
+		// Fetch username dari DB
+		targetUser, err := r.userRepositories.GetById(ctx, userId)
+		if err == nil {
+			targetUsername = targetUser.Name
 		}
-
-		r.hub.Broadcast <- leaveMsg
 	}
+
+	msgContent := targetUsername + " has leave the chat"
+	encryptMsg, err := helper.Encrypt(msgContent)
+	if err != nil {
+		return err
+	}
+
+	leaveMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		RoomID:    room_id,
+		UserID:    userId,
+		Username:  targetUsername,
+		Type:      "leave",
+		Content:   msgContent,
+		TimeStamp: time.Now(),
+	}
+
+	saveMsg := models.Message{
+		ID:        leaveMsg.ID,
+		RoomID:    leaveMsg.RoomID,
+		UserID:    leaveMsg.UserID,
+		Username:  leaveMsg.Username,
+		Type:      leaveMsg.Type,
+		Content:   encryptMsg,
+		CreatedAt: leaveMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- leaveMsg
 
 	return nil
 }

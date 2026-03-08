@@ -35,8 +35,8 @@ type UpdateUserResponse struct {
 }
 
 type ChangePasswordRequest struct {
-	UserId          uint   `json:"user_id"`
-	OldPassword     string `json:"old_password"`
-	NewPassword     string `json:"new_password"`
-	ConfirmPassword string `json:"confirm_password"`
+	UserId          uint   `json:"user_id" validate:"required"`
+	OldPassword     string `json:"old_password" validate:"required"`
+	NewPassword     string `json:"new_password" validate:"required"`
+	ConfirmPassword string `json:"confirm_password" validate:"required"`
 }

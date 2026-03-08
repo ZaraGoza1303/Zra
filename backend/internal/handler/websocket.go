@@ -4,6 +4,7 @@ import (
 	"chatapp/core"
 	"chatapp/dto"
 	"chatapp/internal/helper"
+	"context"
 	"log"
 	"time"
 
@@ -21,7 +22,30 @@ func NewWebSocket(router fiber.Router, hub *dto.Hub, roomService core.RoomServic
 	handler := webSocketHandler{hub: hub, roomService: roomService, userService: userService}
 
 	route := router.Group("/ws", middleware)
+	route.Get("/global", websocket.New(handler.HandleGlobalWebSocket))
 	route.Get("/:room_id", websocket.New(handler.HandleWebSocket))
+}
+
+func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
+	userId := c.Locals("user_id").(uint)
+
+	user, err := h.userService.FindByIdWithoutCtx(userId)
+	if err != nil {
+		c.Close()
+		return
+	}
+
+	client := dto.Client{
+		Conn:     c,
+		UserID:   userId,
+		Username: user.Name,
+		RoomID:   "global",
+		Send:     make(chan dto.Message, 256),
+	}
+
+	h.hub.Join <- &client
+	go h.writePump(&client)
+	h.readPumpGlobal(&client)
 }
 
 func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
@@ -67,6 +91,27 @@ func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
 	h.readPump(&client)
 }
 
+func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
+	defer func() {
+		h.hub.Leave <- client
+		client.Conn.Close()
+	}()
+
+	client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	client.Conn.SetPongHandler(func(string) error {
+		client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	// Cuma block biar koneksi tetap hidup, gak proses message apapun
+	for {
+		_, _, err := client.Conn.ReadMessage()
+		if err != nil {
+			break
+		}
+	}
+}
+
 func (h *webSocketHandler) readPump(client *dto.Client) {
 	defer func() {
 		h.hub.Leave <- client
@@ -101,17 +146,31 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 
 		h.hub.Broadcast <- msg
 
-		go func(m dto.Message) {
-			encryptedContent, err := helper.Encrypt(m.Content)
+		// Kirim notif ke global clients member lain
+		go func(msg dto.Message) {
+			members, err := h.roomService.GetAllRoomMembers(context.Background(), msg.RoomID)
+			if err != nil {
+				log.Printf("Failed to get members: %v", err)
+				return
+			}
+
+			for _, member := range members {
+				if member.UserID != msg.UserID {
+					h.hub.SendGlobalClient(member.UserID, msg)
+				}
+			}
+		}(msg)
+
+		go func(msg dto.Message) {
+			encryptedContent, err := helper.Encrypt(msg.Content)
 			if err != nil {
 				log.Printf("Gagal enkripsi: %v", err)
 				return
 			}
 
-			dbMsg := m
-			dbMsg.Content = encryptedContent
+			msg.Content = encryptedContent
 
-			err = h.roomService.SaveMessage(dbMsg)
+			err = h.roomService.SaveMessage(msg)
 			if err != nil {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
 			}

@@ -186,6 +186,19 @@ func (r *roomRepositories) UpdateToAdmin(ctx context.Context, room_id string, us
 	return nil
 }
 
+// UpdateReadMessages implements [core.RoomRepositories].
+func (r *roomRepositories) UpdateReadMessages(ctx context.Context, room_id string, user_id uint, timeStamp time.Time) error {
+	result := r.DB.WithContext(ctx).Model(&models.RoomMember{}).
+		Where("room_id = ? AND user_id = ?", room_id, user_id).
+		Update("last_read_at", timeStamp)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 // DeleteUser implements [core.RoomRepositories].
 func (r *roomRepositories) DeleteUser(ctx context.Context, room_id string, user_id uint) error {
 	result := r.DB.WithContext(ctx).
@@ -279,6 +292,22 @@ func (r *roomRepositories) GetMemberCount(ctx context.Context, room_id string) (
 	}
 
 	return memberCount, nil
+}
+
+// GetUnreadMessagesCount implements [core.RoomRepositories].
+func (r *roomRepositories) GetUnreadMessagesCount(ctx context.Context, room_id string, user_id uint) (int64, error) {
+	var messagesCount int64
+
+	result := r.DB.WithContext(ctx).Model(&models.Message{}).
+		Joins("JOIN room_members ON room_members.room_id = messages.room_id AND room_members.user_id = ?", user_id).
+		Where("messages.room_id = ? AND messages.created_at > room_members.last_read_at AND messages.user_id != ?", room_id, user_id).
+		Count(&messagesCount)
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return messagesCount, nil
 }
 
 // GetLastMessages implements [core.RoomRepositories].
