@@ -19,6 +19,7 @@ interface DashboardState {
     setActiveNav: (nav: NavItem) => void;
     setIsModalOpen: (isOpen: boolean) => void;
     setIsProfileModalOpen: (isOpen: boolean) => void;
+    updateRoom: (roomId: string, updates: Partial<Room>) => void;
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
@@ -37,4 +38,10 @@ export const useDashboardStore = create<DashboardState>((set) => ({
     setActiveNav: (activeNav) => set({ activeNav }),
     setIsModalOpen: (isModalOpen) => set({ isModalOpen }),
     setIsProfileModalOpen: (isProfileModalOpen) => set({ isProfileModalOpen }),
+    updateRoom: (roomId, updates) => set((state) => ({
+        rooms: state.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r),
+        selectedRoom: state.selectedRoom?.id === roomId
+            ? { ...state.selectedRoom, ...updates }
+            : state.selectedRoom,
+    })),
 }));

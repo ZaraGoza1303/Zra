@@ -191,7 +191,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                                                 className="w-full h-full object-cover"
                                             />
                                         ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-white font-bold text-3xl">
+                                            <div className="w-full h-full flex items-center justify-center text-white font-bold text-3xl">
                                                 <User size={36} />
                                             </div>
                                         )}

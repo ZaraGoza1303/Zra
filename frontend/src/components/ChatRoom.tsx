@@ -11,10 +11,12 @@ import RoomInfoSidebar from './chatroom/RoomInfoSidebar';
 import PreviewPictureModal from './chatroom/PreviewPictureModal';
 import MembersModal from './chatroom/MembersModal';
 import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } from '../types/chat';
+import { useDashboardStore } from '../store/dashboardStore';
 
 export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
+    const { updateRoom } = useDashboardStore();
     const {
         messages, setMessages,
         input, setInput,
@@ -224,15 +226,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             if (field === 'name') {
                 setRoomDetails(roomDetails ? { ...roomDetails, name: value as string } : roomDetails);
                 setEditingName(false);
+                updateRoom(roomId, { name: value as string });
             }
             if (field === 'description') {
                 setRoomDetails(roomDetails ? { ...roomDetails, description: value as string } : roomDetails);
                 setEditingDesc(false);
+                updateRoom(roomId, { description: value as string });
             }
             if (field === 'picture') {
                 // refetch room details biar gambar baru muncul
                 const infoResp = await apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' });
                 setRoomDetails(infoResp.data);
+                updateRoom(roomId, { picture: infoResp.data.picture });
             }
         } catch (e: any) {
             alert(`Update failed: ${e.message}`);

@@ -59,6 +59,12 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
     }, []);
 
     useEffect(() => {
+        if (isVisible && !requestsLoaded) {
+            fetchRequests();
+        }
+    }, [isVisible]);
+
+    useEffect(() => {
         if (activeTab === 'requests') fetchRequests();
         if (activeTab === 'friends') fetchFriends();
     }, [activeTab]);
