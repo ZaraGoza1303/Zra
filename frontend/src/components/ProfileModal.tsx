@@ -129,7 +129,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         >
             <div
                 onClick={e => e.stopPropagation()}
-                className="w-full max-w-[420px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                className="w-full max-w-[620px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
             >
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
