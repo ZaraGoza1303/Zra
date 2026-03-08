@@ -1,13 +1,11 @@
 import React from 'react';
 import { ArrowLeft, User, Users, Video, Phone, MoreHorizontal } from 'lucide-react';
+import { useChatStore } from '../../store/chatStore';
 
 interface ChatHeaderProps {
     roomId: string;
     roomName: string;
     roomPicture?: string;
-    isPrivate: boolean;
-    totalMemberCount: number | null;
-    activeMemberCount: number | null;
     onBack?: () => void;
     onOpenInfoModal: () => void;
     onOpenUsersModal: () => void;
@@ -17,13 +15,13 @@ export default function ChatHeader({
     roomId,
     roomName,
     roomPicture,
-    isPrivate,
-    totalMemberCount,
-    activeMemberCount,
     onBack,
     onOpenInfoModal,
     onOpenUsersModal
 }: ChatHeaderProps) {
+    const { totalMemberCount, activeMemberCount, roomDetails } = useChatStore();
+    const isPrivate = roomDetails?.type === 'private' || !totalMemberCount; // Fallback logic
+
     return (
         <div className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border-b border-white/5 shrink-0">
             <div className="flex items-center gap-3">

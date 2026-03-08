@@ -1,29 +1,24 @@
 import React from 'react';
-import type { Message } from '../../types/chat';
+import { useAuthStore } from '../../store/authStore';
+import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
 import { User } from 'lucide-react';
 
 interface MessageListProps {
-    messages: Message[];
-    user: { id: number } | null | undefined;
-    isPrivate: boolean;
-    fetchingHistory: boolean;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
     messagesContainerRef: React.RefObject<HTMLDivElement | null>;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
-    loadingMore: boolean;
 }
 
 export default function MessageList({
-    messages,
-    user,
-    isPrivate,
-    fetchingHistory,
     messagesEndRef,
     messagesContainerRef,
-    onScroll,
-    loadingMore
+    onScroll
 }: MessageListProps) {
+    const { user } = useAuthStore();
+    const { messages, fetchingHistory, loadingMore, roomDetails } = useChatStore();
+    const isPrivate = roomDetails?.type === 'private';
+
     // Group messages by date for date separators
     const getDateLabel = (timestamp: string) => {
         const d = new Date(timestamp);

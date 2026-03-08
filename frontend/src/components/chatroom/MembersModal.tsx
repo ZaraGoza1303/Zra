@@ -1,31 +1,22 @@
-import React from 'react';
 import { X, MoreVertical, UserMinus, ShieldAlert } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
-import type { RoomMember } from '../../types/chat';
 
 interface MembersModalProps {
-    roomMembers: RoomMember[];
-    user: { id: number } | null | undefined;
     isAdmin: boolean;
-    fetchingMembers: boolean;
-    targetUserId: number | null;
-    actionLoading: boolean;
-    setTargetUserId: (id: number | null) => void;
     onClose: () => void;
     handleRoomAction: (action: 'kick' | 'admin') => Promise<void>;
 }
 
 export default function MembersModal({
-    roomMembers,
-    user,
     isAdmin,
-    fetchingMembers,
-    targetUserId,
-    actionLoading,
-    setTargetUserId,
     onClose,
     handleRoomAction
 }: MembersModalProps) {
+    const { user } = useAuthStore();
+    const { roomMembers, fetchingMembers, targetUserId, actionLoading, setTargetUserId } = useChatStore();
+
     return (
         <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"

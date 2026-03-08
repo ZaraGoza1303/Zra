@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users, CheckCircle, AlertCircle, Asterisk } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/authStore';
 import { apiCall, getRoomImageUrl } from '../services/api';
 import type { RoomDetail } from '../types/chat';
 
@@ -10,7 +10,7 @@ type PageState = 'loading' | 'invite' | 'already_member' | 'joining' | 'joined' 
 
 export default function JoinRoom() {
     const { roomId } = useParams<{ roomId: string }>();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated } = useAuthStore();
     const navigate = useNavigate();
 
     const [room, setRoom] = useState<RoomDetail | null>(null);
@@ -34,7 +34,7 @@ export default function JoinRoom() {
             }
         };
         loadRoom();
-    }, [roomId]);  
+    }, [roomId]);
 
     useEffect(() => {
         if (!room?.id) return;

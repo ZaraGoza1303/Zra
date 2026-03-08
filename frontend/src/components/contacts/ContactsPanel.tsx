@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Users, Clock, X, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { apiCall } from '../../services/api';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuthStore } from '../../store/authStore';
 import UserDetailDrawer from './UserDetailDrawer';
 import SearchUserCard from './cards/SearchUserCard';
 import RequestCard from './cards/RequestCard';
@@ -9,7 +9,7 @@ import FriendCard from './cards/FriendCard';
 import type { SearchedUser, FriendRequest, ActiveTab, FriendAction, ContactsPanelProps } from '../../types/contacts';
 
 export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProps) {
-    const { user } = useAuth();
+    const { user } = useAuthStore();
     const [dmLoading, setDmLoading] = useState<number | null>(null);
 
     const [activeTab, setActiveTab] = useState<ActiveTab>('search');

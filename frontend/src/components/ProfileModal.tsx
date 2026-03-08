@@ -1,12 +1,12 @@
 // src/components/ProfileModal.tsx
 import React, { useState, useRef } from 'react';
 import { X, Camera, Lock, User as UserIcon, Eye, EyeOff, User } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/authStore';
 import { apiCall, getUserImageUrl } from '../services/api';
 import type { ProfileModalProps, UserProfile } from '../types/chat';
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
-    const { user, loginState } = useAuth();
+    const { user, loginState } = useAuthStore();
     const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
 
     const [name, setName] = useState(user?.name || '');

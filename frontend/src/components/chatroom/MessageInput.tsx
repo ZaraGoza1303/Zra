@@ -1,13 +1,14 @@
 import React from 'react';
 import { Plus, Smile, Send } from 'lucide-react';
+import { useChatStore } from '../../store/chatStore';
 
 interface MessageInputProps {
-    input: string;
-    setInput: (val: string) => void;
     sendMessage: (e: React.FormEvent) => void;
 }
 
-export default function MessageInput({ input, setInput, sendMessage }: MessageInputProps) {
+export default function MessageInput({ sendMessage }: MessageInputProps) {
+    const { input, setInput } = useChatStore();
+
     return (
         <div className="px-5 py-4 bg-[#0d1117] shrink-0">
             <form onSubmit={sendMessage} className="flex items-center gap-3">

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/authStore';
 import { apiCall } from '../services/api';
 import type { User } from '../types/chat';
 
@@ -10,7 +10,7 @@ export default function Login() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const redirectTo = searchParams.get('redirect') || '/';
-    const { loginState } = useAuth();
+    const { loginState } = useAuthStore();
 
     const [email, setEmail] = React.useState('');
     const [password, setPassword] = React.useState('');

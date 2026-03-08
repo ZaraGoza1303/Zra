@@ -1,19 +1,15 @@
-import React from 'react';
 import { X } from 'lucide-react';
+import { useChatStore } from '../../store/chatStore';
 
 interface PreviewPictureModalProps {
-    previewPicture: { file: File; url: string } | null;
-    setPreviewPicture: (data: { file: File; url: string } | null) => void;
     handleUpdateRoom: (field: 'picture', value: File) => Promise<void>;
-    editLoading: boolean;
 }
 
 export default function PreviewPictureModal({
-    previewPicture,
-    setPreviewPicture,
-    handleUpdateRoom,
-    editLoading
+    handleUpdateRoom
 }: PreviewPictureModalProps) {
+    const { previewPicture, setPreviewPicture, editLoading } = useChatStore();
+
     if (!previewPicture) return null;
 
     return (

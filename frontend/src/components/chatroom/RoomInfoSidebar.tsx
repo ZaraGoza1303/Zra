@@ -1,75 +1,55 @@
 import React, { useState } from 'react';
 import { X, User, Users, Pencil, UserPlus, Bell, Star, AlertTriangle, LogOut } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
-import type { RoomMember, RoomResponse, UserProfile } from '../../types/chat';
+
 
 interface RoomInfoSidebarProps {
     roomId: string;
     roomName: string;
     roomPicture?: string;
-    isPrivate: boolean;
-    fetchingInfo: boolean;
-    fetchingMembers: boolean;
-    privatePartner: { username: string; user_bio?: string; user_profile_picture?: string } | null;
-    roomDetails: RoomResponse | null;
-    roomMembers: RoomMember[];
-    totalMemberCount: number | null;
-    activeMemberCount: number | null;
     isAdmin: boolean;
-    user: { id: number } | null | undefined;
-    actionLoading: boolean;
-    editingName: boolean;
-    editingDesc: boolean;
-    editName: string;
-    editDesc: string;
     pictureInputRef: React.RefObject<HTMLInputElement | null>;
-    setPreviewPicture: (data: { file: File; url: string }) => void;
-    setEditingName: (val: boolean) => void;
-    setEditingDesc: (val: boolean) => void;
-    setEditName: (val: string) => void;
-    setEditDesc: (val: string) => void;
     handleUpdateRoom: (field: 'name' | 'description' | 'picture', value?: string | File) => Promise<void>;
     handleRoomAction: (action: 'leave' | 'kick' | 'admin') => Promise<void>;
     onClose: () => void;
-    editLoading: boolean;
-    friendsList: UserProfile[];
-    addingMember: boolean;
     onAddMember: (userId: number) => Promise<void>;
 }
 
 export default function RoomInfoSidebar({
     roomName,
     roomPicture,
-    isPrivate,
-    fetchingInfo,
-    fetchingMembers,
-    privatePartner,
-    roomDetails,
-    roomMembers,
-    totalMemberCount,
-    activeMemberCount,
     isAdmin,
-    user,
-    actionLoading,
-    editingName,
-    editingDesc,
-    editName,
-    editDesc,
     pictureInputRef,
-    setPreviewPicture,
-    setEditingName,
-    setEditingDesc,
-    setEditName,
-    setEditDesc,
     handleUpdateRoom,
     handleRoomAction,
     onClose,
-    editLoading,
-    friendsList,
-    addingMember,
     onAddMember
 }: RoomInfoSidebarProps) {
     const [showAddMember, setShowAddMember] = useState(false);
+    const { user } = useAuthStore();
+    const {
+        fetchingInfo,
+        fetchingMembers,
+        privatePartner,
+        roomDetails,
+        roomMembers,
+        totalMemberCount,
+        activeMemberCount,
+        actionLoading,
+        editingName, setEditingName,
+        editingDesc, setEditingDesc,
+        editName, setEditName,
+        editDesc, setEditDesc,
+        editLoading,
+        setPreviewPicture,
+        friendsList,
+        addingMember
+    } = useChatStore();
+
+    const isPrivate = roomDetails?.type === 'private' || !totalMemberCount;
+
     return (
         <div className="w-[340px] shrink-0 bg-[#161b22] border-l border-[#21262d] flex flex-col h-full overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[#21262d] shrink-0">

@@ -1,12 +1,13 @@
 // src/pages/Dashboard.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
     Settings, Home, Users, Bell, X,
     User
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { apiCall, getRoomImageUrl, getUserImageUrl } from '../services/api';
+import { useAuthStore } from '../store/authStore';
+import { useDashboardStore } from '../store/dashboardStore';
+import { apiCall, getUserImageUrl } from '../services/api';
 import ChatRoom from '../components/ChatRoom';
 import ContactsPanel from '../components/contacts/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
@@ -16,22 +17,23 @@ import type { Room } from '../types/chat';
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
 export default function Dashboard() {
-    const { user, logoutState } = useAuth();
-    const [rooms, setRooms] = useState<Room[]>([]);
-    const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-    const [dmRoom, setDmRoom] = useState<{ id: string; name: string; picture?: string } | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
+    const { user, logoutState } = useAuthStore();
+    const {
+        rooms, setRooms,
+        selectedRoom, setSelectedRoom,
+        dmRoom, setDmRoom,
+        searchTerm, setSearchTerm,
+        activeNav, setActiveNav,
+        isModalOpen, setIsModalOpen,
+        isProfileModalOpen, setIsProfileModalOpen
+    } = useDashboardStore();
+
     const [searchParams, setSearchParams] = useSearchParams();
-
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newRoomName, setNewRoomName] = useState('');
-    const [newRoomDescription, setNewRoomDescription] = useState('');
-    const [newRoomImage, setNewRoomImage] = useState<File | null>(null);
-    const [creating, setCreating] = useState(false);
+    const [creating, setCreating] = React.useState(false);
+    const [newRoomName, setNewRoomName] = React.useState('');
+    const [newRoomDescription, setNewRoomDescription] = React.useState('');
+    const [newRoomImage, setNewRoomImage] = React.useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-    const [activeNav, setActiveNav] = useState<NavItem>('home');
 
     useEffect(() => {
         const roomIdToOpen = searchParams.get('open');
@@ -42,7 +44,7 @@ export default function Dashboard() {
                 setSearchParams({});
             }
         }
-    }, [searchParams, rooms]);
+    }, [searchParams, rooms, setSelectedRoom, setSearchParams]);
 
     const fetchRooms = async () => {
         try {
@@ -106,7 +108,6 @@ export default function Dashboard() {
     };
 
     const handleOpenDM = (roomId: string, targetName: string, targetPicture?: string) => {
-        setSelectedRoom(null)
         setDmRoom({ id: roomId, name: targetName, picture: targetPicture });
         setActiveNav('chats'); // switch ke tab chats
     };
@@ -263,7 +264,7 @@ export default function Dashboard() {
                                 return (
                                     <button
                                         key={room.id}
-                                        onClick={() => { setSelectedRoom(room); setDmRoom(null); }}
+                                        onClick={() => setSelectedRoom(room)}
                                         className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-left mb-0.5
                 ${selectedRoom?.id === room.id
                                                 ? 'bg-blue-600/15 border border-blue-600/20'
@@ -335,7 +336,7 @@ export default function Dashboard() {
                         roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
                         onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
                         onNewMessage={(roomId, message) => {
-                            setRooms(prev => prev.map(r =>
+                            setRooms(rooms.map(r =>
                                 r.id === roomId
                                     ? { ...r, last_message: message }
                                     : r

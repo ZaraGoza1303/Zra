@@ -1,6 +1,7 @@
 // src/components/ChatRoom.tsx
-import React, { useEffect, useState, useRef } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useRef } from 'react';
+import { useAuthStore } from '../store/authStore';
+import { useChatStore } from '../store/chatStore';
 import { apiCall } from '../services/api';
 import { BACKEND_URL } from '../config';
 import ChatHeader from './chatroom/ChatHeader';
@@ -13,47 +14,35 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } fr
 
 export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
-    const { user, token } = useAuth();
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [input, setInput] = useState('');
+    const { user, token } = useAuthStore();
+    const {
+        messages, setMessages,
+        input, setInput,
+        hasMore, setHasMore,
+        loadingMore, setLoadingMore,
+        roomMembers, setRoomMembers,
+        setTotalMemberCount,
+        setActiveMemberCount,
+        setFetchingMembers,
+        roomDetails, setRoomDetails,
+        setFetchingInfo,
+        setFetchingHistory,
+        setFriendsList,
+        showUsersModal, setShowUsersModal,
+        showInfoModal, setShowInfoModal,
+        targetUserId, setTargetUserId,
+        setActionLoading,
+        setPrivatePartner,
+        setEditingName,
+        setEditingDesc,
+        setEditLoading,
+        resetChatState
+    } = useChatStore();
+
     const ws = useRef<WebSocket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
-
-    const [showUsersModal, setShowUsersModal] = useState(false);
-    const [showInfoModal, setShowInfoModal] = useState(false);
-    const [targetUserId, setTargetUserId] = useState<number | null>(null);
-    const [actionLoading, setActionLoading] = useState(false);
-    const [roomMembers, setRoomMembers] = useState<RoomMember[]>([]);
-    const [totalMemberCount, setTotalMemberCount] = useState<number | null>(null);
-    const [activeMemberCount, setActiveMemberCount] = useState<number | null>(null);
-    const [fetchingMembers, setFetchingMembers] = useState(false);
-
-    const [roomDetails, setRoomDetails] = useState<RoomResponse | null>(null);
-    const [fetchingInfo, setFetchingInfo] = useState(false);
-    const [fetchingHistory, setFetchingHistory] = useState(false);
-
-    const [friendsList, setFriendsList] = useState<UserProfile[]>([]);
-    const [addingMember, setAddingMember] = useState(false);
-
-    // Edit states
-    const [editingName, setEditingName] = useState(false);
-    const [editingDesc, setEditingDesc] = useState(false);
-    const [editName, setEditName] = useState('');
-    const [editDesc, setEditDesc] = useState('');
-    const [editLoading, setEditLoading] = useState(false);
     const pictureInputRef = useRef<HTMLInputElement>(null);
-    const [previewPicture, setPreviewPicture] = useState<{ file: File; url: string } | null>(null);
-
-    const [privatePartner, setPrivatePartner] = useState<{
-        username: string;
-        name?: string;
-        user_bio?: string;
-        user_profile_picture?: string;
-    } | null>(null);
 
     // Check if current user is admin
     const isAdmin = roomMembers.some(m => m.user_id === user?.id && m.role === 'admin');
@@ -114,6 +103,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     useEffect(() => {
         if (!roomId || !user || !token) return;
 
+        // Reset state saat ganti room
+        resetChatState();
+
         const connectWs = () => {
             const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
             const wsUrl = `${wsBaseUrl}/ws/${roomId}?token=${token}`;
@@ -158,7 +150,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 ws.current.close();
             }
         };
-    }, [roomId, user, token]);
+    }, [roomId, user, token, resetChatState]);
 
 
     useEffect(() => {
@@ -176,7 +168,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             }
         };
         fetchCounts();
-    }, [roomId, isPrivate]);
+    }, [roomId, isPrivate, setActiveMemberCount, setTotalMemberCount]);
 
     const sendMessage = (e: React.FormEvent) => {
         e.preventDefault();
@@ -230,11 +222,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
             // Update local state
             if (field === 'name') {
-                setRoomDetails(prev => prev ? { ...prev, name: value as string } : prev);
+                setRoomDetails(roomDetails ? { ...roomDetails, name: value as string } : roomDetails);
                 setEditingName(false);
             }
             if (field === 'description') {
-                setRoomDetails(prev => prev ? { ...prev, description: value as string } : prev);
+                setRoomDetails(roomDetails ? { ...roomDetails, description: value as string } : roomDetails);
                 setEditingDesc(false);
             }
             if (field === 'picture') {
@@ -273,32 +265,13 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setFetchingInfo(true);
         setFetchingMembers(true);
         try {
-            const [infoResp] = await Promise.all([
+            const [infoResp, friendsResp] = await Promise.all([
                 apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' }),
+                apiCall<{ data: UserProfile[] }>(`/user/list-friend`, { method: 'GET' }),
                 fetchRoomMembers(),
             ]);
             setRoomDetails(infoResp.data);
-
-            // ← pindah ke sini
-            const friendsResp = await apiCall<{ data: UserProfile[] }>(`/user/list-friend`, { method: 'GET' });
             setFriendsList(friendsResp.data || []);
-        } catch (e) {
-            console.error("Failed to fetch room info", e);
-        } finally {
-            setFetchingInfo(false);
-            setFetchingMembers(false);
-        }
-
-
-        // Group room logic yang sudah ada
-        setFetchingInfo(true);
-        setFetchingMembers(true);
-        try {
-            const [infoResp] = await Promise.all([
-                apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' }),
-                fetchRoomMembers(),
-            ]);
-            setRoomDetails(infoResp.data);
         } catch (e) {
             console.error("Failed to fetch room info", e);
         } finally {
@@ -324,6 +297,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     };
 
     const handleAddMember = async (userId: number) => {
+        const { setAddingMember } = useChatStore.getState();
         setAddingMember(true);
         try {
             await apiCall(`/room/${roomId}/join`, {
@@ -347,28 +321,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     roomId={roomId}
                     roomName={roomName}
                     roomPicture={roomPicture}
-                    isPrivate={isPrivate}
-                    totalMemberCount={totalMemberCount}
-                    activeMemberCount={activeMemberCount}
                     onBack={onBack}
                     onOpenInfoModal={handleOpenInfoModal}
                     onOpenUsersModal={handleOpenUsersModal}
                 />
 
                 <MessageList
-                    messages={messages}
-                    user={user}
-                    isPrivate={isPrivate}
-                    fetchingHistory={fetchingHistory}
                     messagesEndRef={messagesEndRef}
                     messagesContainerRef={messagesContainerRef}
                     onScroll={handleScroll}
-                    loadingMore={loadingMore}
                 />
 
                 <MessageInput
-                    input={input}
-                    setInput={setInput}
                     sendMessage={sendMessage}
                 />
             </div>
@@ -379,55 +343,24 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     roomId={roomId}
                     roomName={roomName}
                     roomPicture={roomPicture}
-                    isPrivate={isPrivate}
-                    fetchingInfo={fetchingInfo}
-                    fetchingMembers={fetchingMembers}
-                    privatePartner={privatePartner}
-                    roomDetails={roomDetails}
-                    roomMembers={roomMembers}
-                    totalMemberCount={totalMemberCount}
-                    activeMemberCount={activeMemberCount}
                     isAdmin={isAdmin}
-                    user={user}
-                    actionLoading={actionLoading}
-                    editingName={editingName}
-                    editingDesc={editingDesc}
-                    editName={editName}
-                    editDesc={editDesc}
                     pictureInputRef={pictureInputRef}
-                    setPreviewPicture={setPreviewPicture}
-                    setEditingName={setEditingName}
-                    setEditingDesc={setEditingDesc}
-                    setEditName={setEditName}
-                    setEditDesc={setEditDesc}
                     handleUpdateRoom={handleUpdateRoom}
                     handleRoomAction={handleRoomAction}
                     onClose={() => setShowInfoModal(false)}
-                    editLoading={editLoading}
-                    friendsList={friendsList}
-                    addingMember={addingMember}
                     onAddMember={handleAddMember}
                 />
             )}
 
             {/* PREVIEW PICTURE MODAL */}
             <PreviewPictureModal
-                previewPicture={previewPicture}
-                setPreviewPicture={setPreviewPicture}
                 handleUpdateRoom={handleUpdateRoom}
-                editLoading={editLoading}
             />
 
             {/* MEMBERS MODAL */}
             {showUsersModal && (
                 <MembersModal
-                    roomMembers={roomMembers}
-                    user={user}
                     isAdmin={isAdmin}
-                    fetchingMembers={fetchingMembers}
-                    targetUserId={targetUserId}
-                    actionLoading={actionLoading}
-                    setTargetUserId={setTargetUserId}
                     onClose={() => { setShowUsersModal(false); setTargetUserId(null); }}
                     handleRoomAction={handleRoomAction}
                 />
