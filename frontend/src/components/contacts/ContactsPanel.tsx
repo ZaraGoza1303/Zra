@@ -260,6 +260,7 @@ export default function ContactsPanel({ isVisible, onOpenDM, friendRequestNotif 
                             <>
                                 <p className="text-[11px] text-[#8b949e] uppercase tracking-wider font-medium px-3 py-2">{friends.length} {friends.length === 1 ? 'friend' : 'friends'}</p>
                                 {friends.map(u => (
+
                                     <FriendCard
                                         key={u.id}
                                         user={u}

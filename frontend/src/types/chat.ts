@@ -25,6 +25,7 @@ export interface ChatRoomProps {
     onBack?: () => void;
     onNewMessage?: (roomId: string, message: LastMessage) => void;
     onRoomResolved?: (resolvedRoomId: string) => void;
+    onStartCall?: (withVideo: boolean) => void;
 }
 
 export interface RoomMember {

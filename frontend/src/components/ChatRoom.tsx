@@ -1,5 +1,5 @@
 // src/components/ChatRoom.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { apiCall } from '../services/api';
@@ -14,7 +14,7 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } fr
 import { useDashboardStore } from '../store/dashboardStore';
 import { useToastStore } from '../store/toastStore';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onStartCall }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
     const { updateRoom } = useDashboardStore();
@@ -49,6 +49,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const pictureInputRef = useRef<HTMLInputElement>(null);
+    const [isKicked, setIsKicked] = useState(false);
+    const [creatingDM, setCreatingDM] = useState(false);
 
     const { showToast } = useToastStore();
 
@@ -133,13 +135,15 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
         // Kalau pending, resolve dulu
         if (isPendingRoom) {
+            if (creatingDM) return;
+            setCreatingDM(true);
             const targetId = roomId.replace('pending:', '');
             try {
                 const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'POST' });
                 const newRoomId = res.data;
                 resolvedRoomId.current = newRoomId;
+                console.log('DM room response:', res);
 
-                // Notify dashboard buat update dmRoom id
                 onRoomResolved?.(newRoomId);
 
                 const newWs = connectWs(newRoomId);
@@ -149,10 +153,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 };
             } catch (err) {
                 showToast('Failed to create DM room', 'error');
+            } finally {
+                setCreatingDM(false); // ✅
             }
             return;
         }
-
         // Normal send
         ws.current?.send(JSON.stringify({ content: input }));
         setInput('');
@@ -169,13 +174,26 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
         ws.current.onmessage = (event) => {
             try {
-                const msg: Message = JSON.parse(event.data);
+                const msg: any = JSON.parse(event.data);
+
+                // Cek apakah ini sinyal WebRTC
+                if (['call-offer', 'call-answer', 'ice-candidate'].includes(msg.type)) {
+                    console.log("Menerima sinyal WebRTC:", msg.type);
+
+                    window.dispatchEvent(new CustomEvent('incoming-call-signal', {
+                        detail: {
+                            type: msg.type,
+                            payload: msg,
+                            fromId: msg.from_id
+                        }
+                    }));
+                    return;
+                }
 
                 if (msg.type === 'update-room') {
                     refreshRoomData();
                 }
 
-                setMessages((prev) => [...prev, msg]);
 
                 if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
                     onNewMessage?.(actualRoomId, { // <-- pakai actualRoomId, bukan roomId
@@ -184,6 +202,17 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         sent_at: msg.time_stamp,
                     });
                 }
+
+                if (msg.type === 'leave' && msg.user_id === user?.id) {
+                    setIsKicked(true);
+                    showToast('You have been removed from this room.', 'error');
+
+                    const { rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
+                    setRooms(rooms.filter(r => r.id !== actualRoomId));
+                    setAllRooms(allRooms.filter(r => r.id !== actualRoomId));
+                }
+
+                setMessages((prev) => [...prev, msg]);
             } catch (e) {
                 console.error("Failed to parse message", e);
             }
@@ -201,6 +230,34 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     };
 
     useEffect(() => {
+        const handler = (e: Event) => {
+            const { type, payload, toId } = (e as CustomEvent).detail;
+
+            // Pastikan WS nyambung sebelum kirim
+            if (ws.current?.readyState === WebSocket.OPEN) {
+                console.log(`Kirim sinyal ${type} ke user ${toId}`);
+                ws.current.send(JSON.stringify({
+                    type: type,
+                    to_id: toId,
+                    ...payload // ini bakal masukin sdp: offer atau candidate: ...
+                }));
+            }
+        };
+        window.addEventListener('send-call-signal', handler);
+        return () => window.removeEventListener('send-call-signal', handler);
+    }, []);
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            window.dispatchEvent(new CustomEvent('initiate-call', { detail }));
+        };
+        window.addEventListener('initiate-call-from-header', handler);
+        return () => window.removeEventListener('initiate-call-from-header', handler);
+    }, []);
+
+
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
@@ -209,9 +266,12 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         if (isPendingRoom) return;
 
         // Reset state saat ganti room
+        setIsKicked(false);
         resetChatState();
         fetchChatHistory();
         connectWs();
+
+        if (isPrivate) fetchRoomMembers();
 
         return () => {
             if (ws.current) {
@@ -234,6 +294,21 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             console.error('Failed to fetch counts', e);
         }
     };
+
+    const handleStartCall = useCallback((withVideo: boolean) => {
+        const partner = roomMembers.find(m => m.user_id !== user?.id);
+        if (!partner) return;
+
+        window.dispatchEvent(new CustomEvent('initiate-call', {
+            detail: {
+                roomId,
+                partnerId: partner.user_id,
+                partnerName: roomName,
+                partnerPicture: roomPicture,
+                withVideo,
+            }
+        }));
+    }, [roomMembers, user?.id, roomId, roomName, roomPicture]);
 
     useEffect(() => {
         fetchCounts();
@@ -258,6 +333,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             if (action === 'leave') {
                 await apiCall(`/room/${roomId}/leave`, { method: 'DELETE' });
                 showToast('Successfully left the room!');
+
+                const { rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
+                setRooms(rooms.filter(r => r.id !== roomId));
+                setAllRooms(allRooms.filter(r => r.id !== roomId));
                 onBack?.();
 
             } else if (action === 'kick') {
@@ -280,6 +359,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             } else if (action === 'delete') {
                 await apiCall(`/room/${roomId}`, { method: 'DELETE' });
                 showToast('Room deleted successfully!');
+
+                const { rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
+                setRooms(rooms.filter(r => r.id !== roomId));
+                setAllRooms(allRooms.filter(r => r.id !== roomId));
                 onBack?.();
             }
 
@@ -416,6 +499,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     onBack={onBack}
                     onOpenInfoModal={handleOpenInfoModal}
                     onOpenUsersModal={handleOpenUsersModal}
+                    onStartCall={handleStartCall}
                 />
 
                 <MessageList
@@ -424,9 +508,21 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     onScroll={handleScroll}
                 />
 
-                <MessageInput
-                    sendMessage={sendMessage}
-                />
+                {isKicked ? (
+                    <div className="px-5 py-4 border-t border-white/5 bg-[#0d1117] flex items-center justify-center gap-3">
+                        <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                            <span>You've been removed from this room.</span>
+                        </div>
+                        <button
+                            onClick={onBack}
+                            className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#8b949e] hover:text-[#e6edf3] text-sm transition-colors"
+                        >
+                            Go Back
+                        </button>
+                    </div>
+                ) : (
+                    <MessageInput sendMessage={sendMessage} />
+                )}
             </div>
 
             {/* RIGHT SIDEBAR (replaces Info Modal) */}

@@ -1,5 +1,5 @@
 // src/pages/Dashboard.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
     Settings, Home, Users, Bell, X,
@@ -17,6 +17,9 @@ import type { Room } from '../types/chat';
 import { BACKEND_URL } from '../config';
 import { useToastStore } from '../store/toastStore';
 import type { UnreadNotif } from '../types/contacts';
+import IncomingCallPopup from '../components/call/IncomingCallPopup';
+import CallOverlay from '../components/call/CallOverlay';
+import { useCallManager } from '../hooks/useCallManager';
 
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
@@ -116,6 +119,10 @@ export default function Dashboard() {
                     })();
                 }
 
+                if (['call-offer', 'call-answer', 'ice-candidate', 'call-rejected', 'call-ended'].includes(msg.type)) {
+                    handleCallSignal(msg);
+                }
+
             } catch (e) {
                 console.error('Global WS error:', e);
             }
@@ -153,6 +160,7 @@ export default function Dashboard() {
             }
         }
     }, [searchParams, rooms, setSelectedRoom, setSearchParams]);
+
 
     const fetchRooms = async () => {
         try {
@@ -203,7 +211,7 @@ export default function Dashboard() {
     const fetchOnlineUsers = async () => {
         try {
             const res = await apiCall<{ data: number[] }>('/user/online', { method: 'GET' });
-            setOnlineUserIds(new Set(res.data || []));
+            setOnlineUserIds(prev => new Set([...prev, ...res.data]));
         } catch (e) {
             console.error('Failed to fetch online users', e);
         }
@@ -270,6 +278,36 @@ export default function Dashboard() {
             picture: otherMember?.user_profile_picture || null,  // sudah full URL dari BE
         };
     };
+
+    const sendSignal = useCallback((type: string, payload: object, toId: number) => {
+        // Signal dikirim lewat room WS (ChatRoom handle ini)
+        // Kita expose via window event biar ChatRoom bisa pakai
+        window.dispatchEvent(new CustomEvent('send-call-signal', {
+            detail: { type, payload, toId }
+        }));
+    }, []);
+
+    const {
+        callState,
+        callInfo,
+        localStream,
+        remoteStream,
+        initiateCall,
+        acceptCall,
+        rejectCall,
+        handleEndCall,
+        handleCallSignal,
+        toggleMute,
+        toggleVideo,
+    } = useCallManager({ sendSignal, currentUserId: user?.id });
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            initiateCall((e as CustomEvent).detail);
+        };
+        window.addEventListener('initiate-call', handler);
+        return () => window.removeEventListener('initiate-call', handler);
+    }, [initiateCall]);
 
 
     const formatTime = (dateStr?: string) => {
@@ -660,6 +698,31 @@ export default function Dashboard() {
                 isOpen={isProfileModalOpen}
                 onClose={() => setIsProfileModalOpen(false)}
             />
+
+            {callState === 'incoming' && callInfo && (
+                <IncomingCallPopup
+                    callerName={callInfo.partnerName}
+                    callerPicture={callInfo.partnerPicture}
+                    withVideo={callInfo.withVideo}
+                    onAccept={acceptCall}
+                    onReject={rejectCall}
+                />
+            )}
+
+            {(callState === 'active' || callState === 'calling') && callInfo && (
+                <CallOverlay
+                    partnerName={callInfo.partnerName}
+                    partnerPicture={callInfo.partnerPicture}
+                    localStream={localStream}
+                    remoteStream={remoteStream}
+                    withVideo={callInfo.withVideo}
+                    isCaller={callInfo.isCaller}
+                    onEnd={handleEndCall}
+                    onToggleMute={toggleMute}
+                    onToggleVideo={toggleVideo}
+                />
+            )}
+
         </div>
     );
 }

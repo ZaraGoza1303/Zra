@@ -186,7 +186,7 @@ export default function RoomInfoSidebar({
                         )}
                         <p className="text-[13px] text-[#8b949e]">
                             {totalMemberCount !== null
-                                ? `${totalMemberCount} members • ${activeMemberCount ?? 0} online`
+                                ? `${totalMemberCount} members`
                                 : 'Loading...'}
                         </p>
                     </div>

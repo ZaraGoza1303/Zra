@@ -10,6 +10,7 @@ interface ChatHeaderProps {
     onBack?: () => void;
     onOpenInfoModal: () => void;
     onOpenUsersModal: () => void;
+    onStartCall?: (withVideo: boolean) => void;
 }
 
 export default function ChatHeader({
@@ -19,12 +20,14 @@ export default function ChatHeader({
     roomType,
     onBack,
     onOpenInfoModal,
-    onOpenUsersModal
+    onOpenUsersModal,
+    onStartCall
 }: ChatHeaderProps) {
     const { totalMemberCount, activeMemberCount, roomDetails } = useChatStore();
     const isPrivate = roomType === 'private';
 
     return (
+
         <div className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border-b border-white/5 shrink-0">
             <div className="flex items-center gap-3">
                 {onBack && (
@@ -64,12 +67,14 @@ export default function ChatHeader({
 
             <div className="flex items-center gap-1.5">
                 <button
+                    onClick={() => onStartCall?.(true)}
                     className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
                     title="Video Call"
                 >
                     <Video size={18} />
                 </button>
                 <button
+                    onClick={() => onStartCall?.(false)}
                     className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
                     title="Voice Call"
                 >
