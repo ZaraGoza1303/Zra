@@ -211,7 +211,7 @@ func (r *roomServices) CreateRoom(ctx context.Context, room dto.RoomCreateReques
 		ID:        room.ID,
 		OwnerID:   room.OwnerID,
 		Name:      room.Name,
-		RoomLink:  roomLink,
+		RoomLink:  &roomLink,
 		Type:      "group",
 		CreatedAt: time.Now(),
 	}
@@ -437,6 +437,7 @@ func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target
 		ID:        uuid.New().String(),
 		OwnerID:   user_id,
 		Type:      "private",
+		RoomLink:  nil,
 		CreatedAt: time.Now(),
 	}
 	if err := r.roomRepositories.InsertPrivateRoom(ctx, &newRoom, userId); err != nil {
@@ -705,6 +706,7 @@ func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id 
 		ID:        joinMsg.ID,
 		RoomID:    joinMsg.RoomID,
 		UserID:    joinMsg.UserID,
+		ToID:      target_id,
 		Username:  joinMsg.Username,
 		Type:      "added-to-room",
 		Content:   joinMsg.Content,
@@ -723,7 +725,7 @@ func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id 
 
 	r.roomRepositories.SaveMessage(saveMsg)
 	r.hub.Broadcast <- joinMsg
-	r.hub.SendGlobalClient(target_id, notifMsg)
+	r.hub.Signal <- notifMsg
 
 	return nil
 }

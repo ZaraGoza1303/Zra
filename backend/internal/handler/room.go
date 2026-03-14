@@ -16,11 +16,15 @@ import (
 )
 
 type roomHandler struct {
-	roomServices core.RoomServices
+	roomServices      core.RoomServices
+	cachedRoomService core.RoomServices
 }
 
-func NewRoom(router fiber.Router, roomService core.RoomServices, middleware fiber.Handler) {
-	handler := roomHandler{roomServices: roomService}
+func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServices core.RoomServices, middleware fiber.Handler) {
+	handler := roomHandler{
+		roomServices:      roomService,
+		cachedRoomService: cachedRoomServices,
+	}
 	router.Get("/api/room/:room_link/preview", handler.FindRoomPreview)
 	router.Get("/api/room/:id/active-members", handler.GetActiveMembers)
 	router.Get("/api/room/:id/active-members-count", handler.GetActiveMemberCount)
@@ -170,6 +174,7 @@ func (h *roomHandler) MakePrivateRoom(c *fiber.Ctx) error {
 
 	roomId, err := h.roomServices.MakePrivateRoom(ctx, userId, targetId)
 	if err != nil {
+		fmt.Println("MakePrivateRoom error:", err) // ← tambah ini
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room private found or created", roomId))
@@ -351,9 +356,9 @@ func (h *roomHandler) JoinRoom(c *fiber.Ctx) error {
 
 	ctx = context.WithValue(ctx, "user_id", userId)
 
-	if err := h.roomServices.JoinRoom(ctx, roomId); err != nil {
+	if err := h.cachedRoomService.JoinRoom(ctx, roomId); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusNotFound).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 
@@ -373,9 +378,9 @@ func (h *roomHandler) AddMember(c *fiber.Ctx) error {
 	targetIdStr := c.Query("target_id")
 	targetId := helper.StringToUint(targetIdStr)
 
-	if err := h.roomServices.AddMember(ctx, roomId, targetId); err != nil {
+	if err := h.cachedRoomService.AddMember(ctx, roomId, targetId); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusNotFound).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 
@@ -391,7 +396,7 @@ func (h *roomHandler) LeaveRoom(c *fiber.Ctx) error {
 	userId := c.Locals("user_id")
 	ctx = context.WithValue(ctx, "user_id", userId)
 	roomId := c.Params("id")
-	if err := h.roomServices.LeaveRoom(ctx, roomId); err != nil {
+	if err := h.cachedRoomService.LeaveRoom(ctx, roomId); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Leave", nil))

@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ type Hub struct {
 	Broadcast     chan Message
 	Join          chan *Client
 	Leave         chan *Client
+	Signal        chan Message
 	RoomMu        sync.RWMutex
 	ClientMu      sync.RWMutex
 }
@@ -25,6 +27,7 @@ func NewHub() *Hub {
 		Broadcast:     make(chan Message, 256),
 		Join:          make(chan *Client, 256),
 		Leave:         make(chan *Client, 256),
+		Signal:        make(chan Message, 256),
 	}
 }
 
@@ -39,47 +42,43 @@ func (h *Hub) Run() {
 
 		case message := <-h.Broadcast:
 			h.handleBroadcast(message)
+
+		case message := <-h.Signal:
+			h.handleSignal(message)
 		}
 
 	}
 }
 
 func (h *Hub) handleJoin(client *Client) {
-	h.ClientMu.Lock()
 	if client.RoomID == "global" {
+		// Hanya global WS yang masuk GlobalClients
+		h.ClientMu.Lock()
 		h.GlobalClients[client.UserID] = client
+		h.ClientMu.Unlock()
 	} else {
-		h.Clients[client.UserID] = client
+		// Room WS hanya masuk Rooms map
+		h.RoomMu.Lock()
+		if h.Rooms[client.RoomID] == nil {
+			h.Rooms[client.RoomID] = make(map[*Client]bool)
+		}
+		h.Rooms[client.RoomID][client] = true
+		h.RoomMu.Unlock()
 	}
-	h.ClientMu.Unlock()
-
-	h.RoomMu.Lock()
-	if _, ok := h.Rooms[client.RoomID]; !ok {
-		h.Rooms[client.RoomID] = make(map[*Client]bool)
-	}
-
-	h.Rooms[client.RoomID][client] = true
-	h.RoomMu.Unlock()
-
 }
 
 func (h *Hub) handleLeave(client *Client) {
-	h.ClientMu.Lock()
 	if client.RoomID == "global" {
-		delete(h.GlobalClients, client.UserID)
-	} else {
-		delete(h.Clients, client.UserID)
-	}
-	h.ClientMu.Unlock()
-
-	h.RoomMu.Lock()
-	if room, ok := h.Rooms[client.RoomID]; ok {
-		delete(room, client)
-		if len(room) == 0 {
-			delete(h.Rooms, client.RoomID)
+		h.ClientMu.Lock()
+		if existing, ok := h.GlobalClients[client.UserID]; ok && existing == client {
+			delete(h.GlobalClients, client.UserID)
 		}
+		h.ClientMu.Unlock()
+	} else {
+		h.RoomMu.Lock()
+		delete(h.Rooms[client.RoomID], client)
+		h.RoomMu.Unlock()
 	}
-	h.RoomMu.Unlock()
 	close(client.Send)
 }
 
@@ -94,21 +93,37 @@ func (h *Hub) handleBroadcast(message Message) {
 	for client := range roomClients {
 		select {
 		case client.Send <- message:
-		default:
-			h.Leave <- client
+
 		}
 	}
 }
 
-func (h *Hub) SendGlobalClient(user_id uint, msg Message) {
+func (h *Hub) handleSignal(message Message) {
 	h.ClientMu.RLock()
-	client, ok := h.GlobalClients[user_id]
+	target, ok := h.GlobalClients[message.ToID]
 	h.ClientMu.RUnlock()
-	if ok {
-		select {
-		case client.Send <- msg:
-		default:
+
+	if !ok {
+		return
+	}
+
+	// Skip kalau target lagi aktif di room yang sama (udah nerima dari Broadcast)
+	if message.Type == "chat" {
+		h.RoomMu.RLock()
+		roomClients := h.Rooms[message.RoomID]
+		for client := range roomClients {
+			if client.UserID == message.ToID {
+				h.RoomMu.RUnlock()
+				return // udah nerima dari broadcast, skip
+			}
 		}
+		h.RoomMu.RUnlock()
+	}
+
+	select {
+	case target.Send <- message:
+	default:
+		log.Printf("Skip signal for user %d: buffer full", message.ToID)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"chatapp/internal/middleware"
 	"chatapp/internal/repositories"
 	"chatapp/internal/services"
+	"chatapp/internal/services_cached"
 	"fmt"
 	"log"
 	"os"
@@ -101,11 +102,12 @@ func main() {
 
 	roomRepository := repositories.NewRoom(db)
 	roomService := services.NewRoomServices(hub, roomRepository, userRepository)
+	cachedRoomServices := services_cached.NewCachedRoomServices(roomService, rdb)
 
 	handler.NewAuth(app, authService, userService, jwtWare)
 	handler.NewUser(app, userService, jwtWare)
-	handler.NewRoom(app, roomService, jwtWare)
-	handler.NewWebSocket(app, hub, roomService, userService, middleware.WebsocketMiddleware(rdb))
+	handler.NewRoom(app, roomService, cachedRoomServices, jwtWare)
+	handler.NewWebSocket(app, hub, roomService, cachedRoomServices, userService, middleware.WebsocketMiddleware(rdb))
 
 	fmt.Printf("Server Berjalan Cuy")
 	log.Fatal(app.Listen(":8000"))

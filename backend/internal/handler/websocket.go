@@ -13,13 +13,21 @@ import (
 )
 
 type webSocketHandler struct {
-	hub         *dto.Hub
-	roomService core.RoomServices
-	userService core.UserServices
+	hub                *dto.Hub
+	roomService        core.RoomServices
+	cachedRoomServices core.RoomServices
+	userService        core.UserServices
+	saveSem            chan struct{}
 }
 
-func NewWebSocket(router fiber.Router, hub *dto.Hub, roomService core.RoomServices, userService core.UserServices, middleware fiber.Handler) {
-	handler := webSocketHandler{hub: hub, roomService: roomService, userService: userService}
+func NewWebSocket(router fiber.Router, hub *dto.Hub, roomService core.RoomServices, cachedRoomServices core.RoomServices, userService core.UserServices, middleware fiber.Handler) {
+	handler := webSocketHandler{
+		hub:                hub,
+		roomService:        roomService,
+		cachedRoomServices: cachedRoomServices,
+		userService:        userService,
+		saveSem:            make(chan struct{}, 20),
+	}
 
 	route := router.Group("/ws", middleware)
 	route.Get("/global", websocket.New(handler.HandleGlobalWebSocket))
@@ -36,11 +44,12 @@ func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
 	}
 
 	client := dto.Client{
-		Conn:     c,
-		UserID:   userId,
-		Username: user.Name,
-		RoomID:   "global",
-		Send:     make(chan dto.Message, 256),
+		Conn:           c,
+		UserID:         userId,
+		Username:       user.Name,
+		ProfilePicture: user.ProfilePicture,
+		RoomID:         "global",
+		Send:           make(chan dto.Message, 256),
 	}
 
 	h.hub.Join <- &client
@@ -97,17 +106,35 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 		client.Conn.Close()
 	}()
 
+	client.Conn.SetReadLimit(65536)
 	client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	client.Conn.SetPongHandler(func(string) error {
 		client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
-	// Cuma block biar koneksi tetap hidup, gak proses message apapun
 	for {
-		_, _, err := client.Conn.ReadMessage()
+		var msg dto.Message
+		err := client.Conn.ReadJSON(&msg)
 		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("global ws error user %d: %v", client.UserID, err)
+			}
 			break
+		}
+
+		// Set sender info
+		msg.UserID = client.UserID
+		msg.Username = client.Username
+		msg.ProfilePicture = client.ProfilePicture
+
+		// Forward WebRTC signals ke target user via GlobalClients
+		switch msg.Type {
+		case "call-offer", "call-answer", "ice-candidate", "call-rejected", "call-ended":
+			log.Printf("Global signal [%s] dari user %d ke user %d", msg.Type, client.UserID, msg.ToID)
+			h.hub.Signal <- msg
+		default:
+			log.Printf("Unknown global message type: %s", msg.Type)
 		}
 	}
 }
@@ -118,7 +145,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		client.Conn.Close()
 	}()
 
-	client.Conn.SetReadLimit(4096) // Max message size
+	client.Conn.SetReadLimit(65536)
 	client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	client.Conn.SetPongHandler(func(string) error {
 		client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
@@ -126,7 +153,6 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 	})
 
 	for {
-
 		var msg dto.Message
 		err := client.Conn.ReadJSON(&msg)
 		if err != nil {
@@ -142,36 +168,41 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		msg.Username = client.Username
 		msg.ProfilePicture = client.ProfilePicture
 		msg.TimeStamp = time.Now()
-		msg.Type = "chat"
 
+		msg.Type = "chat"
 		h.hub.Broadcast <- msg
 
-		// Kirim notif ke global clients member lain
 		go func(msg dto.Message) {
-			members, err := h.roomService.GetAllRoomMembers(context.Background(), msg.RoomID)
+			members, err := h.cachedRoomServices.GetAllRoomMembers(context.Background(), msg.RoomID)
 			if err != nil {
 				log.Printf("Failed to get members: %v", err)
 				return
 			}
-
 			for _, member := range members {
 				if member.UserID != msg.UserID {
-					h.hub.SendGlobalClient(member.UserID, msg)
+					msg.ToID = member.UserID
+					h.hub.Signal <- msg
 				}
 			}
 		}(msg)
 
 		go func(msg dto.Message) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Panic saat save message: %v", r)
+				}
+			}()
+
+			h.saveSem <- struct{}{}
+			defer func() { <-h.saveSem }()
+
 			encryptedContent, err := helper.Encrypt(msg.Content)
 			if err != nil {
 				log.Printf("Gagal enkripsi: %v", err)
 				return
 			}
-
 			msg.Content = encryptedContent
-
-			err = h.roomService.SaveMessage(msg)
-			if err != nil {
+			if err := h.roomService.SaveMessage(msg); err != nil {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
 			}
 		}(msg)
@@ -192,7 +223,6 @@ func (h *webSocketHandler) writePump(client *dto.Client) {
 				client.Conn.WriteMessage(websocket.CloseMessage, []byte(""))
 				return
 			}
-
 			client.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			err := client.Conn.WriteJSON(message)
 			if err != nil {
@@ -201,12 +231,10 @@ func (h *webSocketHandler) writePump(client *dto.Client) {
 			}
 
 		case <-ticker.C:
-			// untuk ping biar connection tetep nyala
 			client.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := client.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
 			}
-
 		}
 	}
 }

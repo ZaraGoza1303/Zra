@@ -4,6 +4,7 @@ import (
 	"chatapp/core"
 	"chatapp/internal/models"
 	"context"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -259,6 +260,24 @@ func (r *roomRepositories) GetIdPrivateRoom(ctx context.Context, userID uint, ta
 // InsertPrivateRoom implements [core.RoomRepositories].
 func (r *roomRepositories) InsertPrivateRoom(ctx context.Context, room *models.Room, user_id []uint) error {
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Double-check di dalam transaksi
+		var existingRoom models.Room
+		err := tx.
+			Joins("JOIN room_members rm1 ON rm1.room_id = rooms.id AND rm1.user_id = ?", user_id[0]).
+			Joins("JOIN room_members rm2 ON rm2.room_id = rooms.id AND rm2.user_id = ?", user_id[1]).
+			Where("rooms.type = ?", "private").
+			First(&existingRoom).Error
+
+		if err == nil {
+			// Room sudah ada, return ID-nya
+			room.ID = existingRoom.ID
+			return nil
+		}
+
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
 		if err := tx.Create(&room).Error; err != nil {
 			return err
 		}
@@ -271,11 +290,7 @@ func (r *roomRepositories) InsertPrivateRoom(ctx context.Context, room *models.R
 			})
 		}
 
-		if err := tx.Create(&members).Error; err != nil {
-			return err
-		}
-
-		return nil
+		return tx.Create(&members).Error
 	})
 }
 

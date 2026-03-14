@@ -371,13 +371,14 @@ func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) er
 	requestMsg := dto.Message{
 		ID:        dto.GenerateId(),
 		UserID:    userId,
+		ToID:      target_id,
 		Username:  username,
 		Content:   content,
 		Type:      "friend-request",
 		TimeStamp: time.Now(),
 	}
 
-	u.hub.SendGlobalClient(target_id, requestMsg)
+	u.hub.Signal <- requestMsg
 
 	return nil
 }
@@ -435,13 +436,14 @@ func (u *userServices) UpdateFriendRequest(ctx context.Context, target_id uint) 
 	accMsg := dto.Message{
 		ID:        dto.GenerateId(),
 		UserID:    userId,
+		ToID:      target_id,
 		Username:  username,
 		Content:   content,
 		Type:      "friend-accepted",
 		TimeStamp: time.Now(),
 	}
 
-	u.hub.SendGlobalClient(target_id, accMsg)
+	u.hub.Signal <- accMsg
 
 	return nil
 }
@@ -579,13 +581,14 @@ func (u *userServices) RejectFriendRequest(ctx context.Context, target_id uint) 
 	rejectMsg := dto.Message{
 		ID:        dto.GenerateId(),
 		UserID:    userId,
+		ToID:      target_id,
 		Username:  username,
 		Content:   content,
 		Type:      "friend-rejected",
 		TimeStamp: time.Now(),
 	}
 
-	u.hub.SendGlobalClient(target_id, rejectMsg)
+	u.hub.Signal <- rejectMsg
 
 	return nil
 }
