@@ -12,6 +12,6 @@ type Message struct {
 	Type           string    `gorm:"size:255"`
 	CreatedAt      time.Time `gorm:"autoCreateTime"`
 
-	Room Room `gorm:"foreignKey:RoomID;references:ID"`
+	Room Room `gorm:"foreignKey:RoomID;references:ID;constraint:OnDelete:CASCADE"`
 	User User `gorm:"foreignKey:UserID;references:ID"`
 }

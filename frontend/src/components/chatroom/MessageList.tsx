@@ -41,7 +41,7 @@ export default function MessageList({
         let lastDateLabel = '';
 
         messages.forEach((msg, idx) => {
-            const isSystem = msg.type === 'join' || msg.type === 'leave' || msg.type === 'system';
+            const isSystem = msg.type === 'join' || msg.type === 'leave' || msg.type === 'system' || msg.type === 'update-room';
 
             if (!isSystem && msg.time_stamp) {
                 const label = getDateLabel(msg.time_stamp);

@@ -24,6 +24,7 @@ export interface ChatRoomProps {
     roomType?: 'group' | 'private';
     onBack?: () => void;
     onNewMessage?: (roomId: string, message: LastMessage) => void;
+    onRoomResolved?: (resolvedRoomId: string) => void;
 }
 
 export interface RoomMember {

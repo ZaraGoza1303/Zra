@@ -9,7 +9,7 @@ import FriendCard from './cards/FriendCard';
 import type { SearchedUser, FriendRequest, ActiveTab, FriendAction, ContactsPanelProps } from '../../types/contacts';
 import { useToastStore } from '../../store/toastStore';
 
-export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProps) {
+export default function ContactsPanel({ isVisible, onOpenDM, friendRequestNotif = 0, friendAcceptedNotif = 0, onRequestTabOpen, onFriendsTabOpen, onlineUserIds = new Set() }: ContactsPanelProps) {
     const { user } = useAuthStore();
     const [dmLoading, setDmLoading] = useState<number | null>(null);
 
@@ -120,38 +120,15 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
     };
 
     const handleDirectMessage = async (targetId: number, targetUser?: SearchedUser) => {
-        setDmLoading(targetId);
         const target = targetUser || selectedUser;
-        try {
-            let roomId: string | null = null;
 
-            // 1. Cek apakah room sudah ada
-            try {
-                const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'GET' });
-                roomId = res.data;
-            } catch {
-                // Room belum ada, roomId tetap null
-            }
-
-            // 2. Kalau belum ada, create dulu
-            if (!roomId) {
-                await apiCall(`/room/${targetId}/private`, { method: 'POST' });
-                const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'GET' });
-                roomId = res.data;
-            }
-
-            if (!roomId) {
-                showToast('Failed to get room ID', 'error');
-                return;
-            }
-
-            onOpenDM(roomId, target?.name || target?.username || '', target?.profile_picture);
-            setSelectedUser(null);
-        } catch (err: any) {
-            showToast(err.message || 'Failed to open DM', 'error');
-        } finally {
-            setDmLoading(null);
-        }
+        // Jangan hit API dulu, langsung buka UI chat dengan targetId
+        onOpenDM(
+            `pending:${targetId}`,  // flag "pending" room
+            target?.name || target?.username || '',
+            target?.profile_picture
+        );
+        setSelectedUser(null);
     };
 
     const tabs = [
@@ -180,14 +157,24 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
                 <h1 className="text-xl font-bold text-[#e6edf3] mb-4">Contacts</h1>
                 <div className="flex gap-1 p-1 bg-[#0d1117] rounded-xl border border-white/5">
                     {tabs.map(tab => (
-                        <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSelectedUser(null); }}
+                        <button key={tab.key} onClick={() => {
+                            setActiveTab(tab.key);
+                            setSelectedUser(null);
+                            if (tab.key === 'requests') onRequestTabOpen?.();
+                            if (tab.key === 'friends') onFriendsTabOpen?.();
+                        }}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-all duration-200
                                 ${activeTab === tab.key ? 'bg-[#1c2128] text-[#e6edf3] shadow-sm' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}>
                             {tab.icon}
                             {tab.label}
-                            {tab.key === 'requests' && friendRequests.length > 0 && (
+                            {tab.key === 'requests' && friendRequestNotif > 0 && (
                                 <span className="w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] flex items-center justify-center font-bold">
-                                    {friendRequests.length}
+                                    {friendRequestNotif > 9 ? '9+' : friendRequestNotif}
+                                </span>
+                            )}
+                            {tab.key === 'friends' && friendAcceptedNotif > 0 && (
+                                <span className="w-4 h-4 rounded-full bg-green-500 text-white text-[9px] flex items-center justify-center font-bold">
+                                    {friendAcceptedNotif > 9 ? '9+' : friendAcceptedNotif}
                                 </span>
                             )}
                         </button>
@@ -272,7 +259,14 @@ export default function ContactsPanel({ isVisible, onOpenDM }: ContactsPanelProp
                         ) : (
                             <>
                                 <p className="text-[11px] text-[#8b949e] uppercase tracking-wider font-medium px-3 py-2">{friends.length} {friends.length === 1 ? 'friend' : 'friends'}</p>
-                                {friends.map(u => <FriendCard key={u.id} user={u} onViewDetail={() => setSelectedUser({ ...u, friendship_status: 'friend' })} />)}
+                                {friends.map(u => (
+                                    <FriendCard
+                                        key={u.id}
+                                        user={u}
+                                        isOnline={onlineUserIds.has(u.id)}
+                                        onViewDetail={() => setSelectedUser({ ...u, friendship_status: 'friend' })}
+                                    />
+                                ))}
                             </>
                         )}
                     </div>

@@ -6,6 +6,7 @@ interface ChatHeaderProps {
     roomId: string;
     roomName: string;
     roomPicture?: string;
+    roomType?: 'group' | 'private';
     onBack?: () => void;
     onOpenInfoModal: () => void;
     onOpenUsersModal: () => void;
@@ -15,12 +16,13 @@ export default function ChatHeader({
     roomId,
     roomName,
     roomPicture,
+    roomType,
     onBack,
     onOpenInfoModal,
     onOpenUsersModal
 }: ChatHeaderProps) {
     const { totalMemberCount, activeMemberCount, roomDetails } = useChatStore();
-    const isPrivate = roomDetails?.type === 'private' || !totalMemberCount; // Fallback logic
+    const isPrivate = roomType === 'private';
 
     return (
         <div className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border-b border-white/5 shrink-0">
@@ -52,7 +54,7 @@ export default function ChatHeader({
                             {isPrivate
                                 ? 'Direct Message'
                                 : totalMemberCount !== null
-                                    ? `${totalMemberCount} members • ${activeMemberCount ?? '?'} online`
+                                    ? `${totalMemberCount > 999 ? '999+' : totalMemberCount} members`
                                     : 'Click to view info'
                             }
                         </p>

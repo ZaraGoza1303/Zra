@@ -3,7 +3,8 @@ import React, { useEffect, useRef } from 'react';
 import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
     Settings, Home, Users, Bell, X,
-    User
+    User,
+    Grid2x2
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useDashboardStore } from '../store/dashboardStore';
@@ -14,6 +15,8 @@ import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
 import type { Room } from '../types/chat';
 import { BACKEND_URL } from '../config';
+import { useToastStore } from '../store/toastStore';
+import type { UnreadNotif } from '../types/contacts';
 
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
@@ -26,7 +29,7 @@ export default function Dashboard() {
         searchTerm, setSearchTerm,
         activeNav, setActiveNav,
         isModalOpen, setIsModalOpen,
-        isProfileModalOpen, setIsProfileModalOpen
+        isProfileModalOpen, setIsProfileModalOpen,
     } = useDashboardStore();
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -35,6 +38,17 @@ export default function Dashboard() {
     const [newRoomDescription, setNewRoomDescription] = React.useState('');
     const [newRoomImage, setNewRoomImage] = React.useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [onlineUserIds, setOnlineUserIds] = React.useState<Set<number>>(new Set());
+
+    const [friendRequestNotif, setFriendRequestNotif] = React.useState(0);
+    const [friendAcceptedNotif, setFriendAcceptedNotif] = React.useState(0);
+    const contactsNotif = friendRequestNotif + friendAcceptedNotif;
+
+    const { allRooms } = useDashboardStore();
+    const unreadGroups = allRooms.filter(r => r.type === 'group').reduce((sum, r) => sum + (r.unread_message ?? 0), 0);
+    const unreadPrivate = allRooms.filter(r => r.type === 'private').reduce((sum, r) => sum + (r.unread_message ?? 0), 0);
+    const unreadAll = unreadGroups + unreadPrivate;
+    const unreadHomeOnly = activeNav === 'rooms' ? unreadPrivate : activeNav === 'chats' ? unreadGroups : unreadAll;
 
     const globalWs = useRef<WebSocket | null>(null);
     const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,28 +64,58 @@ export default function Dashboard() {
 
         ws.onopen = () => {
             console.log('Global WS connected');
+            fetchOnlineUsers();
         };
 
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'chat') {
-                    const { selectedRoom, dmRoom, rooms, setRooms } = useDashboardStore.getState();
+                    const { selectedRoom, dmRoom, rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
                     const isActiveRoom = selectedRoom?.id === msg.room_id || dmRoom?.id === msg.room_id;
-                    setRooms(rooms.map((r: Room) =>
-                        r.id === msg.room_id
-                            ? {
-                                ...r,
-                                last_message: {
-                                    content: msg.content,
-                                    username: msg.username,
-                                    sent_at: msg.time_stamp,
-                                },
-                                unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1
-                            }
-                            : r
-                    ));
+                    const updater = (r: Room) => r.id === msg.room_id
+                        ? {
+                            ...r,
+                            last_message: { content: msg.content, username: msg.username, sent_at: msg.time_stamp },
+                            unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1
+                        }
+                        : r;
+
+                    setRooms(rooms.map(updater));
+                    setAllRooms(allRooms.map(updater));
                 }
+
+                if (msg.type === 'friend-request' || msg.type === 'friend-rejected') {
+                    useToastStore.getState().showToast(msg.content, msg.type === 'friend-rejected' ? 'error' : 'info');
+                    setFriendRequestNotif(prev => prev + 1);
+                }
+
+
+                if (msg.type === 'friend-accepted') {
+                    useToastStore.getState().showToast(msg.content, 'success');
+                    setFriendAcceptedNotif(prev => prev + 1);
+                }
+
+                if (msg.type === 'added-to-room') {
+                    useToastStore.getState().showToast(`You've been added to a room!`, 'info');
+                    (async () => {
+                        try {
+                            const res = await apiCall<{ data: Room[] }>(`/room?search=`, { method: 'GET' });
+                            const freshRooms = res.data || [];
+                            const withUnread = freshRooms.map(r =>
+                                r.id === msg.room_id ? { ...r, unread_message: (r.unread_message ?? 0) || 1 } : r
+                            );
+                            const { setAllRooms, setRooms, activeNav } = useDashboardStore.getState();
+                            setAllRooms(withUnread);
+                            if (activeNav === 'home') setRooms(withUnread);
+                            else if (activeNav === 'rooms') setRooms(withUnread.filter(r => r.type === 'group'));
+                            else if (activeNav === 'chats') setRooms(withUnread.filter(r => r.type === 'private'));
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    })();
+                }
+
             } catch (e) {
                 console.error('Global WS error:', e);
             }
@@ -113,17 +157,55 @@ export default function Dashboard() {
     const fetchRooms = async () => {
         try {
             const res = await apiCall<{ data: Room[] }>(`/room?search=${searchTerm}`, { method: 'GET' });
-            const allRooms = res.data || [];
+            const freshRooms = res.data || [];
+
+            const { allRooms, setAllRooms } = useDashboardStore.getState();
+            const merged = freshRooms.map(r => {
+                const existing = allRooms.find(cr => cr.id === r.id);
+                return existing ? { ...r, unread_message: existing.unread_message } : r;
+            });
+
+            setAllRooms(merged);
 
             if (activeNav === 'home') {
-                setRooms(allRooms);
+                setRooms(merged);
             } else if (activeNav === 'rooms') {
-                setRooms(allRooms.filter(r => r.type === 'group'));
+                setRooms(merged.filter(r => r.type === 'group'));
             } else if (activeNav === 'chats') {
-                setRooms(allRooms.filter(r => r.type === 'private'));
+                setRooms(merged.filter(r => r.type === 'private'));
             }
         } catch (err) {
             console.error('Failed to fetch rooms', err);
+        }
+    };
+
+    // Fetch unread count on mount
+    const fetchUnreadNotifCount = async () => {
+        try {
+            const res = await apiCall<{ data: UnreadNotif[] }>('/user/unread-notifications', { method: 'GET' });
+            const data = res.data || [];
+
+            const friendReq = data.find(d => d.type === 'friend-request')?.count ?? 0;
+            const friendRej = data.find(d => d.type === 'friend-rejected')?.count ?? 0;
+            const friendAcc = data.find(d => d.type === 'friend-accepted')?.count ?? 0;
+
+            setFriendRequestNotif(friendReq + friendRej);
+            setFriendAcceptedNotif(friendAcc);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    useEffect(() => {
+        fetchUnreadNotifCount();
+    }, []);
+
+    const fetchOnlineUsers = async () => {
+        try {
+            const res = await apiCall<{ data: number[] }>('/user/online', { method: 'GET' });
+            setOnlineUserIds(new Set(res.data || []));
+        } catch (e) {
+            console.error('Failed to fetch online users', e);
         }
     };
 
@@ -163,6 +245,7 @@ export default function Dashboard() {
             setNewRoomDescription('');
             setNewRoomImage(null);
             setIsModalOpen(false);
+            useToastStore.getState().showToast('Room created successfully', 'success');
             fetchRooms();
         } catch (err) {
             console.error('Create room failed', err);
@@ -203,7 +286,7 @@ export default function Dashboard() {
 
     const navItems: { key: NavItem; icon: React.ReactNode; label: string }[] = [
         { key: 'home', icon: <Home size={20} />, label: 'Home' },
-        { key: 'rooms', icon: <Users size={20} />, label: 'Rooms' },
+        { key: 'rooms', icon: <Grid2x2 size={20} />, label: 'Rooms' },
         { key: 'chats', icon: <MessageSquare size={20} />, label: 'Chats' },
         { key: 'contacts', icon: <Users size={20} />, label: 'Contacts' },
         { key: 'settings', icon: <Settings size={20} />, label: 'Settings' },
@@ -233,12 +316,35 @@ export default function Dashboard() {
                             }}
                             title={item.label}
                             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative group
-                                ${activeNav === item.key
+                ${activeNav === item.key
                                     ? 'bg-blue-600/20 text-blue-400'
                                     : 'text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3]'
                                 }`}
                         >
-                            {item.icon}
+                            <div className="relative">
+                                {item.icon}
+
+                                {item.key === 'contacts' && contactsNotif > 0 && (
+                                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                                        {contactsNotif > 9 ? '9+' : contactsNotif}
+                                    </span>
+                                )}
+                                {item.key === 'home' && unreadHomeOnly > 0 && activeNav !== 'home' && (
+                                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                                        {unreadAll > 99 ? '99+' : unreadAll}
+                                    </span>
+                                )}
+                                {item.key === 'rooms' && unreadGroups > 0 && activeNav !== 'rooms' && (
+                                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                                        {unreadGroups > 99 ? '99+' : unreadGroups}
+                                    </span>
+                                )}
+                                {item.key === 'chats' && unreadPrivate > 0 && activeNav !== 'chats' && (
+                                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 rounded-full bg-blue-500 text-white text-[9px] font-bold flex items-center justify-center leading-none">
+                                        {unreadPrivate > 99 ? '99+' : unreadPrivate}
+                                    </span>
+                                )}
+                            </div>
                             {activeNav === item.key && (
                                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-500 rounded-r-full -ml-2" />
                             )}
@@ -272,6 +378,17 @@ export default function Dashboard() {
             <ContactsPanel
                 isVisible={activeNav === 'contacts'}
                 onOpenDM={handleOpenDM}
+                friendRequestNotif={friendRequestNotif}
+                friendAcceptedNotif={friendAcceptedNotif}
+                onRequestTabOpen={() => {
+                    setFriendRequestNotif(0);
+                    apiCall('/user/read-notifications', { method: 'PUT' }).catch(console.error);
+                }}
+                onFriendsTabOpen={() => {
+                    setFriendAcceptedNotif(0);
+                    apiCall('/user/read-notifications', { method: 'PUT' }).catch(console.error);
+                }}
+                onlineUserIds={onlineUserIds}
             />
 
             {/* ROOM LIST PANEL */}
@@ -348,14 +465,13 @@ export default function Dashboard() {
                                                 </div>
                                             )}
 
-                                            {/* Badge unread */}
                                             {room.unread_message && room.unread_message > 0 ? (
                                                 <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#111318]">
                                                     {room.unread_message > 99 ? '99+' : room.unread_message}
                                                 </span>
-                                            ) : (
+                                            ) : room.type === 'private' && room.members?.some(m => m.user_id !== user?.id && onlineUserIds.has(m.user_id)) ? (
                                                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
-                                            )}
+                                            ) : null}
                                         </div>
 
                                         <div className="flex-1 overflow-hidden">
@@ -408,18 +524,19 @@ export default function Dashboard() {
                         roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
                         onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
                         onNewMessage={(msgRoomId, message) => {
-                            const { selectedRoom, dmRoom, rooms, setRooms } = useDashboardStore.getState();
+                            const { selectedRoom, dmRoom, rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
                             const isActiveRoom = selectedRoom?.id === msgRoomId || dmRoom?.id === msgRoomId;
 
-                            setRooms(rooms.map((r: Room) =>
-                                r.id === msgRoomId
-                                    ? {
-                                        ...r,
-                                        last_message: message,
-                                        unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1
-                                    }
-                                    : r
-                            ));
+                            const updater = (r: Room) => r.id === msgRoomId
+                                ? { ...r, last_message: message, unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1 }
+                                : r;
+
+                            setRooms(rooms.map(updater));
+                            setAllRooms(allRooms.map(updater));
+                        }}
+                        onRoomResolved={(resolvedRoomId) => {
+                            const { dmRoom } = useDashboardStore.getState();
+                            setDmRoom(dmRoom ? { ...dmRoom, id: resolvedRoomId } : null);
                         }}
                     />
                 ) : (

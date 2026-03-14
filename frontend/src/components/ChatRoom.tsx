@@ -14,10 +14,12 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } fr
 import { useDashboardStore } from '../store/dashboardStore';
 import { useToastStore } from '../store/toastStore';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
     const { updateRoom } = useDashboardStore();
+    const isPendingRoom = roomId.startsWith('pending:');
+    const resolvedRoomId = useRef<string>(isPendingRoom ? '' : roomId);
     const {
         messages, setMessages,
         input, setInput,
@@ -39,7 +41,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setEditingName,
         setEditingDesc,
         setEditLoading,
-        resetChatState
+        resetChatState,
+        setActiveMembers
     } = useChatStore();
 
     const ws = useRef<WebSocket | null>(null);
@@ -101,51 +104,112 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
     };
 
+    const refreshRoomData = async () => {
+        try {
+            // Ambil data detail room terbaru
+            const resp = await apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' });
+            const updatedData = resp.data;
+
+            // Update state lokal (untuk sidebar yang sedang terbuka)
+            setRoomDetails(updatedData);
+
+            // Update dashboard store (agar list chat di kiri berubah seketika)
+            updateRoom(roomId, {
+                name: updatedData.name,
+                picture: updatedData.picture,
+                description: updatedData.description,
+                // Jika ada field lain yang relevan di dashboardStore
+            });
+
+            console.log("Room data synchronized with server signal.");
+        } catch (err) {
+            console.error("Failed to sync room data after signal", err);
+        }
+    };
+
+    const sendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!input.trim()) return;
+
+        // Kalau pending, resolve dulu
+        if (isPendingRoom) {
+            const targetId = roomId.replace('pending:', '');
+            try {
+                const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'POST' });
+                const newRoomId = res.data;
+                resolvedRoomId.current = newRoomId;
+
+                // Notify dashboard buat update dmRoom id
+                onRoomResolved?.(newRoomId);
+
+                const newWs = connectWs(newRoomId);
+                newWs.onopen = () => {
+                    newWs.send(JSON.stringify({ content: input }));
+                    setInput('');
+                };
+            } catch (err) {
+                showToast('Failed to create DM room', 'error');
+            }
+            return;
+        }
+
+        // Normal send
+        ws.current?.send(JSON.stringify({ content: input }));
+        setInput('');
+    };
+
+    const connectWs = (targetRoomId?: string): WebSocket => {
+        const actualRoomId = targetRoomId || roomId; // <-- simpan di variable lokal
+        const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
+        ws.current = new WebSocket(`${wsBaseUrl}/ws/${actualRoomId}?token=${token}`);
+
+        ws.current.onopen = () => {
+            console.log('Connected to WS', roomId);
+        };
+
+        ws.current.onmessage = (event) => {
+            try {
+                const msg: Message = JSON.parse(event.data);
+
+                if (msg.type === 'update-room') {
+                    refreshRoomData();
+                }
+
+                setMessages((prev) => [...prev, msg]);
+
+                if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
+                    onNewMessage?.(actualRoomId, { // <-- pakai actualRoomId, bukan roomId
+                        content: msg.content,
+                        username: msg.username,
+                        sent_at: msg.time_stamp,
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to parse message", e);
+            }
+        };
+
+        ws.current.onerror = (error) => {
+            console.error('WS Error:', error);
+        };
+
+        ws.current.onclose = () => {
+            console.log('Disconnected from WS', roomId);
+        };
+
+        return ws.current;
+    };
+
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     useEffect(() => {
         if (!roomId || !user || !token) return;
+        if (isPendingRoom) return;
 
         // Reset state saat ganti room
         resetChatState();
-
-        const connectWs = () => {
-            const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-            const wsUrl = `${wsBaseUrl}/ws/${roomId}?token=${token}`;
-            ws.current = new WebSocket(wsUrl);
-
-            ws.current.onopen = () => {
-                console.log('Connected to WS', roomId);
-            };
-
-            ws.current.onmessage = (event) => {
-                try {
-                    const msg: Message = JSON.parse(event.data);
-                    setMessages((prev) => [...prev, msg]);
-
-                    if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
-                        onNewMessage?.(roomId, {
-                            content: msg.content,
-                            username: msg.username,
-                            sent_at: msg.time_stamp,
-                        });
-                    }
-                } catch (e) {
-                    console.error("Failed to parse message", e);
-                }
-            };
-
-            ws.current.onerror = (error) => {
-                console.error('WS Error:', error);
-            };
-
-            ws.current.onclose = () => {
-                console.log('Disconnected from WS', roomId);
-            };
-        };
-
         fetchChatHistory();
         connectWs();
 
@@ -157,26 +221,26 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     }, [roomId, user, token, resetChatState]);
 
 
-    useEffect(() => {
+    const fetchCounts = async () => {
         if (!roomId || isPrivate) return;
-        const fetchCounts = async () => {
-            try {
-                const [activeRes, totalRes] = await Promise.all([
-                    apiCall<{ data: number }>(`/room/${roomId}/active-members-count`, { method: 'GET' }),
-                    apiCall<{ data: number }>(`/room/${roomId}/all-members-count`, { method: 'GET' }),
-                ]);
-                setActiveMemberCount(activeRes.data);
-                setTotalMemberCount(totalRes.data);
-            } catch (e) {
-                console.error('Failed to fetch counts', e);
-            }
-        };
+        try {
+            const [activeRes, totalRes] = await Promise.all([
+                apiCall<{ data: number }>(`/room/${roomId}/active-members-count`, { method: 'GET' }),
+                apiCall<{ data: number }>(`/room/${roomId}/all-members-count`, { method: 'GET' }),
+            ]);
+            setActiveMemberCount(activeRes.data);
+            setTotalMemberCount(totalRes.data);
+        } catch (e) {
+            console.error('Failed to fetch counts', e);
+        }
+    };
 
+    useEffect(() => {
         fetchCounts();
     }, [roomId, isPrivate, setActiveMemberCount, setTotalMemberCount]);
 
     useEffect(() => {
-        if (!roomId) return;
+        if (!roomId || isPendingRoom) return;
         const markAsRead = async () => {
             try {
                 await apiCall(`/room/${roomId}/read`, { method: 'PUT' });
@@ -188,38 +252,37 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         markAsRead();
     }, [roomId]);
 
-    const sendMessage = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || !ws.current) return;
-
-        const payload = {
-            content: input,
-        };
-
-        ws.current.send(JSON.stringify(payload));
-        setInput('');
-    };
-
-    const handleRoomAction = async (action: 'leave' | 'kick' | 'admin') => {
+    const handleRoomAction = async (action: 'leave' | 'kick' | 'admin' | 'delete') => {
         setActionLoading(true);
         try {
             if (action === 'leave') {
                 await apiCall(`/room/${roomId}/leave`, { method: 'DELETE' });
                 showToast('Successfully left the room!');
                 onBack?.();
+
             } else if (action === 'kick') {
                 if (targetUserId === null) return showToast('Please select a user to kick.', 'error');
                 await apiCall(`/room/${roomId}/kick?user_id=${targetUserId}`, { method: 'DELETE' });
                 showToast('User kicked successfully!');
                 setTargetUserId(null);
-                await fetchRoomMembers();
+                await Promise.all([
+                    fetchRoomMembers(),
+                    fetchCounts()
+                ]);
+
             } else if (action === 'admin') {
                 if (targetUserId === null) return showToast('Please select a user to make admin.', 'error');
                 await apiCall(`/room/${roomId}/to-admin?user_id=${targetUserId}`, { method: 'PUT' });
                 showToast('User is now an admin!');
                 setTargetUserId(null);
                 await fetchRoomMembers();
+
+            } else if (action === 'delete') {
+                await apiCall(`/room/${roomId}`, { method: 'DELETE' });
+                showToast('Room deleted successfully!');
+                onBack?.();
             }
+
         } catch (error: any) {
             alert(`Action failed: ${error.message}`);
         } finally {
@@ -289,13 +352,15 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setFetchingInfo(true);
         setFetchingMembers(true);
         try {
-            const [infoResp, friendsResp] = await Promise.all([
+            const [infoResp, friendsResp, activeRes] = await Promise.all([
                 apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' }),
                 apiCall<{ data: UserProfile[] }>(`/user/list-friend`, { method: 'GET' }),
+                apiCall<{ data: number[] }>(`/room/${roomId}/active-members`, { method: 'GET' }),
                 fetchRoomMembers(),
             ]);
             setRoomDetails(infoResp.data);
             setFriendsList(friendsResp.data || []);
+            setActiveMembers(activeRes.data || []);
         } catch (e) {
             console.error("Failed to fetch room info", e);
         } finally {
@@ -328,7 +393,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 method: 'POST',
             });
             showToast('Member added successfully!');
-            await fetchRoomMembers();
+            await Promise.all([
+                fetchRoomMembers(),
+                fetchCounts()
+            ]);
         } catch (e: any) {
             showToast(`Failed to add member: ${e.message}`, 'error');
         } finally {
@@ -344,6 +412,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     roomId={roomId}
                     roomName={roomName}
                     roomPicture={roomPicture}
+                    roomType={roomType}
                     onBack={onBack}
                     onOpenInfoModal={handleOpenInfoModal}
                     onOpenUsersModal={handleOpenUsersModal}
@@ -372,6 +441,19 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     handleRoomAction={handleRoomAction}
                     onClose={() => setShowInfoModal(false)}
                     onAddMember={handleAddMember}
+                    onRefresh={async () => {
+                        const [infoResp, activeRes, totalRes] = await Promise.all([
+                            apiCall<{ data: RoomResponse }>(`/room/${roomId}`, { method: 'GET' }),
+                            apiCall<{ data: number[] }>(`/room/${roomId}/active-members`, { method: 'GET' }),
+                            apiCall<{ data: number }>(`/room/${roomId}/all-members-count`, { method: 'GET' }),
+                            fetchRoomMembers(),
+                        ]);
+                        setRoomDetails(infoResp.data);
+                        setActiveMembers(activeRes.data || []);
+                        setActiveMemberCount(activeRes.data?.length ?? 0);
+                        setTotalMemberCount(totalRes.data);
+                    }}
+                    roomType={roomType}
                 />
             )}
 

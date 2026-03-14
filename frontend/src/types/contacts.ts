@@ -32,4 +32,11 @@ export interface UserDetailDrawerProps {
 export interface ContactsPanelProps {
     isVisible: boolean;
     onOpenDM: (roomId: string, targetName: string, targetPicture?: string) => void;
+    friendRequestNotif?: number;
+    friendAcceptedNotif?: number;
+    onRequestTabOpen?: () => void;
+    onFriendsTabOpen?: () => void;
+    onlineUserIds?: Set<number>;
 }
+
+export type UnreadNotif = { type: string; count: number };

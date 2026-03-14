@@ -31,7 +31,7 @@ func InitDB() (*gorm.DB, error) {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.User{}, &models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{})
+	db.AutoMigrate(&models.User{}, &models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{})
 
 	return db, nil
 }

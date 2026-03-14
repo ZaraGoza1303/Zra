@@ -22,6 +22,7 @@ type roomHandler struct {
 func NewRoom(router fiber.Router, roomService core.RoomServices, middleware fiber.Handler) {
 	handler := roomHandler{roomServices: roomService}
 	router.Get("/api/room/:room_link/preview", handler.FindRoomPreview)
+	router.Get("/api/room/:id/active-members", handler.GetActiveMembers)
 	router.Get("/api/room/:id/active-members-count", handler.GetActiveMemberCount)
 	router.Get("/api/room/:id/all-members-count", handler.GetMemberCount)
 
@@ -167,11 +168,11 @@ func (h *roomHandler) MakePrivateRoom(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	if err := h.roomServices.MakePrivateRoom(ctx, userId, targetId); err != nil {
+	roomId, err := h.roomServices.MakePrivateRoom(ctx, userId, targetId)
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
-
-	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room private created", nil))
+	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room private found or created", roomId))
 }
 
 func (h *roomHandler) UpdateRoom(c *fiber.Ctx) error {
@@ -318,6 +319,16 @@ func (h *roomHandler) GetActiveMemberCount(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing result count", memberCount))
 }
 
+func (h *roomHandler) GetActiveMembers(c *fiber.Ctx) error {
+	roomId := c.Params("id")
+	members, err := h.roomServices.GetActiveMembers(roomId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing active user id", members))
+}
+
 func (h *roomHandler) GetMemberCount(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
@@ -384,7 +395,6 @@ func (h *roomHandler) LeaveRoom(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Leave", nil))
-
 }
 
 func (h *roomHandler) MakeAdmin(c *fiber.Ctx) error {

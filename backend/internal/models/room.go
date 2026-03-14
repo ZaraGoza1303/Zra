@@ -14,5 +14,5 @@ type Room struct {
 	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
 
 	User    User         `gorm:"foreignKey:OwnerID;references:ID;constraint:OnDelete:CASCADE"`
-	Members []RoomMember `gorm:"foreignKey:RoomID;references:ID;constraint;OnDelete:CASCADE"`
+	Members []RoomMember `gorm:"foreignKey:RoomID;references:ID;constraint:OnDelete:CASCADE"`
 }

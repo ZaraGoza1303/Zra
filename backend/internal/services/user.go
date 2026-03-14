@@ -15,6 +15,7 @@ import (
 )
 
 type userServices struct {
+	hub              *dto.Hub
 	UserRepositories core.UserRepositories
 	frontendUrl      string
 	backendUrl       string
@@ -23,13 +24,15 @@ type userServices struct {
 	usersPath        string
 }
 
-func NewUser(repo core.UserRepositories) core.UserServices {
-	return &userServices{UserRepositories: repo,
-		frontendUrl:     os.Getenv("FRONTEND_URL"),
-		backendUrl:      os.Getenv("BACKEND_URL"),
-		frontendJoinUrl: os.Getenv("FRONTEND_JOIN_URL"),
-		roomsPath:       os.Getenv("ROOMS_PATH"),
-		usersPath:       os.Getenv("USERS_PATH")}
+func NewUser(repo core.UserRepositories, hub *dto.Hub) core.UserServices {
+	return &userServices{
+		hub:              hub,
+		UserRepositories: repo,
+		frontendUrl:      os.Getenv("FRONTEND_URL"),
+		backendUrl:       os.Getenv("BACKEND_URL"),
+		frontendJoinUrl:  os.Getenv("FRONTEND_JOIN_URL"),
+		roomsPath:        os.Getenv("ROOMS_PATH"),
+		usersPath:        os.Getenv("USERS_PATH")}
 }
 
 func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserResponse, error) {
@@ -278,6 +281,30 @@ func (u *userServices) FindByEmailAndProvider(ctx context.Context, email, provid
 	return &response, nil
 }
 
+// FindUnreadNotifications implements [core.UserServices].
+func (u *userServices) FindUnreadNotifCount(ctx context.Context) ([]dto.UnreadNotifResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	unreadRes, err := u.UserRepositories.GetUnreadNotifCount(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.UnreadNotifResponse
+
+	for _, data := range unreadRes {
+		response = append(response, dto.UnreadNotifResponse{
+			Count: data.Count,
+			Type:  data.Type,
+		})
+	}
+
+	return response, nil
+}
+
 // MakeFriendRequest implements [core.UserServices].
 func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) error {
 	userId, ok := ctx.Value("user_id").(uint)
@@ -303,7 +330,7 @@ func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) er
 	}
 
 	if alreadyFriend {
-		return errors.New("friend request already exists or you are already friends")
+		return errors.New("friend request already sent or you are already friends")
 	}
 
 	newFriend := models.Friend{
@@ -316,6 +343,41 @@ func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) er
 	if err := u.UserRepositories.InsertFriendRequest(ctx, &newFriend); err != nil {
 		return err
 	}
+
+	var username string
+	if user, ok := u.hub.GetClientById(userId); ok {
+		username = user.Username
+	} else {
+		dbUser, err := u.UserRepositories.GetById(ctx, userId)
+		if err != nil {
+			return err
+		}
+
+		username = dbUser.Username
+	}
+
+	content := fmt.Sprintf("%s send you a friend request", username)
+
+	newNotif := models.Notification{
+		UserID:  target_id,
+		Type:    "friend-request",
+		Content: content,
+	}
+
+	if err := u.UserRepositories.InsertNotification(ctx, &newNotif); err != nil {
+		return err
+	}
+
+	requestMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		UserID:    userId,
+		Username:  username,
+		Content:   content,
+		Type:      "friend-request",
+		TimeStamp: time.Now(),
+	}
+
+	u.hub.SendGlobalClient(target_id, requestMsg)
 
 	return nil
 }
@@ -345,6 +407,41 @@ func (u *userServices) UpdateFriendRequest(ctx context.Context, target_id uint) 
 	if err := u.UserRepositories.UpdateFriendRequest(ctx, &friendReq); err != nil {
 		return err
 	}
+
+	var username string
+	if user, ok := u.hub.GetClientById(userId); ok {
+		username = user.Username
+	} else {
+		dbUser, err := u.UserRepositories.GetById(ctx, userId)
+		if err != nil {
+			return err
+		}
+
+		username = dbUser.Username
+	}
+
+	content := fmt.Sprintf("%s accepted your friend request", username)
+
+	newNotif := models.Notification{
+		UserID:  target_id,
+		Type:    "friend-accepted",
+		Content: content,
+	}
+
+	if err := u.UserRepositories.InsertNotification(ctx, &newNotif); err != nil {
+		return err
+	}
+
+	accMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		UserID:    userId,
+		Username:  username,
+		Content:   content,
+		Type:      "friend-accepted",
+		TimeStamp: time.Now(),
+	}
+
+	u.hub.SendGlobalClient(target_id, accMsg)
 
 	return nil
 }
@@ -406,7 +503,20 @@ func (u *userServices) UpdatePassResetToken(ctx context.Context, id uint, req dt
 	}
 
 	return nil
+}
 
+// UpdateReadNotifications implements [core.UserServices].
+func (u *userServices) UpdateReadNotifications(ctx context.Context) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	if err := u.UserRepositories.UpdateNotifRead(ctx, userId); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (u *userServices) Delete(ctx context.Context, id uint) error {
@@ -441,6 +551,41 @@ func (u *userServices) RejectFriendRequest(ctx context.Context, target_id uint) 
 	if err := u.UserRepositories.DeleteFriendRequest(ctx, target_id, userId); err != nil {
 		return err
 	}
+
+	var username string
+	if user, ok := u.hub.GetClientById(userId); ok {
+		username = user.Username
+	} else {
+		dbUser, err := u.UserRepositories.GetById(ctx, userId)
+		if err != nil {
+			return err
+		}
+
+		username = dbUser.Username
+	}
+
+	content := fmt.Sprintf("%s rejected your friend request", username)
+
+	newNotif := models.Notification{
+		UserID:  target_id,
+		Type:    "friend-rejected",
+		Content: content,
+	}
+
+	if err := u.UserRepositories.InsertNotification(ctx, &newNotif); err != nil {
+		return err
+	}
+
+	rejectMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		UserID:    userId,
+		Username:  username,
+		Content:   content,
+		Type:      "friend-rejected",
+		TimeStamp: time.Now(),
+	}
+
+	u.hub.SendGlobalClient(target_id, rejectMsg)
 
 	return nil
 }
@@ -589,4 +734,14 @@ func (u *userServices) FindByIdWithoutCtx(id uint) (*dto.UserResponse, error) {
 	}
 
 	return &response, nil
+}
+
+// FindOnlineUsers implements [core.UserServices].
+func (u *userServices) FindOnlineUsers() ([]uint, error) {
+	users, err := u.hub.OnlineMembers()
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }

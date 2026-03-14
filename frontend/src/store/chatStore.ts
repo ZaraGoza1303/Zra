@@ -20,6 +20,8 @@ interface ChatState {
     targetUserId: number | null;
     actionLoading: boolean;
     addingMember: boolean;
+    activeMembers: number[]
+    setActiveMembers: (ids: number[]) => void
 
     // Edit states
     editingName: boolean;
@@ -78,6 +80,8 @@ export const useChatStore = create<ChatState>((set) => ({
     targetUserId: null,
     actionLoading: false,
     addingMember: false,
+    activeMembers: [],
+    setActiveMembers: (ids: number[]) => set({ activeMembers: ids }),
 
     editingName: false,
     editingDesc: false,

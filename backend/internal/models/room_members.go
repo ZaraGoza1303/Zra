@@ -9,6 +9,6 @@ type RoomMember struct {
 	JoinedAt   time.Time `gorm:"autoCreateTime"`
 	LastReadAt time.Time `gorm:"autoCreateTime"`
 
-	Room Room `gorm:"foreignKey:RoomID;references:ID"`
+	Room Room `gorm:"foreignKey:RoomID;references:ID;constraint:OnDelete:CASCADE"`
 	User User `gorm:"foreignKey:UserID;references:ID"`
 }

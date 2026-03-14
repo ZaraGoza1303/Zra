@@ -16,7 +16,6 @@ export default function JoinRoom() {
     const [room, setRoom] = useState<RoomDetail | null>(null);
     const [pageState, setPageState] = useState<PageState>('loading');
     const [errorMsg, setErrorMsg] = useState('');
-    const [hasAutoJoinAttempted, setHasAutoJoinAttempted] = useState(false);
     const [activeMemberCount, setActiveMemberCount] = useState<number | null>(null);
     const [allMemberCount, setAllMemberCount] = useState<number | null>(null);
 
@@ -52,13 +51,6 @@ export default function JoinRoom() {
         };
         fetchCounts();
     }, [room?.id]);
-
-    useEffect(() => {
-        if (isAuthenticated && room && !hasAutoJoinAttempted) {
-            setHasAutoJoinAttempted(true);
-            handleJoin(room.id);
-        }
-    }, [isAuthenticated, room, hasAutoJoinAttempted]);
 
     const handleJoin = async (manualId?: string) => {
         if (!isAuthenticated) {
@@ -99,7 +91,6 @@ export default function JoinRoom() {
     const retryLoad = async () => {
         if (!roomId) return;
         setPageState('loading');
-        setHasAutoJoinAttempted(false);
         try {
             const resp = await apiCall<{ data: RoomDetail }>(`/room/${roomId}/preview`, { method: 'GET' });
             setRoom(resp.data);

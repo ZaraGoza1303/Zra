@@ -44,7 +44,7 @@ type RoomServices interface {
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error)
 	GetMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
-	MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) error
+	MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
 	TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error)
 	JoinRoom(ctx context.Context, room_id string) error
 	AddMember(ctx context.Context, room_id string, user_id uint) error
@@ -55,6 +55,8 @@ type RoomServices interface {
 
 	// Buat Websocket
 	GetActiveMemberCount(ctx context.Context, room_id string) (int64, error)
+	GetActiveMembers(room_id string) ([]uint, error)
+	OnlineUsers(ctx context.Context, room_id string) ([]uint, error)
 	IsMember(room_id string, user_id uint) (bool, error)
 	SaveMessage(msg dto.Message) error
 }

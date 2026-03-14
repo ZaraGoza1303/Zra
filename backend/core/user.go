@@ -16,11 +16,14 @@ type UserRepositories interface {
 	GetByEmailAndProvider(ctx context.Context, email, provider string) (*models.User, error)
 	GetListFriend(ctx context.Context, filter string, user_id uint) ([]models.User, error)
 	GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.User, error)
+	GetUnreadNotifCount(ctx context.Context, user_id uint) ([]dto.UnreadNotifResponse, error)
 	GetFriendship(ctx context.Context, user_id uint, target_id uint) (bool, error)
 	InsertFriendRequest(ctx context.Context, req *models.Friend) error
+	InsertNotification(ctx context.Context, req *models.Notification) error
 	Update(ctx context.Context, id uint, req *models.User) error
 	UpdateFriendRequest(ctx context.Context, req *models.Friend) error
 	UpdatePassResetToken(ctx context.Context, reset *models.PasswordReset) error
+	UpdateNotifRead(ctx context.Context, user_id uint) error
 	Delete(ctx context.Context, id uint) error
 	DeleteFriendRequest(ctx context.Context, user_id uint, target_id uint) error
 	DeleteFriendship(ctx context.Context, user_id uint, target_id uint) error
@@ -38,9 +41,11 @@ type UserServices interface {
 	FindByEmailAndProvider(ctx context.Context, email, provider string) (*dto.UserResponse, error)
 	FindListFriend(ctx context.Context, filter string) ([]dto.UserResponse, error)
 	FindListFriendRequest(ctx context.Context, filter string) ([]dto.UserResponse, error)
+	FindUnreadNotifCount(ctx context.Context) ([]dto.UnreadNotifResponse, error)
 	MakeFriendRequest(ctx context.Context, target_id uint) error
 	Update(ctx context.Context, id uint, req *dto.UpdateUserRequest) (*models.User, error)
 	UpdateFriendRequest(ctx context.Context, target_id uint) error
+	UpdateReadNotifications(ctx context.Context) error
 	UpdatePassResetToken(ctx context.Context, id uint, req dto.UpdatePassResetTokenRequest) error
 	Delete(ctx context.Context, id uint) error
 	Unfriend(ctx context.Context, target_id uint) error
@@ -50,4 +55,5 @@ type UserServices interface {
 
 	//For Websocket
 	FindByIdWithoutCtx(id uint) (*dto.UserResponse, error)
+	FindOnlineUsers() ([]uint, error)
 }

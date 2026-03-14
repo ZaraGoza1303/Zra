@@ -94,7 +94,7 @@ func main() {
 	go hub.Run()
 
 	userRepository := repositories.NewUser(db)
-	userService := services.NewUser(userRepository)
+	userService := services.NewUser(userRepository, hub)
 
 	authRepository := repositories.NewAuth(db, *rdb)
 	authService := services.NewAuth(authRepository, userRepository, userService)

@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
 import { useToastStore } from '../../store/toastStore';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 
 interface RoomInfoSidebarProps {
@@ -13,9 +14,12 @@ interface RoomInfoSidebarProps {
     isAdmin: boolean;
     pictureInputRef: React.RefObject<HTMLInputElement | null>;
     handleUpdateRoom: (field: 'name' | 'description' | 'picture', value?: string | File) => Promise<void>;
-    handleRoomAction: (action: 'leave' | 'kick' | 'admin') => Promise<void>;
+    handleRoomAction: (action: 'leave' | 'kick' | 'admin' | 'delete') => Promise<void>;
     onClose: () => void;
     onAddMember: (userId: number) => Promise<void>;
+    onBack?: () => void;
+    onRefresh: () => Promise<void>;
+    roomType?: 'group' | 'private';
 }
 
 export default function RoomInfoSidebar({
@@ -26,7 +30,10 @@ export default function RoomInfoSidebar({
     handleUpdateRoom,
     handleRoomAction,
     onClose,
-    onAddMember
+    onAddMember,
+    onBack,
+    onRefresh,
+    roomType
 }: RoomInfoSidebarProps) {
     const [showAddMember, setShowAddMember] = useState(false);
     const { user } = useAuthStore();
@@ -46,10 +53,18 @@ export default function RoomInfoSidebar({
         editLoading,
         setPreviewPicture,
         friendsList,
-        addingMember
+        addingMember,
+        activeMembers
     } = useChatStore();
 
-    const isPrivate = roomDetails?.type === 'private' || !totalMemberCount;
+    const withRefresh = async (fn: () => Promise<void>) => {
+        await fn();
+        await onRefresh();
+    };
+
+    const isPrivate = roomType === 'private';
+    const [confirmLeave, setConfirmLeave] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const { showToast } = useToastStore();
 
     return (
@@ -141,12 +156,12 @@ export default function RoomInfoSidebar({
                                     onChange={e => setEditName(e.target.value)}
                                     className="bg-[#0d1117] border border-blue-500/50 rounded-lg px-3 py-1.5 text-[#e6edf3] text-[15px] font-bold outline-none"
                                     onKeyDown={e => {
-                                        if (e.key === 'Enter') handleUpdateRoom('name', editName);
+                                        if (e.key === 'Enter') withRefresh(() => handleUpdateRoom('name', editName));
                                         if (e.key === 'Escape') setEditingName(false);
                                     }}
                                 />
                                 <button
-                                    onClick={() => handleUpdateRoom('name', editName)}
+                                    onClick={() => withRefresh(() => handleUpdateRoom('name', editName))}
                                     disabled={editLoading}
                                     className="text-blue-400 hover:text-blue-300 text-xs font-medium"
                                 >
@@ -200,7 +215,7 @@ export default function RoomInfoSidebar({
                                 />
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => handleUpdateRoom('description', editDesc)}
+                                        onClick={() => withRefresh(() => handleUpdateRoom('description', editDesc))}
                                         disabled={editLoading}
                                         className="flex-1 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
                                     >
@@ -234,7 +249,8 @@ export default function RoomInfoSidebar({
                                     <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                                 </div>
                             ) : roomMembers.map(member => {
-                                const isOnline = member.user_id === user?.id; // Stub logic to match design slightly
+                                ``
+                                const isOnline = activeMembers.includes(member.user_id);
                                 return (
                                     <div key={member.user_id} className="flex items-center justify-between">
                                         <div className="flex items-center gap-3.5">
@@ -248,15 +264,16 @@ export default function RoomInfoSidebar({
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className={`absolute bottom-0 right-0 w-[12px] h-[12px] rounded-full border-[2.5px] border-[#161b22] ${isOnline ? 'bg-green-500' : 'bg-[#4b5563]'}`}></div>
                                             </div>
                                             <div className="flex flex-col">
                                                 <span className="text-[15px] font-medium text-[#e6edf3] leading-tight mb-0.5">
                                                     {member.username}
                                                 </span>
-                                                <span className={`text-[12px] ${isOnline ? 'text-green-500' : 'text-[#8b949e]'}`}>
-                                                    {isOnline ? 'Online' : 'Offline'}
-                                                </span>
+                                                {member.user_bio && (
+                                                    <span className="text-[12px] text-[#8b949e] truncate max-w-[160px]">
+                                                        {member.user_bio}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         {member.role === 'admin' && (
@@ -321,8 +338,7 @@ export default function RoomInfoSidebar({
                                                     </div>
                                                     <button
                                                         onClick={async () => {
-                                                            await onAddMember(friend.id);
-                                                            // kalau sukses hide friend dari list
+                                                            await withRefresh(() => onAddMember(friend.id));
                                                         }}
                                                         disabled={addingMember}
                                                         className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
@@ -413,9 +429,48 @@ export default function RoomInfoSidebar({
                             <button className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all mt-1">
                                 <AlertTriangle size={18} /> Report Group
                             </button>
-                            <button onClick={() => handleRoomAction('leave')} disabled={actionLoading} className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all disabled:opacity-50">
+                            <button onClick={() => setConfirmLeave(true)} disabled={actionLoading} className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all disabled:opacity-50">
                                 <LogOut size={18} /> Leave Group
                             </button>
+                            {isAdmin && (
+                                <button
+                                    onClick={() => setConfirmDelete(true)}
+                                    disabled={actionLoading}
+                                    className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all disabled:opacity-50 mt-1"
+                                >
+                                    <AlertTriangle size={18} /> Delete Room
+                                </button>
+                            )}
+
+                            <ConfirmDialog
+                                isOpen={confirmLeave}
+                                title="Leave Room"
+                                description="Are you sure you want to leave this group?"
+                                confirmLabel="Leave Room"
+                                cancelLabel="Cancel"
+                                variant="danger"
+                                loading={actionLoading}
+                                onConfirm={async () => {
+                                    await handleRoomAction('leave');
+                                    setConfirmLeave(false);
+                                }}
+                                onCancel={() => setConfirmLeave(false)}
+                            />
+
+                            <ConfirmDialog
+                                isOpen={confirmDelete}
+                                title="Delete Room"
+                                description="Are you sure you want to delete this room? All messages and members will be permanently removed. This action cannot be undone."
+                                confirmLabel="Delete Room"
+                                cancelLabel="Cancel"
+                                variant="danger"
+                                loading={actionLoading}
+                                onConfirm={async () => {
+                                    await handleRoomAction('delete');
+                                    setConfirmDelete(false);
+                                }}
+                                onCancel={() => setConfirmDelete(false)}
+                            />
                         </div>
                     </div>
                 </>

@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"chatapp/core"
+	"chatapp/dto"
 	"chatapp/internal/models"
 	"context"
 	"errors"
@@ -121,6 +122,24 @@ func (u *userRepositories) GetFriendship(ctx context.Context, user_id uint, targ
 	return alreadyFriend > 0, nil
 }
 
+// GetUnreadNotifCount implements [core.UserRepositories].
+func (u *userRepositories) GetUnreadNotifCount(ctx context.Context, user_id uint) ([]dto.UnreadNotifResponse, error) {
+	var unread []dto.UnreadNotifResponse
+
+	result := u.DB.WithContext(ctx).
+		Model(&models.Notification{}).
+		Select("type, COUNT(*) as count").
+		Where("user_id = ? AND is_read = ?", user_id, false).
+		Group("type").
+		Scan(&unread)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return unread, nil
+}
+
 func (u *userRepositories) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	result := u.DB.WithContext(ctx).Where("email = ?", email).First(&user)
@@ -188,6 +207,16 @@ func (u *userRepositories) InsertFriendRequest(ctx context.Context, req *models.
 	return nil
 }
 
+// InsertNotification implements [core.UserRepositories].
+func (u *userRepositories) InsertNotification(ctx context.Context, req *models.Notification) error {
+	result := u.DB.WithContext(ctx).Create(req)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 // UpdateFriendRequest implements [core.UserRepositories].
 func (u *userRepositories) UpdateFriendRequest(ctx context.Context, req *models.Friend) error {
 	result := u.DB.WithContext(ctx).
@@ -224,6 +253,20 @@ func (u *userRepositories) UpdatePassResetToken(ctx context.Context, req *models
 	}
 
 	return err
+}
+
+// UpdateNotifRead implements [core.UserRepositories].
+func (u *userRepositories) UpdateNotifRead(ctx context.Context, user_id uint) error {
+	result := u.DB.WithContext(ctx).
+		Model(&models.Notification{}).
+		Where("user_id = ?", user_id).
+		Update("is_read", true)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
 }
 
 func (u *userRepositories) Delete(ctx context.Context, id uint) error {

@@ -25,10 +25,13 @@ func NewUser(router fiber.Router, service core.UserServices, middleware fiber.Ha
 
 	route := router.Group("/api")
 	route.Get("/user", middleware, handler.FindAll)
+	route.Get("/user/online", middleware, handler.FindOnlineUsers)
 	route.Get("/user/list-friend", middleware, handler.FindListFriend)
 	route.Get("/user/list-friend-requests", middleware, handler.FindListFriendRequest)
+	route.Get("/user/unread-notifications", middleware, handler.FindUnreadNotifCount)
 	route.Get("/user/:username", middleware, handler.FindByUsername)
 	route.Post("/user/make-friend-requests/:target_id", middleware, handler.MakeFriendRequest)
+	route.Put("/user/read-notifications", middleware, handler.ReadNotifications)
 	route.Put("/user/:id", middleware, handler.Update)
 	route.Put("/user/accept-friend-requests/:target_id", middleware, handler.UpdateFriendRequest)
 	route.Put("/user/change-password", middleware, handler.ChangePassword)
@@ -68,6 +71,15 @@ func (h *userHandler) FindByUsername(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing user", user))
 }
 
+func (h *userHandler) FindOnlineUsers(c *fiber.Ctx) error {
+	users, err := h.UserServices.FindOnlineUsers()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing online users", users))
+}
+
 func (h *userHandler) FindListFriend(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
@@ -98,6 +110,21 @@ func (h *userHandler) FindListFriendRequest(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing friend lists requests", users))
+}
+
+func (h *userHandler) FindUnreadNotifCount(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	total, err := h.UserServices.FindUnreadNotifCount(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing unread notif count", total))
 }
 
 func (h *userHandler) MakeFriendRequest(c *fiber.Ctx) error {
@@ -205,6 +232,20 @@ func (h *userHandler) Update(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("User Updated", finalUser))
+}
+
+func (h *userHandler) ReadNotifications(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	if err := h.UserServices.UpdateReadNotifications(ctx); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Notification Readed Successfully", nil))
 }
 
 func (h *userHandler) ChangePassword(c *fiber.Ctx) error {

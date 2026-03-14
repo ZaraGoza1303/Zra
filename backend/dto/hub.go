@@ -112,19 +112,26 @@ func (h *Hub) SendGlobalClient(user_id uint, msg Message) {
 	}
 }
 
-// Ambil yang lagi aktif
-func (h *Hub) GetRoomMembers(room_id string) []uint {
-	h.RoomMu.RLock()
-	defer h.RoomMu.RUnlock()
+// Cek user yang lagi aktif
+func (h *Hub) IsOnline(userID uint) bool {
+	h.ClientMu.RLock()
+	defer h.ClientMu.RUnlock()
+	_, ok := h.GlobalClients[userID]
+	return ok
+}
 
-	var members []uint
-	if room, ok := h.Rooms[room_id]; ok {
-		for client := range room {
-			members = append(members, client.UserID)
-		}
+// Ambil semua user id yang lagi aktif
+func (h *Hub) OnlineMembers() ([]uint, error) {
+	h.ClientMu.RLock()
+	defer h.ClientMu.RUnlock()
+
+	var onlineMember []uint
+
+	for _, member := range h.GlobalClients {
+		onlineMember = append(onlineMember, member.UserID)
 	}
 
-	return members
+	return onlineMember, nil
 }
 
 func (h *Hub) GetClientById(user_id uint) (*Client, bool) {

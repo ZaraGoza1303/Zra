@@ -294,6 +294,40 @@ func (r *roomServices) Update(ctx context.Context, room_id string, roomReq *dto.
 		return err
 	}
 
+	content := "Room Properties Updated"
+	encryptMsg, err := helper.Encrypt(content)
+	if err != nil {
+		return err
+	}
+
+	username := "System"
+	if user, ok := r.hub.GetClientById(userId); ok {
+		username = user.Username
+	}
+
+	updateMsg := dto.Message{
+		ID:        dto.GenerateId(),
+		RoomID:    room_id,
+		UserID:    userId,
+		Username:  username,
+		Content:   content,
+		Type:      "update-room",
+		TimeStamp: time.Now(),
+	}
+
+	saveMsg := models.Message{
+		ID:        updateMsg.ID,
+		RoomID:    updateMsg.RoomID,
+		UserID:    updateMsg.UserID,
+		Username:  updateMsg.Username,
+		Content:   encryptMsg,
+		Type:      updateMsg.Type,
+		CreatedAt: updateMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- updateMsg
+
 	return nil
 }
 
@@ -389,21 +423,26 @@ func (r *roomServices) GetPrivateRoom(ctx context.Context, user_id uint, target_
 }
 
 // MakePrivateRoom implements [core.RoomServices].
-func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) error {
-	userId := []uint{user_id, target_id}
+func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error) {
+	existingRoomID, err := r.roomRepositories.GetIdPrivateRoom(ctx, user_id, target_id)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", err
+	}
+	if existingRoomID != "" {
+		return existingRoomID, nil
+	}
 
+	userId := []uint{user_id, target_id}
 	newRoom := models.Room{
 		ID:        uuid.New().String(),
 		OwnerID:   user_id,
 		Type:      "private",
 		CreatedAt: time.Now(),
 	}
-
 	if err := r.roomRepositories.InsertPrivateRoom(ctx, &newRoom, userId); err != nil {
-		return err
+		return "", err
 	}
-
-	return nil
+	return newRoom.ID, nil
 }
 
 // TakeChatHistory implements [core.RoomServices].
@@ -531,7 +570,7 @@ func (r *roomServices) JoinRoom(ctx context.Context, room_id string) error {
 	newMember := models.RoomMember{
 		RoomID:   room_id,
 		UserID:   userId,
-		Role:     "admin",
+		Role:     "member",
 		JoinedAt: time.Now(),
 	}
 
@@ -662,6 +701,16 @@ func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id 
 		TimeStamp: time.Now(),
 	}
 
+	notifMsg := dto.Message{
+		ID:        joinMsg.ID,
+		RoomID:    joinMsg.RoomID,
+		UserID:    joinMsg.UserID,
+		Username:  joinMsg.Username,
+		Type:      "added-to-room",
+		Content:   joinMsg.Content,
+		TimeStamp: joinMsg.TimeStamp,
+	}
+
 	saveMsg := models.Message{
 		ID:        joinMsg.ID,
 		RoomID:    joinMsg.RoomID,
@@ -674,6 +723,7 @@ func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id 
 
 	r.roomRepositories.SaveMessage(saveMsg)
 	r.hub.Broadcast <- joinMsg
+	r.hub.SendGlobalClient(target_id, notifMsg)
 
 	return nil
 }
@@ -792,6 +842,42 @@ func (r *roomServices) GetActiveMemberCount(ctx context.Context, room_id string)
 	}
 
 	return activeMember, nil
+}
+
+// GetActiveMembers implements [core.RoomServices].
+func (r *roomServices) GetActiveMembers(room_id string) ([]uint, error) {
+	members, err := r.roomRepositories.GetAllRoomMembers(context.Background(), room_id)
+	if err != nil {
+		return nil, err
+	}
+
+	var activeMembers []uint
+
+	for _, member := range members {
+		if r.hub.IsOnline(member.UserID) {
+			activeMembers = append(activeMembers, member.UserID)
+		}
+	}
+
+	return activeMembers, nil
+}
+
+// OnlineUsers implements [core.RoomServices].
+func (r *roomServices) OnlineUsers(ctx context.Context, room_id string) ([]uint, error) {
+	members, err := r.roomRepositories.GetAllRoomMembers(ctx, room_id)
+	if err != nil {
+		return nil, err
+	}
+
+	var activeUsers []uint
+
+	for _, member := range members {
+		if r.hub.IsOnline(member.UserID) {
+			activeUsers = append(activeUsers, member.UserID)
+		}
+	}
+
+	return activeUsers, nil
 }
 
 // GetMemberCount implements [core.RoomServices].

@@ -5,6 +5,7 @@ import type { Room } from '../types/chat';
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
 interface DashboardState {
+    allRooms: Room[];
     rooms: Room[];
     selectedRoom: Room | null;
     dmRoom: { id: string; name: string; picture?: string } | null;
@@ -12,6 +13,7 @@ interface DashboardState {
     activeNav: NavItem;
     isModalOpen: boolean;
     isProfileModalOpen: boolean;
+    setAllRooms: (rooms: Room[]) => void;
     setRooms: (rooms: Room[]) => void;
     setSelectedRoom: (room: Room | null) => void;
     setDmRoom: (dmRoom: { id: string; name: string; picture?: string } | null) => void;
@@ -23,6 +25,7 @@ interface DashboardState {
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
+    allRooms: [],
     rooms: [],
     selectedRoom: null,
     dmRoom: null,
@@ -31,6 +34,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
     isModalOpen: false,
     isProfileModalOpen: false,
 
+    setAllRooms: (allRooms) => set({ allRooms }),
     setRooms: (rooms) => set({ rooms }),
     setSelectedRoom: (selectedRoom) => set({ selectedRoom, dmRoom: null }),
     setDmRoom: (dmRoom) => set({ dmRoom, selectedRoom: null }),
@@ -38,10 +42,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
     setActiveNav: (activeNav) => set({ activeNav }),
     setIsModalOpen: (isModalOpen) => set({ isModalOpen }),
     setIsProfileModalOpen: (isProfileModalOpen) => set({ isProfileModalOpen }),
-    updateRoom: (roomId, updates) => set((state) => ({
+    updateRoom: (roomId: string, updates: Partial<Room>) => set(state => ({
         rooms: state.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r),
-        selectedRoom: state.selectedRoom?.id === roomId
-            ? { ...state.selectedRoom, ...updates }
-            : state.selectedRoom,
+        allRooms: state.allRooms.map(r => r.id === roomId ? { ...r, ...updates } : r),
     })),
 }));
