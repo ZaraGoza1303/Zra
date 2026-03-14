@@ -51,6 +51,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const pictureInputRef = useRef<HTMLInputElement>(null);
     const [isKicked, setIsKicked] = useState(false);
     const [creatingDM, setCreatingDM] = useState(false);
+    const signalQueue = useRef<Array<{ type: string, payload: object, toId: number }>>([])
 
     const { showToast } = useToastStore();
 
@@ -76,6 +77,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             });
         }
     };
+
+    const flushSignalQueue = useCallback(() => {
+        while (signalQueue.current.length > 0 && ws.current?.readyState === WebSocket.OPEN) {
+            const { type, payload, toId } = signalQueue.current.shift()!;
+            console.log(`Kirim sinyal ${type} ke user ${toId}`);
+            ws.current.send(JSON.stringify({
+                type,
+                to_id: toId,
+                ...payload
+            }));
+        }
+    }, []);
 
     const fetchChatHistory = async (lastTimestamp?: string) => {
         if (lastTimestamp) {
@@ -170,25 +183,12 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
         ws.current.onopen = () => {
             console.log('Connected to WS', roomId);
+            flushSignalQueue(); // ← flush semua signal yang nyangkut
         };
 
         ws.current.onmessage = (event) => {
             try {
                 const msg: any = JSON.parse(event.data);
-
-                // Cek apakah ini sinyal WebRTC
-                if (['call-offer', 'call-answer', 'ice-candidate'].includes(msg.type)) {
-                    console.log("Menerima sinyal WebRTC:", msg.type);
-
-                    window.dispatchEvent(new CustomEvent('incoming-call-signal', {
-                        detail: {
-                            type: msg.type,
-                            payload: msg,
-                            fromId: msg.from_id
-                        }
-                    }));
-                    return;
-                }
 
                 if (msg.type === 'update-room') {
                     refreshRoomData();
@@ -229,23 +229,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         return ws.current;
     };
 
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const { type, payload, toId } = (e as CustomEvent).detail;
-
-            // Pastikan WS nyambung sebelum kirim
-            if (ws.current?.readyState === WebSocket.OPEN) {
-                console.log(`Kirim sinyal ${type} ke user ${toId}`);
-                ws.current.send(JSON.stringify({
-                    type: type,
-                    to_id: toId,
-                    ...payload // ini bakal masukin sdp: offer atau candidate: ...
-                }));
-            }
-        };
-        window.addEventListener('send-call-signal', handler);
-        return () => window.removeEventListener('send-call-signal', handler);
-    }, []);
 
     useEffect(() => {
         const handler = (e: Event) => {

@@ -55,6 +55,7 @@ export default function Dashboard() {
 
     const globalWs = useRef<WebSocket | null>(null);
     const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleCallSignalRef = useRef<((msg: any) => void) | null>(null);
     const { token } = useAuthStore();
 
 
@@ -120,7 +121,7 @@ export default function Dashboard() {
                 }
 
                 if (['call-offer', 'call-answer', 'ice-candidate', 'call-rejected', 'call-ended'].includes(msg.type)) {
-                    handleCallSignal(msg);
+                    handleCallSignalRef.current?.(msg); // ← selalu fresh, tidak stale
                 }
 
             } catch (e) {
@@ -280,12 +281,17 @@ export default function Dashboard() {
     };
 
     const sendSignal = useCallback((type: string, payload: object, toId: number) => {
-        // Signal dikirim lewat room WS (ChatRoom handle ini)
-        // Kita expose via window event biar ChatRoom bisa pakai
-        window.dispatchEvent(new CustomEvent('send-call-signal', {
-            detail: { type, payload, toId }
-        }));
-    }, []);
+        if (globalWs.current?.readyState === WebSocket.OPEN) {
+            console.log(`📡 Kirim signal [${type}] ke user ${toId}`);
+            globalWs.current.send(JSON.stringify({
+                type,
+                to_id: toId,
+                ...payload
+            }));
+        } else {
+            console.warn(`⚠️ Global WS not ready, signal [${type}] dropped`);
+        }
+    }, []); // ← tidak perlu dep apapun, pakai ref
 
     const {
         callState,
@@ -300,6 +306,8 @@ export default function Dashboard() {
         toggleMute,
         toggleVideo,
     } = useCallManager({ sendSignal, currentUserId: user?.id });
+
+    handleCallSignalRef.current = handleCallSignal;
 
     useEffect(() => {
         const handler = (e: Event) => {

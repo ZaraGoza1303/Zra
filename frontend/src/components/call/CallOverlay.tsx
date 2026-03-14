@@ -39,9 +39,15 @@ export default function CallOverlay({
     useEffect(() => {
         if (remoteVideoRef.current && remoteStream) {
             remoteVideoRef.current.srcObject = remoteStream;
-            remoteVideoRef.current.play().catch(e => console.error("Playback error:", e));
+            const attemptPlay = () => {
+                remoteVideoRef.current?.play().catch(e => {
+                    console.warn("Autoplay diblokir, menunggu klik user...", e);
+                });
+            };
+
+            attemptPlay();
         }
-    }, [remoteStream, isMinimized, withVideo]);
+    }, [remoteStream]);
 
     const formatDuration = (s: number) => {
         const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -55,8 +61,8 @@ export default function CallOverlay({
     };
 
     const handleVideoToggle = () => {
-        const off = onToggleVideo();
-        setIsVideoOff(off);
+        const isNowOff = onToggleVideo();
+        setIsVideoOff(isNowOff);
     };
 
     return (

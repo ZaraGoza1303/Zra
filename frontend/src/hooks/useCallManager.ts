@@ -24,14 +24,13 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
     const callInfoRef = useRef<CallInfo | null>(null);
-    const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null); // ✅
+    const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
     const { startCall, answerCall, handleAnswer, handleIceCandidate, endCall, toggleMute, toggleVideo, localStreamRef } = useWebRTC({
         onRemoteStream: (stream) => setRemoteStream(stream),
         onSignal: sendSignal,
     });
 
-    // ✅ deklarasi resetCall duluan, dan pakai useCallback
     const resetCall = useCallback(() => {
         endCall();
         setCallState('idle');
@@ -39,7 +38,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         setLocalStream(null);
         setRemoteStream(null);
         callInfoRef.current = null;
-        pendingOfferRef.current = null; // ✅
+        pendingOfferRef.current = null;
     }, [endCall]);
 
     const initiateCall = useCallback(async (info: Omit<CallInfo, 'isCaller'>) => {
@@ -83,20 +82,18 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         callInfoRef.current = info;
         setCallInfo(info);
         setCallState('incoming');
-
-        pendingOfferRef.current = msg.sdp; // ✅
+        pendingOfferRef.current = msg.sdp;
     }, [callState, sendSignal]);
 
-    // ✅ deklarasi handleEndCall sebelum acceptCall
     const handleEndCall = useCallback(() => {
         const info = callInfoRef.current;
         if (info) sendSignal('call-ended', {}, info.partnerId);
-        resetCall(); // ✅ hapus double endCall
+        resetCall();
     }, [sendSignal, resetCall]);
 
     const acceptCall = useCallback(async () => {
         const info = callInfoRef.current;
-        const sdp = pendingOfferRef.current; // ✅
+        const sdp = pendingOfferRef.current;
         if (!info || !sdp) return;
 
         setCallState('active');
@@ -107,7 +104,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
             console.error('Failed to answer call:', e);
             handleEndCall();
         }
-    }, [answerCall, handleEndCall]); // ✅ dependency lengkap
+    }, [answerCall, handleEndCall]);
 
     const rejectCall = useCallback(() => {
         const info = callInfoRef.current;
@@ -116,27 +113,42 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
     }, [sendSignal, resetCall]);
 
     const handleCallAnswer = useCallback(async (sdp: RTCSessionDescriptionInit) => {
+        console.log('📨 Menerima call-answer, set remote desc...');
         await handleAnswer(sdp);
+        console.log('✅ Remote desc set, state active');
         setCallState('active');
     }, [handleAnswer]);
+
+    // ← Refs agar handleCallSignal tidak pernah stale
+    const handleIncomingOfferRef = useRef(handleIncomingOffer);
+    const handleCallAnswerRef = useRef(handleCallAnswer);
+    const handleIceCandidateRef = useRef(handleIceCandidate);
+    const resetCallRef = useRef(resetCall);
+
+    handleIncomingOfferRef.current = handleIncomingOffer;
+    handleCallAnswerRef.current = handleCallAnswer;
+    handleIceCandidateRef.current = handleIceCandidate;
+    resetCallRef.current = resetCall;
 
     const handleCallSignal = useCallback((msg: any) => {
         switch (msg.type) {
             case 'call-offer':
-                handleIncomingOffer(msg);
+                handleIncomingOfferRef.current(msg);
                 break;
             case 'call-answer':
-                handleCallAnswer(msg.sdp);
+                console.log('🎯 call-answer diterima');
+                handleCallAnswerRef.current(msg.sdp);
                 break;
             case 'ice-candidate':
-                handleIceCandidate(msg.candidate);
+                console.log('🧊 ice-candidate → forward ke handleIceCandidate');
+                handleIceCandidateRef.current(msg.candidate);
                 break;
             case 'call-rejected':
             case 'call-ended':
-                resetCall(); // ✅ cukup resetCall saja
+                resetCallRef.current();
                 break;
         }
-    }, [handleIncomingOffer, handleCallAnswer, handleIceCandidate, resetCall]);
+    }, []); // deps kosong — akses semua via ref
 
     return {
         callState,
