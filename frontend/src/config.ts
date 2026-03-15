@@ -1,6 +1,6 @@
 // Base URLs
-export const FRONTEND_URL = 'https://grad-arizona-cents-celebs.trycloudflare.com';
-export const BACKEND_URL = 'https://magazines-dry-behind-alert.trycloudflare.com';
+export const FRONTEND_URL = 'https://stylar-nonseverable-denver.ngrok-free.dev';
+export const BACKEND_URL = 'https://powers-mission-protest-strategies.trycloudflare.com';
 
 // API Endpoints
 export const API_BASE_URL = `${BACKEND_URL}/api`;

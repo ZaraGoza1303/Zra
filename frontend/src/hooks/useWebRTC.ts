@@ -2,15 +2,13 @@ import { useRef, useCallback } from 'react';
 
 const ICE_SERVERS: RTCConfiguration = {
     iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
         {
-            urls: [
-                "turns:global.relay.metered.ca:443?transport=tcp",
-                "turn:global.relay.metered.ca:443?transport=tcp",
-                "turn:global.relay.metered.ca:80?transport=tcp",
-            ],
-            username: "9cdefd908df7af0e3ad7beaa",
-            credential: "q05DIAh/zAdn5cMm",
+            urls: "stun:free.expressturn.com:3478"
+        },
+        {
+            urls: "turn:free.expressturn.com:3478",
+            username: "000000002088905985",
+            credential: "qouRWGJ6q6/tEI2UsabpLpZuk+8="
         }
     ],
     iceCandidatePoolSize: 10,
@@ -25,16 +23,15 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
     const iceCandidateBuffer = useRef<RTCIceCandidateInit[]>([]);
+    const remoteStreamRef = useRef<MediaStream | null>(null);
 
     const drainBuffer = useCallback(async (pc: RTCPeerConnection) => {
         if (iceCandidateBuffer.current.length === 0) return;
-        console.log(`🧊 Draining ${iceCandidateBuffer.current.length} buffered ICE candidates`);
         const toAdd = [...iceCandidateBuffer.current];
         iceCandidateBuffer.current = [];
         for (const cand of toAdd) {
             try {
                 await pc.addIceCandidate(new RTCIceCandidate(cand));
-                console.log("✅ Buffered ICE added");
             } catch (e) {
                 console.warn("Buffered ICE error:", e);
             }
@@ -53,7 +50,12 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
     };
 
     const createPeerConnection = useCallback((toId: number) => {
-        const pc = new RTCPeerConnection(ICE_SERVERS);
+        const rtcConfig = {
+            ...ICE_SERVERS,
+            sdpSemantics: 'unified-plan',
+        } as RTCConfiguration;
+
+        const pc = new RTCPeerConnection(rtcConfig);
         pcRef.current = pc;
 
         pc.oniceconnectionstatechange = () => {
@@ -71,9 +73,19 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
         };
 
         pc.ontrack = (e) => {
-            if (e.streams && e.streams[0]) {
-                console.log('🎬 Menerima remote stream');
-                onRemoteStream(e.streams[0]);
+            if (!remoteStreamRef.current) {
+                remoteStreamRef.current = new MediaStream();
+            }
+            remoteStreamRef.current.addTrack(e.track);
+
+            // Tunggu track unmute sebelum callback
+            if (e.track.muted) {
+                e.track.onunmute = () => {
+                    console.log(`🔊 Track unmuted: ${e.track.kind}`);
+                    onRemoteStream(remoteStreamRef.current!);
+                };
+            } else {
+                onRemoteStream(remoteStreamRef.current);
             }
         };
 
@@ -83,13 +95,10 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
     const startCall = useCallback(async (toId: number, withVideo: boolean) => {
         const stream = await getLocalStream(withVideo);
         const pc = createPeerConnection(toId);
-
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         onSignal('call-offer', { sdp: offer, with_video: withVideo }, toId);
-
         return stream;
     }, [createPeerConnection, onSignal]);
 
@@ -97,10 +106,8 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
         const stream = await getLocalStream(withVideo);
         const pc = createPeerConnection(toId);
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
         await drainBuffer(pc);
-
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         onSignal('call-answer', { sdp: answer }, toId);
@@ -110,35 +117,29 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
     const handleAnswer = useCallback(async (sdp: RTCSessionDescriptionInit) => {
         const pc = pcRef.current;
         if (!pc) return;
-
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-        await drainBuffer(pc); // ← drain setelah remote desc siap
+        await drainBuffer(pc);
     }, [drainBuffer]);
 
     const handleIceCandidate = useCallback(async (candidate: RTCIceCandidateInit) => {
         const pc = pcRef.current;
-
-        // pc null ATAU remote desc belum ada → buffer
         if (!pc || pc.signalingState === 'closed' || !pc.remoteDescription) {
-            console.log("📦 ICE buffered", !pc ? "(pc null)" : "(no remoteDesc)");
             iceCandidateBuffer.current.push(candidate);
             return;
         }
-
         try {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log("✅ ICE added directly");
         } catch (e) {
             console.warn("ICE error:", e);
         }
     }, []);
-
 
     const endCall = useCallback(() => {
         pcRef.current?.close();
         pcRef.current = null;
         localStreamRef.current?.getTracks().forEach(track => track.stop());
         localStreamRef.current = null;
+        remoteStreamRef.current = null;
         iceCandidateBuffer.current = [];
     }, []);
 
@@ -146,7 +147,7 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
         const audioTrack = localStreamRef.current?.getAudioTracks()[0];
         if (audioTrack) {
             audioTrack.enabled = !audioTrack.enabled;
-            return !audioTrack.enabled; // true = IS muted
+            return !audioTrack.enabled;
         }
         return false;
     }, []);
@@ -155,7 +156,7 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
         const videoTrack = localStreamRef.current?.getVideoTracks()[0];
         if (videoTrack) {
             videoTrack.enabled = !videoTrack.enabled;
-            return !videoTrack.enabled; // true = video OFF
+            return !videoTrack.enabled;
         }
         return false;
     }, []);

@@ -76,12 +76,15 @@ export default function Dashboard() {
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'chat') {
                     const { selectedRoom, dmRoom, rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
+
+                    const isSentByMe = msg.user_id === user?.id;
                     const isActiveRoom = selectedRoom?.id === msg.room_id || dmRoom?.id === msg.room_id;
+
                     const updater = (r: Room) => r.id === msg.room_id
                         ? {
                             ...r,
                             last_message: { content: msg.content, username: msg.username, sent_at: msg.time_stamp },
-                            unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1
+                            unread_message: (isSentByMe || isActiveRoom) ? 0 : (r.unread_message ?? 0) + 1
                         }
                         : r;
 
@@ -168,21 +171,19 @@ export default function Dashboard() {
             const res = await apiCall<{ data: Room[] }>(`/room?search=${searchTerm}`, { method: 'GET' });
             const freshRooms = res.data || [];
 
-            const { allRooms, setAllRooms } = useDashboardStore.getState();
+            const { allRooms, setAllRooms, selectedRoom, dmRoom } = useDashboardStore.getState();
+
             const merged = freshRooms.map(r => {
                 const existing = allRooms.find(cr => cr.id === r.id);
+
                 return existing ? { ...r, unread_message: existing.unread_message } : r;
             });
 
             setAllRooms(merged);
 
-            if (activeNav === 'home') {
-                setRooms(merged);
-            } else if (activeNav === 'rooms') {
-                setRooms(merged.filter(r => r.type === 'group'));
-            } else if (activeNav === 'chats') {
-                setRooms(merged.filter(r => r.type === 'private'));
-            }
+            if (activeNav === 'home') setRooms(merged);
+            else if (activeNav === 'rooms') setRooms(merged.filter(r => r.type === 'group'));
+            else if (activeNav === 'chats') setRooms(merged.filter(r => r.type === 'private'));
         } catch (err) {
             console.error('Failed to fetch rooms', err);
         }
@@ -561,6 +562,7 @@ export default function Dashboard() {
             <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117]">
                 {selectedRoom || dmRoom ? (
                     <ChatRoom
+                        key={dmRoom ? `dm-${dmRoom.id}` : `room-${selectedRoom!.id}`}
                         roomId={dmRoom ? dmRoom.id : selectedRoom!.id}
                         roomName={dmRoom ? dmRoom.name : getRoomDisplayInfo(selectedRoom!).name}
                         roomPicture={dmRoom

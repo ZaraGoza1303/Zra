@@ -190,6 +190,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             try {
                 const msg: any = JSON.parse(event.data);
 
+                if (msg.type === 'chat') {
+                    apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                }
+
                 if (msg.type === 'update-room') {
                     refreshRoomData();
                 }

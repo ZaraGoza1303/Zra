@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useWebRTC } from './useWebRTC';
+import { useToastStore } from '../store/toastStore'; // ← tambah import
 
 export type CallState = 'idle' | 'calling' | 'incoming' | 'active';
 
@@ -24,39 +25,50 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
     const callInfoRef = useRef<CallInfo | null>(null);
+    const callStateRef = useRef<CallState>('idle'); // ← tambah ref untuk callState
     const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
+    // ← Sync callStateRef setiap kali callState berubah
+    const setCallStateSync = useCallback((state: CallState) => {
+        callStateRef.current = state;
+        setCallState(state);
+    }, []);
+
     const { startCall, answerCall, handleAnswer, handleIceCandidate, endCall, toggleMute, toggleVideo, localStreamRef } = useWebRTC({
-        onRemoteStream: (stream) => setRemoteStream(stream),
+        onRemoteStream: (stream) => {
+            const hasLiveAudio = stream.getAudioTracks().some(t => !t.muted && t.readyState === 'live');
+            console.log('📥 onRemoteStream called, hasLiveAudio:', hasLiveAudio);
+            setRemoteStream(stream);
+        },
         onSignal: sendSignal,
     });
 
     const resetCall = useCallback(() => {
         endCall();
-        setCallState('idle');
+        setCallStateSync('idle');
         setCallInfo(null);
         setLocalStream(null);
         setRemoteStream(null);
         callInfoRef.current = null;
         pendingOfferRef.current = null;
-    }, [endCall]);
+    }, [endCall, setCallStateSync]);
 
     const initiateCall = useCallback(async (info: Omit<CallInfo, 'isCaller'>) => {
-        if (callState !== 'idle') return;
+        if (callStateRef.current !== 'idle') return; // ← pakai ref biar tidak stale
         const fullInfo: CallInfo = { ...info, isCaller: true };
         callInfoRef.current = fullInfo;
         setCallInfo(fullInfo);
-        setCallState('calling');
+        setCallStateSync('calling');
 
         try {
             const stream = await startCall(info.partnerId, info.withVideo);
             setLocalStream(stream);
         } catch (e) {
             console.error('Failed to start call:', e);
-            setCallState('idle');
+            setCallStateSync('idle');
             setCallInfo(null);
         }
-    }, [callState, startCall]);
+    }, [startCall, setCallStateSync]);
 
     const handleIncomingOffer = useCallback((msg: {
         user_id: number;
@@ -66,8 +78,10 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         sdp: RTCSessionDescriptionInit;
         with_video: boolean;
     }) => {
-        if (callState !== 'idle') {
-            sendSignal('call-rejected', { reason: 'busy' }, msg.user_id);
+        // ← Pakai ref supaya tidak stale di dalam handleCallSignal
+        if (callStateRef.current !== 'idle') {
+            // Kirim call-busy (bukan call-rejected) supaya caller bisa bedain
+            sendSignal('call-busy', {}, msg.user_id);
             return;
         }
 
@@ -81,9 +95,9 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         };
         callInfoRef.current = info;
         setCallInfo(info);
-        setCallState('incoming');
+        setCallStateSync('incoming');
         pendingOfferRef.current = msg.sdp;
-    }, [callState, sendSignal]);
+    }, [sendSignal, setCallStateSync]); // ← hapus callState dari deps, pakai ref
 
     const handleEndCall = useCallback(() => {
         const info = callInfoRef.current;
@@ -96,7 +110,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         const sdp = pendingOfferRef.current;
         if (!info || !sdp) return;
 
-        setCallState('active');
+        setCallStateSync('active');
         try {
             const stream = await answerCall(info.partnerId, sdp, info.withVideo);
             setLocalStream(stream);
@@ -104,7 +118,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
             console.error('Failed to answer call:', e);
             handleEndCall();
         }
-    }, [answerCall, handleEndCall]);
+    }, [answerCall, handleEndCall, setCallStateSync]);
 
     const rejectCall = useCallback(() => {
         const info = callInfoRef.current;
@@ -116,10 +130,9 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         console.log('📨 Menerima call-answer, set remote desc...');
         await handleAnswer(sdp);
         console.log('✅ Remote desc set, state active');
-        setCallState('active');
-    }, [handleAnswer]);
+        setCallStateSync('active');
+    }, [handleAnswer, setCallStateSync]);
 
-    // ← Refs agar handleCallSignal tidak pernah stale
     const handleIncomingOfferRef = useRef(handleIncomingOffer);
     const handleCallAnswerRef = useRef(handleCallAnswer);
     const handleIceCandidateRef = useRef(handleIceCandidate);
@@ -144,11 +157,23 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
                 handleIceCandidateRef.current(msg.candidate);
                 break;
             case 'call-rejected':
+                // Ditolak manual oleh callee
+                useToastStore.getState().showToast('Call was declined', 'error');
+                resetCallRef.current();
+                break;
+            case 'call-busy':
+                // ← case baru: lawan lagi dalam panggilan lain
+                useToastStore.getState().showToast(
+                    `${callInfoRef.current?.partnerName ?? 'User'} is busy in another call`,
+                    'error'
+                );
+                resetCallRef.current();
+                break;
             case 'call-ended':
                 resetCallRef.current();
                 break;
         }
-    }, []); // deps kosong — akses semua via ref
+    }, []); // deps tetap kosong, semua via ref
 
     return {
         callState,

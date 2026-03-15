@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Camera, RefreshCw } from 'lucide-react';
 
 interface CallOverlayProps {
     partnerName: string;
@@ -19,6 +19,7 @@ export default function CallOverlay({
 }: CallOverlayProps) {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteVideoMiniRef = useRef<HTMLVideoElement>(null);
 
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
@@ -37,17 +38,34 @@ export default function CallOverlay({
     }, [localStream, isMinimized, isVideoOff]);
 
     useEffect(() => {
-        if (remoteVideoRef.current && remoteStream) {
-            remoteVideoRef.current.srcObject = remoteStream;
-            const attemptPlay = () => {
-                remoteVideoRef.current?.play().catch(e => {
-                    console.warn("Autoplay diblokir, menunggu klik user...", e);
-                });
-            };
+        if (!remoteStream) return;
 
-            attemptPlay();
+        const audioTrack = remoteStream.getAudioTracks()[0];
+        console.log('🎵 Audio track:', audioTrack?.muted, audioTrack?.enabled);
+
+        const attachAudio = async () => {
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = remoteStream;
+                remoteVideoRef.current.volume = 1.0;
+
+                remoteVideoRef.current.play().catch(console.warn);
+                console.log('🔊 Audio attached and playing');
+            }
+        };
+
+        if (audioTrack?.muted) {
+            audioTrack.onunmute = () => {
+                console.log('🔊 Audio track unmuted, attaching...');
+                attachAudio();
+            };
+        } else {
+            attachAudio();
         }
-    }, [remoteStream]);
+
+        return () => {
+            if (audioTrack) audioTrack.onunmute = null;
+        };
+    }, [remoteStream, isMinimized]);
 
     const formatDuration = (s: number) => {
         const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -67,14 +85,14 @@ export default function CallOverlay({
 
     return (
         <div className={`fixed z-[100] transition-all duration-300 shadow-2xl overflow-hidden
-            ${isMinimized
+        ${isMinimized
                 ? "bottom-6 right-6 w-[240px] bg-[#161b22] border border-white/10 rounded-2xl h-auto p-3"
                 : "inset-0 bg-[#0d1117]"
             }`}
         >
-            {/* 1. AREA UTAMA (VIDEO) - Sekarang Full Screen */}
+            {/* AREA UTAMA (VIDEO) */}
             <div className={`relative w-full h-full flex items-center justify-center overflow-hidden
-                ${isMinimized ? "hidden" : ""}`}
+            ${isMinimized ? "hidden" : ""}`}
             >
                 {/* VIDEO REMOTE: Mengisi seluruh layar */}
                 <video
@@ -82,10 +100,10 @@ export default function CallOverlay({
                     autoPlay
                     playsInline
                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500
-                        ${(withVideo && remoteStream) ? 'opacity-100' : 'opacity-0'}`}
+    ${(withVideo && remoteStream) ? 'opacity-100' : 'opacity-0'}`}
                 />
 
-                {/* Gradient Overlay bawah agar tombol tetap terlihat jelas */}
+                {/* Gradient Overlay */}
                 {!isMinimized && withVideo && (
                     <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 pointer-events-none" />
                 )}
@@ -120,7 +138,7 @@ export default function CallOverlay({
                     <Minimize2 size={18} />
                 </button>
 
-                {/* Local Video PiP (Kanan Bawah, naik sedikit supaya tidak tertutup tombol) */}
+                {/* Local Video PiP */}
                 {withVideo && (
                     <div className="absolute bottom-32 right-6 w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-[#1c2128] z-20 transition-all">
                         <video
@@ -138,12 +156,12 @@ export default function CallOverlay({
                     </div>
                 )}
 
-                {/* CONTROLS (Floating di atas video) */}
+                {/* CONTROLS */}
                 <div className="absolute bottom-10 left-0 right-0 z-30 flex items-center justify-center gap-6 animate-in fade-in slide-in-from-bottom-10 duration-500">
                     <button
                         onClick={handleMute}
                         className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 border backdrop-blur-md
-                            ${isMuted
+                        ${isMuted
                                 ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20'
                                 : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
                             }`}
@@ -162,7 +180,7 @@ export default function CallOverlay({
                         <button
                             onClick={handleVideoToggle}
                             className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 border backdrop-blur-md
-                                ${isVideoOff
+                            ${isVideoOff
                                     ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20'
                                     : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
                                 }`}
@@ -173,10 +191,10 @@ export default function CallOverlay({
                 </div>
             </div>
 
-            {/* --- AREA MINIMIZED (Hanya jika isMinimized) --- */}
+            {/* AREA MINIMIZED */}
             {isMinimized && (
                 <div className="flex items-center gap-3">
-                    <video ref={remoteVideoRef} autoPlay playsInline className="hidden" />
+                    <video ref={remoteVideoMiniRef} autoPlay playsInline className="hidden" />
                     <div className="relative flex-shrink-0">
                         {partnerPicture ? (
                             <img src={partnerPicture} className="w-10 h-10 rounded-full object-cover border border-white/10" />

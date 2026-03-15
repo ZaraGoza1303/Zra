@@ -13,12 +13,26 @@ export default function IncomingCallPopup({ callerName, callerPicture, withVideo
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        // Ringtone using Web Audio API
-        const ctx = new AudioContext();
+        let ctx: AudioContext | null = null;
         let stopped = false;
 
-        const ring = () => {
+        const ring = async () => {
             if (stopped) return;
+
+            // Buat AudioContext di sini, bukan di luar
+            if (!ctx) ctx = new AudioContext();
+
+            // Resume kalau suspended (Firefox require ini)
+            if (ctx.state === 'suspended') {
+                try {
+                    await ctx.resume();
+                } catch {
+                    return;
+                }
+            }
+
+            if (stopped) return;
+
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain);
@@ -29,13 +43,17 @@ export default function IncomingCallPopup({ callerName, callerPicture, withVideo
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
             osc.start(ctx.currentTime);
             osc.stop(ctx.currentTime + 0.4);
+
             setTimeout(ring, 1500);
         };
-        ring();
+
+        // Delay sedikit biar browser tidak anggap ini bukan gesture
+        const timeout = setTimeout(ring, 100);
 
         return () => {
             stopped = true;
-            ctx.close();
+            clearTimeout(timeout);
+            ctx?.close();
         };
     }, []);
 
