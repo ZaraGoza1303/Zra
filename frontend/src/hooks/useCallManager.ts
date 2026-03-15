@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useWebRTC } from './useWebRTC';
-import { useToastStore } from '../store/toastStore'; // ← tambah import
+import { useToastStore } from '../store/toastStore';
 
 export type CallState = 'idle' | 'calling' | 'incoming' | 'active';
 
@@ -23,14 +23,13 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
     const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [partnerMuted, setPartnerMuted] = useState(false);
 
     const callInfoRef = useRef<CallInfo | null>(null);
-    const callStateRef = useRef<CallState>('idle'); // ← tambah ref untuk callState
+    const callStateRef = useRef<CallState>('idle');
     const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
-
     const callingTimeoutRef = useRef<number | null>(null);
 
-    // ← Sync callStateRef setiap kali callState berubah
     const setCallStateSync = useCallback((state: CallState) => {
         callStateRef.current = state;
         setCallState(state);
@@ -43,7 +42,16 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         }
     }, []);
 
-    const { startCall, answerCall, handleAnswer, handleIceCandidate, endCall, toggleMute, toggleVideo, localStreamRef } = useWebRTC({
+    const {
+        startCall,
+        answerCall,
+        handleAnswer,
+        handleIceCandidate,
+        endCall,
+        toggleMute: webRTCToggleMute,
+        toggleVideo,
+        localStreamRef,
+    } = useWebRTC({
         onRemoteStream: (stream) => {
             const hasLiveAudio = stream.getAudioTracks().some(t => !t.muted && t.readyState === 'live');
             console.log('📥 onRemoteStream called, hasLiveAudio:', hasLiveAudio);
@@ -66,6 +74,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         setCallInfo(null);
         setLocalStream(null);
         setRemoteStream(null);
+        setPartnerMuted(false);
         callInfoRef.current = null;
         pendingOfferRef.current = null;
     }, [endCall, setCallStateSync, clearCallingTimeout]);
@@ -77,7 +86,6 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         setCallInfo(fullInfo);
         setCallStateSync('calling');
 
-        // Set timeout 30 detik
         callingTimeoutRef.current = window.setTimeout(() => {
             if (callStateRef.current === 'calling') {
                 useToastStore.getState().showToast('No response from user', 'info');
@@ -102,14 +110,11 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         sdp: RTCSessionDescriptionInit;
         with_video: boolean;
     }) => {
-        // ← Pakai ref supaya tidak stale di dalam handleCallSignal
         if (callStateRef.current !== 'idle') {
-            // Beritahu user kita juga kalau ada yang nelpon tapi kita lagi sibuk
             useToastStore.getState().showToast(
                 `${msg.username} tried to call you, but you are in another call`,
                 'info'
             );
-            // Kirim call-busy (bukan call-rejected) supaya caller bisa bedain
             sendSignal('call-busy', {}, msg.user_id);
             return;
         }
@@ -126,7 +131,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         setCallInfo(info);
         setCallStateSync('incoming');
         pendingOfferRef.current = msg.sdp;
-    }, [sendSignal, setCallStateSync]); // ← hapus callState dari deps, pakai ref
+    }, [sendSignal, setCallStateSync]);
 
     const handleEndCall = useCallback(() => {
         const info = callInfoRef.current;
@@ -164,6 +169,12 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         setCallStateSync('active');
     }, [handleAnswer, setCallStateSync, clearCallingTimeout]);
 
+    const toggleMute = useCallback(() => {
+        const partnerId = callInfoRef.current?.partnerId;
+        if (partnerId === undefined) return false;
+        return webRTCToggleMute(partnerId);
+    }, [webRTCToggleMute]);
+
     const handleIncomingOfferRef = useRef(handleIncomingOffer);
     const handleCallAnswerRef = useRef(handleCallAnswer);
     const handleIceCandidateRef = useRef(handleIceCandidate);
@@ -187,13 +198,15 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
                 console.log('🧊 ice-candidate → forward ke handleIceCandidate');
                 handleIceCandidateRef.current(msg.candidate);
                 break;
+            case 'call-mute-toggle':
+                console.log('🔇 Partner mute state:', msg.muted);
+                setPartnerMuted(msg.muted);
+                break;
             case 'call-rejected':
-                // Ditolak manual oleh callee
                 useToastStore.getState().showToast('Call was declined', 'error');
                 resetCallRef.current();
                 break;
             case 'call-busy':
-                // ← case baru: lawan lagi dalam panggilan lain
                 useToastStore.getState().showToast(
                     `${callInfoRef.current?.partnerName ?? 'User'} is busy in another call`,
                     'error'
@@ -204,13 +217,14 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
                 resetCallRef.current();
                 break;
         }
-    }, []); // deps tetap kosong, semua via ref
+    }, []);
 
     return {
         callState,
         callInfo,
         localStream,
         remoteStream,
+        partnerMuted,
         initiateCall,
         acceptCall,
         rejectCall,

@@ -1,5 +1,5 @@
 // src/pages/Dashboard.tsx
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
     Settings, Home, Users, Bell, X,
@@ -20,6 +20,7 @@ import type { UnreadNotif } from '../types/contacts';
 import IncomingCallPopup from '../components/call/IncomingCallPopup';
 import CallOverlay from '../components/call/CallOverlay';
 import { useCallManager } from '../hooks/useCallManager';
+import ImageCropModal from '../components/ImageCropModal';
 
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
@@ -45,15 +46,16 @@ export default function Dashboard() {
     } = useDashboardStore();
 
     const [searchParams, setSearchParams] = useSearchParams();
-    const [creating, setCreating] = React.useState(false);
-    const [newRoomName, setNewRoomName] = React.useState('');
-    const [newRoomDescription, setNewRoomDescription] = React.useState('');
-    const [newRoomImage, setNewRoomImage] = React.useState<File | null>(null);
+    const [creating, setCreating] = useState(false);
+    const [newRoomName, setNewRoomName] = useState('');
+    const [newRoomDescription, setNewRoomDescription] = useState('');
+    const [newRoomImage, setNewRoomImage] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [onlineUserIds, setOnlineUserIds] = React.useState<Set<number>>(new Set());
+    const [cropFile, setCropFile] = useState<File | null>(null);
+    const [onlineUserIds, setOnlineUserIds] = useState<Set<number>>(new Set());
 
-    const [friendRequestNotif, setFriendRequestNotif] = React.useState(0);
-    const [friendAcceptedNotif, setFriendAcceptedNotif] = React.useState(0);
+    const [friendRequestNotif, setFriendRequestNotif] = useState(0);
+    const [friendAcceptedNotif, setFriendAcceptedNotif] = useState(0);
     const contactsNotif = friendRequestNotif + friendAcceptedNotif;
 
     const { allRooms } = useDashboardStore();
@@ -77,7 +79,10 @@ export default function Dashboard() {
 
         ws.onopen = () => {
             console.log('Global WS connected');
-            fetchOnlineUsers();
+            // Kasih delay biar backend Hub sempet register user ini ke GlobalClients map 
+            setTimeout(() => {
+                fetchOnlineUsers();
+            }, 500);
         };
 
         ws.onmessage = (event) => {
@@ -133,8 +138,23 @@ export default function Dashboard() {
                     })();
                 }
 
-                if (['call-offer', 'call-answer', 'ice-candidate', 'call-rejected', 'call-ended'].includes(msg.type)) {
+                if (['call-offer', 'call-answer', 'ice-candidate', 'call-rejected', 'call-ended', 'call-mute-toggle'].includes(msg.type)) {
                     handleCallSignalRef.current?.(msg); // ← selalu fresh, tidak stale
+                }
+
+                if (msg.type === 'user-online') {
+                    console.log('🟢 [Global WS] Received user-online:', msg);
+                    setOnlineUserIds(prev => new Set([...prev, Number(msg.user_id)]));
+                }
+
+                if (msg.type === 'user-offline') {
+                    console.log('🔴 [Global WS] Received user-offline for:', msg.user_id);
+                    setOnlineUserIds(prev => {
+                        const next = new Set(prev);
+                        next.delete(Number(msg.user_id));
+                        console.log('State updated. Current online IDs:', Array.from(next));
+                        return next;
+                    });
                 }
 
             } catch (e) {
@@ -160,7 +180,11 @@ export default function Dashboard() {
         connectGlobalWs();
         return () => {
             reconnectTimeout.current && clearTimeout(reconnectTimeout.current);
-            globalWs.current?.close();
+            if (globalWs.current) {
+                const ws = globalWs.current;
+                globalWs.current = null;
+                ws.close();
+            }
         };
     }, [connectGlobalWs]);
 
@@ -198,8 +222,8 @@ export default function Dashboard() {
 
     const fetchOnlineUsers = async () => {
         try {
-            const res = await apiCall<{ data: number[] }>('/user/online', { method: 'GET' });
-            setOnlineUserIds(prev => new Set([...prev, ...res.data]));
+            const res = await apiCall<{ data: number[] }>(`/user/online?t=${Date.now()}`, { method: 'GET' });
+            setOnlineUserIds(new Set(res.data || []));
         } catch (e) {
             console.error('Failed to fetch online users', e);
         }
@@ -242,6 +266,11 @@ export default function Dashboard() {
 
     const handleLogout = async () => {
         try {
+            if (globalWs.current) {
+                const ws = globalWs.current;
+                globalWs.current = null;
+                ws.close(1000, 'logout');
+            }
             await apiCall('/auth/logout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -302,7 +331,6 @@ export default function Dashboard() {
 
     const flushSignalQueue = useCallback(() => {
         if (globalWs.current?.readyState === WebSocket.OPEN && signalQueue.current.length > 0) {
-            console.log(`🚀 Flushing ${signalQueue.current.length} queued signals`);
             while (signalQueue.current.length > 0) {
                 const { type, payload, toId } = signalQueue.current.shift()!;
                 globalWs.current.send(JSON.stringify({
@@ -352,6 +380,7 @@ export default function Dashboard() {
         handleCallSignal,
         toggleMute,
         toggleVideo,
+        partnerMuted,
     } = useCallManager({ sendSignal });
 
     handleCallSignalRef.current = handleCallSignal;
@@ -632,6 +661,7 @@ export default function Dashboard() {
                             const { dmRoom } = useDashboardStore.getState();
                             setDmRoom(dmRoom ? { ...dmRoom, id: resolvedRoomId } : null);
                         }}
+                        onlineUserIds={onlineUserIds}
                     />
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-[#8b949e] text-center gap-4">
@@ -722,7 +752,7 @@ export default function Dashboard() {
                                         className="hidden"
                                         accept="image/*"
                                         onChange={e => {
-                                            if (e.target.files?.[0]) setNewRoomImage(e.target.files[0]);
+                                            if (e.target.files?.[0]) setCropFile(e.target.files[0]);
                                         }}
                                     />
                                 </div>
@@ -747,6 +777,17 @@ export default function Dashboard() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {cropFile && (
+                <ImageCropModal
+                    file={cropFile}
+                    onConfirm={(croppedFile) => {
+                        setNewRoomImage(croppedFile);
+                        setCropFile(null);
+                    }}
+                    onCancel={() => setCropFile(null)}
+                />
             )}
 
             {/* PROFILE MODAL */}
@@ -776,6 +817,7 @@ export default function Dashboard() {
                     onEnd={handleEndCall}
                     onToggleMute={toggleMute}
                     onToggleVideo={toggleVideo}
+                    partnerMuted={partnerMuted}
                 />
             )}
 

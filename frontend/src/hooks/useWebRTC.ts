@@ -75,7 +75,7 @@ export function useWebRTC({ onRemoteStream, onSignal, onConnectionStateChange }:
 
         pc.onconnectionstatechange = () => {
             console.log('🟢 Connection State:', pc.connectionState);
-            onConnectionStateChange?.(pc.connectionState); // ← Call the callback
+            onConnectionStateChange?.(pc.connectionState);
         };
 
         pc.onicecandidate = (e) => {
@@ -90,7 +90,6 @@ export function useWebRTC({ onRemoteStream, onSignal, onConnectionStateChange }:
             }
             remoteStreamRef.current.addTrack(e.track);
 
-            // Tunggu track unmute sebelum callback
             if (e.track.muted) {
                 e.track.onunmute = () => {
                     console.log(`🔊 Track unmuted: ${e.track.kind}`);
@@ -155,14 +154,16 @@ export function useWebRTC({ onRemoteStream, onSignal, onConnectionStateChange }:
         iceCandidateBuffer.current = [];
     }, []);
 
-    const toggleMute = useCallback(() => {
+    const toggleMute = useCallback((toId: number) => {
         const audioTrack = localStreamRef.current?.getAudioTracks()[0];
         if (audioTrack) {
             audioTrack.enabled = !audioTrack.enabled;
-            return !audioTrack.enabled;
+            const nowMuted = !audioTrack.enabled;
+            onSignal('call-mute-toggle', { muted: nowMuted }, toId);
+            return nowMuted;
         }
         return false;
-    }, []);
+    }, [onSignal]);
 
     const toggleVideo = useCallback(() => {
         const videoTrack = localStreamRef.current?.getVideoTracks()[0];

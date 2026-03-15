@@ -16,6 +16,7 @@ type RoomRepositories interface {
 
 	GetByLink(ctx context.Context, room_link string) (*models.Room, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]models.RoomMember, error)
+	GetMutualRooms(ctx context.Context, user_id uint, target_id uint) ([]models.Room, error)
 	GetIdPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
 	GetMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetLastMessages(ctx context.Context, roomIds []string) ([]models.Message, error)
@@ -31,6 +32,7 @@ type RoomRepositories interface {
 
 	// Buat Websocket
 	SaveMessage(msg models.Message) error
+	GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error)
 	GetChatHistory(ctx context.Context, room_id string, limit int, lastTime time.Time) ([]models.Message, error)
 }
 
@@ -42,6 +44,7 @@ type RoomServices interface {
 	Delete(ctx context.Context, room_id string) error
 
 	FindRoomPreview(ctx context.Context, room_id string) (*dto.RoomResponse, error)
+	FindMutualRooms(ctx context.Context, target_id uint) ([]dto.RoomResponse, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error)
 	GetMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
@@ -57,6 +60,7 @@ type RoomServices interface {
 	// Buat Websocket
 	GetActiveMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetActiveMembers(room_id string) ([]uint, error)
+	GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error)
 	OnlineUsers(ctx context.Context, room_id string) ([]uint, error)
 	IsMember(room_id string, user_id uint) (bool, error)
 	SaveMessage(msg dto.Message) error

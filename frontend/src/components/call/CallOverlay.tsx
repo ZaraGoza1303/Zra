@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2 } from 'lucide-react';
 
 interface CallOverlayProps {
@@ -8,6 +8,7 @@ interface CallOverlayProps {
     remoteStream: MediaStream | null;
     withVideo: boolean;
     isCaller: boolean;
+    partnerMuted?: boolean; // ← BARU
     onEnd: () => void;
     onToggleMute: () => boolean;
     onToggleVideo: () => boolean;
@@ -15,10 +16,12 @@ interface CallOverlayProps {
 
 export default function CallOverlay({
     partnerName, partnerPicture, localStream, remoteStream,
-    withVideo, isCaller, onEnd, onToggleMute, onToggleVideo
+    withVideo, isCaller, partnerMuted = false, onEnd, onToggleMute, onToggleVideo
 }: CallOverlayProps) {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const miniLocalVideoRef = useRef<HTMLVideoElement>(null);
+    const miniRemoteVideoRef = useRef<HTMLVideoElement>(null);
     const audioInstanceRef = useRef<HTMLAudioElement | null>(null);
 
     const [isMuted, setIsMuted] = useState(false);
@@ -26,6 +29,63 @@ export default function CallOverlay({
     const [isMinimized, setIsMinimized] = useState(false);
     const [callDuration, setCallDuration] = useState(0);
     const [autoplayError, setAutoplayError] = useState(false);
+
+    // --- Draggable state ---
+    const MINIMIZED_W = 200;
+    const MINIMIZED_H = 130;
+    const dragRef = useRef<HTMLDivElement>(null);
+    const isDragging = useRef(false);
+    const dragOffset = useRef({ x: 0, y: 0 });
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+    useEffect(() => {
+        if (isMinimized && pos === null) {
+            setPos({
+                x: window.innerWidth - MINIMIZED_W - 24,
+                y: window.innerHeight - MINIMIZED_H - 24,
+            });
+        }
+        if (!isMinimized) setPos(null);
+    }, [isMinimized]);
+
+    const clampPos = useCallback((x: number, y: number) => ({
+        x: Math.max(0, Math.min(x, window.innerWidth - MINIMIZED_W)),
+        y: Math.max(0, Math.min(y, window.innerHeight - MINIMIZED_H)),
+    }), []);
+
+    const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if ((e.target as HTMLElement).closest('button')) return;
+        isDragging.current = true;
+        dragOffset.current = {
+            x: e.clientX - (pos?.x ?? 0),
+            y: e.clientY - (pos?.y ?? 0),
+        };
+        dragRef.current?.setPointerCapture(e.pointerId);
+    }, [pos]);
+
+    const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isDragging.current) return;
+        setPos(clampPos(
+            e.clientX - dragOffset.current.x,
+            e.clientY - dragOffset.current.y,
+        ));
+    }, [clampPos]);
+
+    const onPointerUp = useCallback(() => {
+        isDragging.current = false;
+    }, []);
+
+    // Attach streams to mini video refs when minimized
+    useEffect(() => {
+        if (isMinimized) {
+            if (miniRemoteVideoRef.current && remoteStream) {
+                miniRemoteVideoRef.current.srcObject = remoteStream;
+            }
+            if (miniLocalVideoRef.current && localStream) {
+                miniLocalVideoRef.current.srcObject = localStream;
+            }
+        }
+    }, [isMinimized, remoteStream, localStream]);
 
     useEffect(() => {
         const timer = setInterval(() => setCallDuration(d => d + 1), 1000);
@@ -40,47 +100,27 @@ export default function CallOverlay({
 
     useEffect(() => {
         if (!remoteStream) return;
-
         const audioTrack = remoteStream.getAudioTracks()[0];
-        console.log('🎵 Audio track:', audioTrack?.muted, audioTrack?.enabled);
 
         const attachAudio = async () => {
-            if (remoteVideoRef.current) {
-                remoteVideoRef.current.srcObject = remoteStream;
-            }
-
-            // Memastikan instance audio ada & terpisah dari React DOM tree
+            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
             if (!audioInstanceRef.current) {
                 audioInstanceRef.current = new Audio();
                 audioInstanceRef.current.autoplay = true;
-                audioInstanceRef.current.muted = false; // Pastikan unmute
+                audioInstanceRef.current.muted = false;
             }
-
             const audioObj = audioInstanceRef.current;
-
-            // Re-assign stream 
-            if (audioObj.srcObject !== remoteStream) {
-                audioObj.srcObject = remoteStream;
-            }
-
+            if (audioObj.srcObject !== remoteStream) audioObj.srcObject = remoteStream;
             try {
-                // Mainkan pakai JS biasa
                 await audioObj.play();
-                console.log('🔊 NATIVE AUDIO attached and playing');
                 setAutoplayError(false);
             } catch (err: any) {
-                console.warn("Autoplay failed on Native Audio:", err);
-                if (err.name === 'NotAllowedError') {
-                    setAutoplayError(true);
-                }
+                if (err.name === 'NotAllowedError') setAutoplayError(true);
             }
         };
 
         if (audioTrack?.muted) {
-            audioTrack.onunmute = () => {
-                console.log('🔊 Audio track unmuted, attaching...');
-                attachAudio();
-            };
+            audioTrack.onunmute = () => attachAudio();
         } else {
             attachAudio();
         }
@@ -101,43 +141,45 @@ export default function CallOverlay({
         return `${m}:${sec}`;
     };
 
-    const handleMute = () => {
-        const muted = onToggleMute();
-        setIsMuted(muted);
-    };
-
-    const handleVideoToggle = () => {
-        const isNowOff = onToggleVideo();
-        setIsVideoOff(isNowOff);
-    };
+    const handleMute = () => setIsMuted(onToggleMute());
+    const handleVideoToggle = () => setIsVideoOff(onToggleVideo());
 
     return (
-        <div className={`fixed z-[100] transition-all duration-300 shadow-2xl overflow-hidden
-        ${isMinimized
-                ? "bottom-6 right-6 w-[240px] bg-[#161b22] border border-white/10 rounded-2xl h-auto p-3"
-                : "inset-0 bg-[#0d1117]"
-            }`}
+        <div
+            ref={dragRef}
+            style={
+                isMinimized && pos
+                    ? {
+                        position: 'fixed',
+                        left: pos.x,
+                        top: pos.y,
+                        width: MINIMIZED_W,
+                        height: MINIMIZED_H,
+                        zIndex: 100,
+                        cursor: isDragging.current ? 'grabbing' : 'grab',
+                        touchAction: 'none',
+                        userSelect: 'none',
+                    }
+                    : undefined
+            }
+            className={`${isMinimized
+                ? 'rounded-2xl shadow-2xl overflow-hidden border border-white/10'
+                : 'fixed inset-0 z-[100] bg-[#0d1117] overflow-hidden'
+                }`}
+            onPointerDown={isMinimized ? onPointerDown : undefined}
+            onPointerMove={isMinimized ? onPointerMove : undefined}
+            onPointerUp={isMinimized ? onPointerUp : undefined}
         >
-            {/* AREA UTAMA (VIDEO) */}
-            <div className={`relative w-full h-full flex items-center justify-center overflow-hidden
-            ${isMinimized ? "hidden" : ""}`}
-            >
-                {/* VIDEO REMOTE: Mengisi seluruh layar */}
-                <video
-                    ref={remoteVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500
-    ${(withVideo && remoteStream) ? 'opacity-100' : 'opacity-0'}`}
+            {/* ── FULL SCREEN MODE ── */}
+            <div className={`relative w-full h-full flex items-center justify-center overflow-hidden ${isMinimized ? 'hidden' : ''}`}>
+                <video ref={remoteVideoRef} autoPlay playsInline muted
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${(withVideo && remoteStream) ? 'opacity-100' : 'opacity-0'}`}
                 />
 
-                {/* Gradient Overlay */}
-                {!isMinimized && withVideo && (
+                {withVideo && (
                     <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 pointer-events-none" />
                 )}
 
-                {/* Tampilan Avatar jika Voice Call atau video belum siap */}
                 {(!withVideo || !remoteStream) && (
                     <div className="relative z-10 flex flex-col items-center gap-4 animate-in fade-in duration-700">
                         <div className="relative flex items-center justify-center">
@@ -159,22 +201,24 @@ export default function CallOverlay({
                     </div>
                 )}
 
-                {/* Tombol Minimize (Pojok Kanan Atas) */}
+                {/* ── Partner muted badge (fullscreen) ── */}
+                {partnerMuted && (
+                    <div className="absolute top-5 left-5 z-30 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 animate-in fade-in duration-300">
+                        <MicOff size={13} className="text-red-400" />
+                        <span className="text-xs text-white/80 font-medium">{partnerName} is muted</span>
+                    </div>
+                )}
+
                 <button
                     onClick={() => setIsMinimized(true)}
-                    className="absolute top-6 right-6 z-30 w-10 h-10 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-all hover:bg-black/60"
+                    className="absolute top-5 right-5 z-30 w-10 h-10 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white transition-all hover:bg-black/60"
                 >
                     <Minimize2 size={18} />
                 </button>
 
-                {/* Local Video PiP */}
                 {withVideo && (
-                    <div className="absolute bottom-32 right-6 w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-[#1c2128] z-20 transition-all">
-                        <video
-                            ref={localVideoRef}
-                            autoPlay
-                            playsInline
-                            muted
+                    <div className="absolute bottom-32 right-6 w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-[#1c2128] z-20">
+                        <video ref={localVideoRef} autoPlay playsInline muted
                             className={`w-full h-full object-cover scale-x-[-1] ${isVideoOff ? 'hidden' : 'block'}`}
                         />
                         {isVideoOff && (
@@ -185,17 +229,10 @@ export default function CallOverlay({
                     </div>
                 )}
 
-                {/* Autoplay Error Fallback */}
                 {autoplayError && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
                         <button
-                            onClick={() => {
-                                if (audioInstanceRef.current) {
-                                    audioInstanceRef.current.play()
-                                        .then(() => setAutoplayError(false))
-                                        .catch(console.error);
-                                }
-                            }}
+                            onClick={() => audioInstanceRef.current?.play().then(() => setAutoplayError(false)).catch(console.error)}
                             className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.5)] transform hover:scale-105 transition-all"
                         >
                             <Mic size={24} className="animate-pulse" />
@@ -204,34 +241,22 @@ export default function CallOverlay({
                     </div>
                 )}
 
-                {/* CONTROLS */}
                 <div className="absolute bottom-10 left-0 right-0 z-30 flex items-center justify-center gap-6 animate-in fade-in slide-in-from-bottom-10 duration-500">
-                    <button
-                        onClick={handleMute}
+                    <button onClick={handleMute}
                         className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 border backdrop-blur-md
-                        ${isMuted
-                                ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20'
-                                : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                            }`}
+                        ${isMuted ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
                     >
                         {isMuted ? <MicOff size={26} /> : <Mic size={26} />}
                     </button>
-
-                    <button
-                        onClick={onEnd}
+                    <button onClick={onEnd}
                         className="w-20 h-20 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-700 text-white transition-all duration-300 shadow-xl shadow-red-600/40 transform hover:scale-110 active:scale-95"
                     >
                         <PhoneOff size={32} />
                     </button>
-
                     {withVideo && (
-                        <button
-                            onClick={handleVideoToggle}
+                        <button onClick={handleVideoToggle}
                             className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 border backdrop-blur-md
-                            ${isVideoOff
-                                    ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20'
-                                    : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
-                                }`}
+                            ${isVideoOff ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
                         >
                             {isVideoOff ? <VideoOff size={26} /> : <Video size={26} />}
                         </button>
@@ -239,26 +264,82 @@ export default function CallOverlay({
                 </div>
             </div>
 
-            {/* AREA MINIMIZED */}
+            {/* ── MINIMIZED MODE ── */}
             {isMinimized && (
-                <div className="flex items-center gap-3">
-                    <div className="relative flex-shrink-0">
-                        {partnerPicture ? (
-                            <img src={partnerPicture} className="w-10 h-10 rounded-full object-cover border border-white/10" />
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold">
-                                {partnerName[0]}
+                <div className="relative w-full h-full bg-[#0d1117]">
+                    {withVideo && remoteStream ? (
+                        <video
+                            ref={miniRemoteVideoRef}
+                            autoPlay playsInline muted
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]">
+                            {partnerPicture ? (
+                                <img src={partnerPicture} alt={partnerName}
+                                    className="w-full h-full object-cover opacity-30" />
+                            ) : (
+                                <div className="w-12 h-12 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-2xl font-bold text-[#e6edf3]">
+                                    {partnerName[0]?.toUpperCase()}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none" />
+
+                    {withVideo && localStream && (
+                        <div className="absolute top-2 right-2 w-[52px] h-[68px] rounded-xl overflow-hidden border border-white/25 shadow-lg bg-[#1c2128] z-10">
+                            {!isVideoOff ? (
+                                <video
+                                    ref={miniLocalVideoRef}
+                                    autoPlay playsInline muted
+                                    className="w-full h-full object-cover scale-x-[-1]"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-[#0d1117]">
+                                    <VideoOff size={13} className="text-[#8b949e]" />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── Partner muted badge (minimized) ── */}
+                    {partnerMuted && (
+                        <div className="absolute top-2 left-2 z-20 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center border border-red-500/40">
+                            <MicOff size={11} className="text-red-400" />
+                        </div>
+                    )}
+
+                    <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between px-2.5 py-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="relative flex-shrink-0 flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                            </span>
+                            <div className="min-w-0">
+                                <p className="text-[11px] font-semibold text-white truncate leading-tight">{partnerName}</p>
+                                <p className="text-[10px] text-green-400 font-mono leading-tight">{formatDuration(callDuration)}</p>
                             </div>
-                        )}
+                        </div>
+
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                                onClick={() => setIsMinimized(false)}
+                                className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-all"
+                            >
+                                <Maximize2 size={13} />
+                            </button>
+                            <button
+                                onClick={onEnd}
+                                className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/20 transition-all"
+                            >
+                                <PhoneOff size={13} />
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{partnerName}</p>
-                        <p className="text-[11px] text-green-400 font-mono">{formatDuration(callDuration)}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => setIsMinimized(false)} className="p-2 text-gray-400 hover:text-white"><Maximize2 size={16} /></button>
-                        <button onClick={onEnd} className="p-2 text-red-500"><PhoneOff size={16} /></button>
-                    </div>
+
+                    <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-white/25 pointer-events-none" />
                 </div>
             )}
         </div>

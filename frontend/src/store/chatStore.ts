@@ -21,8 +21,8 @@ interface ChatState {
     targetUserId: number | null;
     actionLoading: boolean;
     addingMember: boolean;
-    activeMembers: number[]
-    setActiveMembers: (ids: number[]) => void
+    activeMembers: number[];
+    setActiveMembers: (ids: number[]) => void;
 
     // Edit states
     editingName: boolean;
@@ -31,7 +31,15 @@ interface ChatState {
     editDesc: string;
     editLoading: boolean;
     previewPicture: { file: File; url: string } | null;
-    privatePartner: { username: string; name?: string; user_bio?: string; user_profile_picture?: string } | null;
+    privatePartner: {
+        username: string;
+        name?: string;
+        user_bio?: string;
+        user_profile_picture?: string;
+        user_id: number;
+        is_verified?: boolean;
+        created_at?: string;
+    } | null;
 
     setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
     setReplyTo: (msg: Message | null) => void;
@@ -59,7 +67,18 @@ interface ChatState {
     setEditDesc: (val: string) => void;
     setEditLoading: (val: boolean) => void;
     setPreviewPicture: (val: { file: File; url: string } | null) => void;
-    setPrivatePartner: (partner: { username: string; name?: string; user_bio?: string; user_profile_picture?: string } | null) => void;
+    setPrivatePartner: (partner: {
+        username: string;
+        name?: string;
+        user_bio?: string;
+        user_profile_picture?: string;
+        user_id: number;
+        is_verified?: boolean;
+        created_at?: string;
+    } | null) => void;
+
+    mutualRooms: { id: string; name: string; picture?: string }[];
+    setMutualRooms: (rooms: { id: string; name: string; picture?: string }[]) => void;
 
     resetChatState: () => void;
 }
@@ -85,6 +104,8 @@ export const useChatStore = create<ChatState>((set) => ({
     addingMember: false,
     activeMembers: [],
     setActiveMembers: (ids: number[]) => set({ activeMembers: ids }),
+    mutualRooms: [],
+    setMutualRooms: (mutualRooms) => set({ mutualRooms }),
 
     editingName: false,
     editingDesc: false,
@@ -143,12 +164,14 @@ export const useChatStore = create<ChatState>((set) => ({
         targetUserId: null,
         actionLoading: false,
         addingMember: false,
+        activeMembers: [],
         editingName: false,
         editingDesc: false,
         editName: '',
         editDesc: '',
         editLoading: false,
         previewPicture: null,
-        privatePartner: null
+        privatePartner: null,
+        mutualRooms: []
     }),
 }));

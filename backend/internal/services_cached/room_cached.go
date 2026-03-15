@@ -38,6 +38,11 @@ func (r *cachedRoomServices) FindRoomPreview(ctx context.Context, room_link stri
 	return nil, nil
 }
 
+// FindMutualRooms implements [core.RoomServices].
+func (r *cachedRoomServices) FindMutualRooms(ctx context.Context, target_id uint) ([]dto.RoomResponse, error) {
+	panic("unimplemented")
+}
+
 // CreateRoom implements [core.RoomServices].
 func (r *cachedRoomServices) CreateRoom(ctx context.Context, room dto.RoomCreateRequest) error {
 	return nil
@@ -151,6 +156,11 @@ func (r *cachedRoomServices) GetActiveMemberCount(ctx context.Context, room_id s
 // GetActiveMembers implements [core.RoomServices].
 func (r *cachedRoomServices) GetActiveMembers(room_id string) ([]uint, error) {
 	return nil, nil
+}
+
+// GetAllRoomMembersByUserId implements [core.RoomServices].
+func (r *cachedRoomServices) GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error) {
+	panic("unimplemented")
 }
 
 // OnlineUsers implements [core.RoomServices].

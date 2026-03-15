@@ -14,7 +14,7 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } fr
 import { useDashboardStore } from '../store/dashboardStore';
 import { useToastStore } from '../store/toastStore';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
     const { updateRoom } = useDashboardStore();
@@ -43,7 +43,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setEditingDesc,
         setEditLoading,
         resetChatState,
-        setActiveMembers
+        setActiveMembers,
+        setMutualRooms
     } = useChatStore();
 
     const ws = useRef<WebSocket | null>(null);
@@ -143,6 +144,26 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             console.log("Room data synchronized with server signal.");
         } catch (err) {
             console.error("Failed to sync room data after signal", err);
+        }
+    };
+
+    const fetchPartnerInfo = async () => {
+        try {
+            const resp = await apiCall<{ data: RoomMember[] }>(`/room/${roomId}/members`, { method: 'GET' });
+            const members = resp.data || [];
+            const partner = members.find(m => m.user_id !== user?.id);
+            if (partner) {
+                setPrivatePartner({
+                    user_id: partner.user_id,
+                    username: partner.username,
+                    user_profile_picture: partner.user_profile_picture,
+                    user_bio: partner.user_bio,
+                    is_verified: partner.is_verified,
+                    created_at: partner.created_at,
+                });
+            }
+        } catch (e) {
+            console.error("Failed to fetch partner info", e);
         }
     };
 
@@ -352,7 +373,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         fetchChatHistory();
         connectWs();
 
-        if (isPrivate) fetchRoomMembers();
+        if (isPrivate) {
+            fetchRoomMembers();
+            fetchPartnerInfo();
+        }
 
         return () => {
             if (ws.current) {
@@ -502,7 +526,22 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 const resp = await apiCall<{ data: RoomMember[] }>(`/room/${roomId}/members`, { method: 'GET' });
                 const members = resp.data || [];
                 const partner = members.find(m => m.user_id !== user?.id);
-                if (partner) setPrivatePartner(partner);
+                if (partner) {
+                    setPrivatePartner({
+                        user_id: partner.user_id,
+                        username: partner.username,
+                        user_profile_picture: partner.user_profile_picture,
+                        user_bio: partner.user_bio,
+                        is_verified: partner.is_verified,
+                        created_at: partner.created_at,
+                    });
+
+                    // Fetch mutual rooms
+                    const mutualResp = await apiCall<{ data: { id: string; name: string; picture?: string }[] }>(
+                        `/room/${partner.user_id}/mutual`, { method: 'GET' }
+                    );
+                    setMutualRooms(mutualResp.data || []);
+                }
             } catch (e) {
                 console.error("Failed to fetch partner info", e);
             } finally {
@@ -581,6 +620,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     onOpenInfoModal={handleOpenInfoModal}
                     onOpenUsersModal={handleOpenUsersModal}
                     onStartCall={handleStartCall}
+                    onlineUserIds={onlineUserIds}
                 />
 
                 <MessageList
@@ -636,6 +676,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         setTotalMemberCount(totalRes.data);
                     }}
                     roomType={roomType}
+                    onlineUserIds={onlineUserIds}
                 />
             )}
 

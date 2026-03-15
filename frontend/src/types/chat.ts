@@ -33,6 +33,7 @@ export interface ChatRoomProps {
     onNewMessage?: (roomId: string, message: LastMessage) => void;
     onRoomResolved?: (resolvedRoomId: string) => void;
     onStartCall?: (withVideo: boolean) => void;
+    onlineUserIds?: Set<number>;
 }
 
 export interface RoomMember {
@@ -41,6 +42,8 @@ export interface RoomMember {
     username: string;
     user_bio?: string;
     role: string;
+    is_verified?: boolean;
+    created_at?: string;
 }
 
 export interface Room {

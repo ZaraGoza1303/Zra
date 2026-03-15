@@ -260,6 +260,23 @@ func (r *roomRepositories) GetIdPrivateRoom(ctx context.Context, userID uint, ta
 	return roomID, nil
 }
 
+// GetMutualRooms implements [core.RoomRepositories].
+func (r *roomRepositories) GetMutualRooms(ctx context.Context, user_id uint, target_id uint) ([]models.Room, error) {
+	var rooms []models.Room
+
+	result := r.DB.WithContext(ctx).Model(&models.Room{}).
+		Where("type = 'group'").
+		Where("id IN (SELECT room_id FROM room_members WHERE user_id = ?)", user_id).
+		Where("id IN (SELECT room_id FROM room_members WHERE user_id = ?)", target_id).
+		Find(&rooms)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return rooms, nil
+}
+
 // InsertPrivateRoom implements [core.RoomRepositories].
 func (r *roomRepositories) InsertPrivateRoom(ctx context.Context, room *models.Room, user_id []uint) error {
 	return r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -310,6 +327,24 @@ func (r *roomRepositories) GetMemberCount(ctx context.Context, room_id string) (
 	}
 
 	return memberCount, nil
+}
+
+// GetAllRoomMembersByUserId implements [core.RoomRepositories].
+func (r *roomRepositories) GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error) {
+	var memberIds []uint
+
+	result := r.DB.WithContext(ctx).
+		Model(&models.RoomMember{}).
+		Distinct("room_members.user_id").
+		Joins("JOIN room_members rm2 ON room_members.room_id = rm2.room_id").
+		Where("room_members.user_id = ? AND rm2.user_id != ?", user_id, user_id).
+		Pluck("rm2.user_id", &memberIds)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return memberIds, nil
 }
 
 // GetUnreadMessagesCount implements [core.RoomRepositories].

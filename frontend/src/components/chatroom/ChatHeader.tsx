@@ -11,6 +11,7 @@ interface ChatHeaderProps {
     onOpenInfoModal: () => void;
     onOpenUsersModal: () => void;
     onStartCall?: (withVideo: boolean) => void;
+    onlineUserIds?: Set<number>;
 }
 
 export default function ChatHeader({
@@ -21,9 +22,10 @@ export default function ChatHeader({
     onBack,
     onOpenInfoModal,
     onOpenUsersModal,
-    onStartCall
+    onStartCall,
+    onlineUserIds
 }: ChatHeaderProps) {
-    const { totalMemberCount, activeMemberCount, roomDetails } = useChatStore();
+    const { totalMemberCount, activeMemberCount, roomDetails, privatePartner } = useChatStore();
     const isPrivate = roomType === 'private';
 
     return (
@@ -55,7 +57,9 @@ export default function ChatHeader({
                         </h3>
                         <p className="text-[12px] text-[#8b949e] leading-tight mt-0.5">
                             {isPrivate
-                                ? 'Direct Message'
+                                ? (privatePartner && onlineUserIds?.has(privatePartner.user_id)
+                                    ? <span className="text-green-400">● Online</span>
+                                    : <span>● Offline</span>)
                                 : totalMemberCount !== null
                                     ? `${totalMemberCount > 999 ? '999+' : totalMemberCount} members`
                                     : 'Click to view info'

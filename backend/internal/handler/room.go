@@ -35,6 +35,7 @@ func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServi
 	route.Get("/room/:id", handler.FindById)
 	route.Get("/room/:id/members", handler.GetAllRoomMember)
 	route.Get("/room/:id/history", handler.TakeChatHistory)
+	route.Get("/room/:target_id/mutual", handler.FindMutualRooms)
 	route.Get("/room/:id/private", handler.GetPrivateRoom)
 	route.Post("/room", handler.CreateRoom)
 	route.Post("/room/:id/private", handler.MakePrivateRoom)
@@ -88,6 +89,7 @@ func (h *roomHandler) FindRoomPreview(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
 	roomLink := c.Params("room_link")
+
 	room, err := h.roomServices.FindRoomPreview(ctx, roomLink)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -96,7 +98,25 @@ func (h *roomHandler) FindRoomPreview(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Data", room))
+}
 
+func (h *roomHandler) FindMutualRooms(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	rooms, err := h.roomServices.FindMutualRooms(ctx, targetId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Mutual Rooms", rooms))
 }
 
 func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {

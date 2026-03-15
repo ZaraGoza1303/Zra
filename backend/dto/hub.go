@@ -70,8 +70,12 @@ func (h *Hub) handleJoin(client *Client) {
 func (h *Hub) handleLeave(client *Client) {
 	if client.RoomID == "global" {
 		h.ClientMu.Lock()
-		if existing, ok := h.GlobalClients[client.UserID]; ok && existing == client {
-			delete(h.GlobalClients, client.UserID)
+		if existing, ok := h.GlobalClients[client.UserID]; ok {
+			if existing == client {
+				delete(h.GlobalClients, client.UserID)
+			} else {
+				log.Printf("handleLeave untuk user %d: existing client != client yang left, tapi dibiarkan dulu bila ghost", client.UserID)
+			}
 		}
 		h.ClientMu.Unlock()
 	} else {
@@ -104,6 +108,9 @@ func (h *Hub) handleSignal(message Message) {
 	h.ClientMu.RUnlock()
 
 	if !ok {
+		if message.Type == "user-offline" || message.Type == "user-online" {
+			log.Printf("handleSignal [%s] aborted: User %d is not in GlobalClients", message.Type, message.ToID)
+		}
 		return
 	}
 
@@ -122,8 +129,11 @@ func (h *Hub) handleSignal(message Message) {
 
 	select {
 	case target.Send <- message:
+		if message.Type == "user-offline" || message.Type == "user-online" || message.Type == "call-busy" {
+			log.Printf("handleSignal [%s] successfully put in channel target.Send for user %d", message.Type, message.ToID)
+		}
 	default:
-		log.Printf("Skip signal for user %d: buffer full", message.ToID)
+		log.Printf("Skip signal %s for user %d: buffer full", message.Type, message.ToID)
 	}
 }
 

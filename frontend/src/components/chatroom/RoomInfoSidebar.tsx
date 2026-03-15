@@ -5,6 +5,7 @@ import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
 import { useToastStore } from '../../store/toastStore';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import ImageCropModal from '../ImageCropModal';
 
 
 interface RoomInfoSidebarProps {
@@ -20,6 +21,7 @@ interface RoomInfoSidebarProps {
     onBack?: () => void;
     onRefresh: () => Promise<void>;
     roomType?: 'group' | 'private';
+    onlineUserIds?: Set<number>;
 }
 
 export default function RoomInfoSidebar({
@@ -33,9 +35,11 @@ export default function RoomInfoSidebar({
     onAddMember,
     onBack,
     onRefresh,
-    roomType
+    roomType,
+    onlineUserIds
 }: RoomInfoSidebarProps) {
     const [showAddMember, setShowAddMember] = useState(false);
+    const [cropFile, setCropFile] = useState<File | null>(null); // ← BARU
     const { user } = useAuthStore();
     const {
         fetchingInfo,
@@ -54,7 +58,8 @@ export default function RoomInfoSidebar({
         setPreviewPicture,
         friendsList,
         addingMember,
-        activeMembers
+        activeMembers,
+        mutualRooms
     } = useChatStore();
 
     const withRefresh = async (fn: () => Promise<void>) => {
@@ -71,39 +76,83 @@ export default function RoomInfoSidebar({
         <div className="w-[340px] shrink-0 bg-[#161b22] border-l border-[#21262d] flex flex-col h-full overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[#21262d] shrink-0">
                 <h2 className="text-[15px] font-semibold text-[#e6edf3]">{isPrivate ? 'User Info' : 'Group Info'}</h2>
-                <button
-                    onClick={onClose}
-                    className="text-[#8b949e] hover:text-[#e6edf3] transition-colors"
-                >
+                <button onClick={onClose} className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
                     <X size={20} />
                 </button>
             </div>
 
             {isPrivate ? (
-                <div className="flex flex-col items-center px-5 pt-8 pb-6 border-b border-[#21262d] shrink-0 gap-3">
+                <div className="flex flex-col h-full gap-4 items-center px-5 pt-8 pb-6 border-b border-[#21262d] shrink-0">
                     {fetchingInfo ? (
                         <div className="flex items-center gap-2 text-[#8b949e] text-sm py-4">
                             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                         </div>
                     ) : privatePartner ? (
                         <>
-                            <div className="w-[100px] h-[100px] rounded-3xl bg-[#2a3441] flex items-center justify-center overflow-hidden shadow-xl mb-2">
-                                {privatePartner.user_profile_picture ? (
-                                    <img src={getUserImageUrl(privatePartner.user_profile_picture)} alt={privatePartner.username} className="w-full h-full object-cover" />
-                                ) : (
-                                    <User size={40} className="text-[#8b949e]" />
-                                )}
+                            {/* ── Private: avatar bulat ── */}
+                            <div className="relative w-[100px] h-[100px] mb-2">
+                                <div className="w-full h-full rounded-full bg-[#2a3441] flex items-center justify-center overflow-hidden shadow-xl border border-white/5">
+                                    {privatePartner.user_profile_picture ? (
+                                        <img src={getUserImageUrl(privatePartner.user_profile_picture)} alt={privatePartner.username} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <User size={40} className="text-[#8b949e]" />
+                                    )}
+                                </div>
                             </div>
+
                             <div className="text-center">
-                                <h2 className="text-xl font-bold text-[#e6edf3]">{privatePartner.username}</h2>
-                                <p className="text-[13px] text-[#8b949e] mt-1">@{privatePartner.username}</p>
+                                <div className="flex items-center justify-center gap-1">
+                                    <h2 className="text-xl font-bold text-[#e6edf3]">{privatePartner.username}</h2>
+                                    {privatePartner.is_verified && (
+                                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-blue-400 shrink-0" fill="currentColor">
+                                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    )}
+                                </div>
+                                <p className="text-[13px] text-[#8b949e] mt-0.5">
+                                    {onlineUserIds?.has(privatePartner.user_id) ? (
+                                        <span className="text-green-400">● Online</span>
+                                    ) : (
+                                        <span>● Offline</span>
+                                    )}
+                                </p>
                             </div>
+
                             {privatePartner.user_bio && (
-                                <div className="w-full mt-6 bg-[#0d1117] p-4 rounded-xl border border-white/5">
-                                    <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-3 text-left">Bio</p>
-                                    <p className="text-[14px] text-[#cdd9f0] leading-relaxed text-left">
-                                        {privatePartner.user_bio}
+                                <div className="w-full mt-4 bg-[#0d1117] p-4 rounded-xl border border-white/5">
+                                    <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-2">Bio</p>
+                                    <p className="text-[14px] text-[#cdd9f0] leading-relaxed">{privatePartner.user_bio}</p>
+                                </div>
+                            )}
+
+                            {privatePartner.created_at && (
+                                <div className="w-full mt-3 bg-[#0d1117] p-4 rounded-xl border border-white/5">
+                                    <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-2">Joined</p>
+                                    <p className="text-[14px] text-[#cdd9f0]">
+                                        {new Date(privatePartner.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                                     </p>
+                                </div>
+                            )}
+
+                            {mutualRooms.length > 0 && (
+                                <div className="w-full mt-3 bg-[#0d1117] p-4 rounded-xl border border-white/5">
+                                    <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-3">
+                                        {mutualRooms.length} Mutual Room{mutualRooms.length > 1 ? 's' : ''}
+                                    </p>
+                                    <div className="flex flex-col gap-2">
+                                        {mutualRooms.map(room => (
+                                            <div key={room.id} className="flex items-center gap-2.5">
+                                                <div className="w-8 h-8 rounded-lg bg-[#1c2128] border border-white/5 overflow-hidden shrink-0 flex items-center justify-center">
+                                                    {room.picture ? (
+                                                        <img src={room.picture} alt={room.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Users size={14} className="text-[#8b949e]" />
+                                                    )}
+                                                </div>
+                                                <span className="text-[13px] text-[#cdd9f0] truncate">{room.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </>
@@ -114,9 +163,10 @@ export default function RoomInfoSidebar({
             ) : (
                 <>
                     <div className="flex flex-col items-center px-5 pt-8 pb-6 border-b border-[#21262d] shrink-0">
-                        {/* Avatar dengan edit button */}
+
+                        {/* ── Group: avatar bulat + crop modal ── */}
                         <div className="relative w-[104px] h-[104px] group/avatar mb-4">
-                            <div className="w-full h-full rounded-[28px] bg-[#2a3441] flex items-center justify-center overflow-hidden shadow-xl border border-white/5">
+                            <div className="w-full h-full rounded-full bg-[#2a3441] flex items-center justify-center overflow-hidden shadow-xl border border-white/5">
                                 {roomPicture ? (
                                     <img src={roomPicture} alt={roomName} className="w-full h-full object-cover" />
                                 ) : (
@@ -127,10 +177,11 @@ export default function RoomInfoSidebar({
                                 <>
                                     <button
                                         onClick={() => pictureInputRef.current?.click()}
-                                        className="absolute inset-0 rounded-[28px] bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
+                                        className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
                                     >
                                         <Pencil size={20} className="text-white" />
                                     </button>
+                                    {/* Hidden file input — buka crop modal, BUKAN langsung upload */}
                                     <input
                                         type="file"
                                         ref={pictureInputRef}
@@ -139,7 +190,9 @@ export default function RoomInfoSidebar({
                                         onChange={e => {
                                             const file = e.target.files?.[0];
                                             if (file) {
-                                                setPreviewPicture({ file, url: URL.createObjectURL(file) });
+                                                setCropFile(file); // ← buka crop modal dulu
+                                                // Reset input value biar onChange bisa trigger lagi
+                                                e.target.value = '';
                                             }
                                         }}
                                     />
@@ -147,7 +200,7 @@ export default function RoomInfoSidebar({
                             )}
                         </div>
 
-                        {/* Name dengan edit button */}
+                        {/* Name edit */}
                         {editingName ? (
                             <div className="flex items-center gap-2 mb-1.5">
                                 <input
@@ -185,9 +238,7 @@ export default function RoomInfoSidebar({
                             </div>
                         )}
                         <p className="text-[13px] text-[#8b949e]">
-                            {totalMemberCount !== null
-                                ? `${totalMemberCount} members`
-                                : 'Loading...'}
+                            {totalMemberCount !== null ? `${totalMemberCount} members` : 'Loading...'}
                         </p>
                     </div>
 
@@ -249,7 +300,6 @@ export default function RoomInfoSidebar({
                                     <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                                 </div>
                             ) : roomMembers.map(member => {
-                                ``
                                 const isOnline = activeMembers.includes(member.user_id);
                                 return (
                                     <div key={member.user_id} className="flex items-center justify-between">
@@ -264,6 +314,9 @@ export default function RoomInfoSidebar({
                                                         </div>
                                                     )}
                                                 </div>
+                                                {isOnline && (
+                                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#161b22]" />
+                                                )}
                                             </div>
                                             <div className="flex flex-col">
                                                 <span className="text-[15px] font-medium text-[#e6edf3] leading-tight mb-0.5">
@@ -291,7 +344,6 @@ export default function RoomInfoSidebar({
                             <UserPlus size={18} /> Add Member
                         </button>
 
-
                         {/* Add Member Modal */}
                         {showAddMember && (
                             <div
@@ -302,44 +354,31 @@ export default function RoomInfoSidebar({
                                     className="w-full max-w-[360px] bg-[#161b22] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
                                     onClick={e => e.stopPropagation()}
                                 >
-                                    {/* Header */}
                                     <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
                                         <h3 className="text-sm font-semibold text-[#e6edf3]">Add Member</h3>
                                         <button onClick={() => setShowAddMember(false)} className="text-[#8b949e] hover:text-[#e6edf3]">
                                             <X size={18} />
                                         </button>
                                     </div>
-
-                                    {/* Friends List */}
                                     <div className="max-h-[360px] overflow-y-auto p-3">
                                         {friendsList.length === 0 ? (
-                                            <div className="text-center py-8 text-[#8b949e] text-sm">
-                                                No friends to add.
-                                            </div>
+                                            <div className="text-center py-8 text-[#8b949e] text-sm">No friends to add.</div>
                                         ) : friendsList
-                                            .filter(f => !roomMembers.some(m => m.user_id === f.id)) // filter yang sudah member
+                                            .filter(f => !roomMembers.some(m => m.user_id === f.id))
                                             .map(friend => (
-                                                <div
-                                                    key={friend.id}
-                                                    className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors"
-                                                >
+                                                <div key={friend.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-9 h-9 rounded-full overflow-hidden bg-[#2a3441] flex items-center justify-center shrink-0">
                                                             {friend.profile_picture ? (
                                                                 <img src={getUserImageUrl(friend.profile_picture)} alt={friend.name} className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <span className="text-[#cdd9f0] font-bold text-sm">
-                                                                    <User size={18} strokeWidth={2} />
-                                                                </span>
+                                                                <User size={18} strokeWidth={2} className="text-[#cdd9f0]" />
                                                             )}
-
                                                         </div>
                                                         <span className="text-sm font-medium text-[#e6edf3]">{friend.name}</span>
                                                     </div>
                                                     <button
-                                                        onClick={async () => {
-                                                            await withRefresh(() => onAddMember(friend.id));
-                                                        }}
+                                                        onClick={async () => { await withRefresh(() => onAddMember(friend.id)); }}
                                                         disabled={addingMember}
                                                         className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
                                                     >
@@ -349,9 +388,7 @@ export default function RoomInfoSidebar({
                                             ))
                                         }
                                         {friendsList.length > 0 && friendsList.filter(f => !roomMembers.some(m => m.user_id === f.id)).length === 0 && (
-                                            <div className="text-center py-8 text-[#8b949e] text-sm">
-                                                All friends are already members.
-                                            </div>
+                                            <div className="text-center py-8 text-[#8b949e] text-sm">All friends are already members.</div>
                                         )}
                                     </div>
                                 </div>
@@ -359,7 +396,7 @@ export default function RoomInfoSidebar({
                         )}
                     </div>
 
-                    {/* Shared Media Placeholders */}
+                    {/* Shared Media */}
                     <div className="flex flex-col p-6 border-b border-[#21262d] shrink-0">
                         <div className="flex items-center justify-between mb-5">
                             <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase">Shared Media</h3>
@@ -371,8 +408,6 @@ export default function RoomInfoSidebar({
                                     <div className="absolute top-2 left-2 w-3 h-3 bg-[#4b7a63] rounded-full"></div>
                                     <div className="absolute bottom-2 left-4 w-4 h-4 bg-[#7ab89b] rounded-full blur-[1px]"></div>
                                     <div className="absolute top-4 right-2 w-5 h-5 bg-[#2c4e3f] rounded-full"></div>
-                                    <div className="absolute top-3 left-3 w-10 h-[1px] bg-[#4b7a63] rotate-45 origin-left"></div>
-                                    <div className="absolute top-5 right-4 w-6 h-[1px] bg-[#7ab89b] -rotate-45 origin-left"></div>
                                 </div>
                             </div>
                             <div className="flex-1 aspect-square rounded-[14px] bg-[#455c56] bg-opacity-20 flex items-center justify-center overflow-hidden border border-white/5 p-2">
@@ -380,8 +415,6 @@ export default function RoomInfoSidebar({
                                     <div className="absolute top-1 left-3 w-4 h-4 bg-[#6e9a8f] rounded-full"></div>
                                     <div className="absolute bottom-3 right-2 w-3 h-3 bg-[#94c3b7] rounded-full"></div>
                                     <div className="absolute bottom-1 left-2 w-2 h-2 bg-[#4b6d64] rounded-full"></div>
-                                    <div className="absolute top-2 left-4 w-8 h-[1px] bg-[#6e9a8f] rounded-full origin-left rotate-[30deg]"></div>
-                                    <div className="absolute bottom-3 right-3 w-6 h-[1px] bg-[#94c3b7] rounded-full origin-left -rotate-[40deg]"></div>
                                 </div>
                             </div>
                             <div className="flex-1 aspect-square rounded-[14px] bg-[#21262d] flex items-center justify-center text-[#8b949e] text-[13px] font-medium border border-white/5 hover:bg-[#2a3038] cursor-pointer transition-colors">
@@ -450,13 +483,9 @@ export default function RoomInfoSidebar({
                                 cancelLabel="Cancel"
                                 variant="danger"
                                 loading={actionLoading}
-                                onConfirm={async () => {
-                                    await handleRoomAction('leave');
-                                    setConfirmLeave(false);
-                                }}
+                                onConfirm={async () => { await handleRoomAction('leave'); setConfirmLeave(false); }}
                                 onCancel={() => setConfirmLeave(false)}
                             />
-
                             <ConfirmDialog
                                 isOpen={confirmDelete}
                                 title="Delete Room"
@@ -465,15 +494,23 @@ export default function RoomInfoSidebar({
                                 cancelLabel="Cancel"
                                 variant="danger"
                                 loading={actionLoading}
-                                onConfirm={async () => {
-                                    await handleRoomAction('delete');
-                                    setConfirmDelete(false);
-                                }}
+                                onConfirm={async () => { await handleRoomAction('delete'); setConfirmDelete(false); }}
                                 onCancel={() => setConfirmDelete(false)}
                             />
                         </div>
                     </div>
                 </>
+            )}
+
+            {cropFile && (
+                <ImageCropModal
+                    file={cropFile}
+                    onConfirm={async (croppedFile) => {
+                        setCropFile(null);
+                        await withRefresh(() => handleUpdateRoom('picture', croppedFile));
+                    }}
+                    onCancel={() => setCropFile(null)}
+                />
             )}
         </div>
     );

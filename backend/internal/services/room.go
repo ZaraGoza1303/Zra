@@ -400,6 +400,8 @@ func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([
 			Username:           room.User.Username,
 			UserBio:            room.User.Bio,
 			Role:               room.Role,
+			IsVerified:         room.User.IsVerified,
+			CreatedAt:          room.User.CreatedAt,
 		}
 
 		response = append(response, item)
@@ -853,6 +855,44 @@ func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 	return nil
 }
 
+// FindMutualRooms implements [core.RoomServices].
+func (r *roomServices) FindMutualRooms(ctx context.Context, target_id uint) ([]dto.RoomResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	rooms, err := r.roomRepositories.GetMutualRooms(ctx, userId, target_id)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.RoomResponse
+	for _, room := range rooms {
+		var picture string
+		if room.Picture != nil {
+			picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
+		}
+
+		roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
+
+		item := dto.RoomResponse{
+			ID:          room.ID,
+			Picture:     &picture,
+			Name:        room.Name,
+			Description: room.Description,
+			RoomLink:    roomLink,
+			Type:        room.Type,
+			CreatedAt:   room.CreatedAt,
+			UpdatedAt:   room.UpdatedAt,
+		}
+
+		response = append(response, item)
+	}
+
+	return response, nil
+}
+
 // GetActiveMemberCount implements [core.RoomServices].
 func (r *roomServices) GetActiveMemberCount(ctx context.Context, room_id string) (int64, error) {
 	_, err := r.roomRepositories.GetById(ctx, room_id)
@@ -887,6 +927,16 @@ func (r *roomServices) GetActiveMembers(room_id string) ([]uint, error) {
 	}
 
 	return activeMembers, nil
+}
+
+// GetAllRoomMembersByUserId implements [core.RoomServices].
+func (r *roomServices) GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error) {
+	members, err := r.roomRepositories.GetAllRoomMembersByUserId(ctx, user_id)
+	if err != nil {
+		return nil, err
+	}
+
+	return members, nil
 }
 
 // OnlineUsers implements [core.RoomServices].

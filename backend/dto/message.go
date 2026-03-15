@@ -17,5 +17,6 @@ type Message struct {
 	SDP            interface{} `json:"sdp,omitempty"`
 	WithVideo      bool        `json:"with_video,omitempty"`
 	Candidate      interface{} `json:"candidate,omitempty"`
+	Muted          bool        `json:"muted,omitempty"`
 	TimeStamp      time.Time   `json:"time_stamp"`
 }

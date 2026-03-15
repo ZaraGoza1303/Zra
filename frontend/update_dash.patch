@@ -1,0 +1,29 @@
+--- /home/farhan/Documents/golang/chatApp/frontend/src/pages/Dashboard.tsx
++++ /home/farhan/Documents/golang/chatApp/frontend/src/pages/Dashboard.tsx
+@@ -171,9 +171,13 @@
+ 
+     useEffect(() => {
+         connectGlobalWs();
+         return () => {
+             reconnectTimeout.current && clearTimeout(reconnectTimeout.current);
+-            globalWs.current?.close();
++            if (globalWs.current) {
++                const ws = globalWs.current;
++                globalWs.current = null;
++                ws.close();
++            }
+         };
+     }, [connectGlobalWs]);
+ 
+@@ -253,7 +257,11 @@
+ 
+     const handleLogout = async () => {
+         try {
+-            globalWs.current?.close(1000, 'logout');
++            if (globalWs.current) {
++                const ws = globalWs.current;
++                globalWs.current = null;
++                ws.close(1000, 'logout');
++            }
+             await apiCall('/auth/logout', {
+                 method: 'POST',

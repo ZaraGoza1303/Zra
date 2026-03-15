@@ -15,4 +15,6 @@ type RoomMemberResponse struct {
 	UserBio            string    `json:"user_bio"`
 	Role               string    `json:"role"`
 	LastReadAt         time.Time `json:"last_read_at"`
+	IsVerified         bool      `json:"is_verified"`
+	CreatedAt          time.Time `json:"created_at"`
 }
