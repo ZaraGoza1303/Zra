@@ -479,6 +479,21 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			ProfilePicture: msg.ProfilePicture,
 			Type:           msg.Type,
 			TimeStamp:      msg.CreatedAt,
+			IsRead:         msg.IsRead,
+		}
+
+		if msg.ReplyTo != nil {
+			replyContent, err := helper.Decrypt(msg.ReplyTo.Content)
+			if err != nil {
+				replyContent = "Failed to load message..."
+			}
+			item.ReplyTo = &dto.Message{
+				ID:             msg.ReplyTo.ID,
+				UserID:         msg.ReplyTo.UserID,
+				Username:       msg.ReplyTo.Username,
+				ProfilePicture: msg.ReplyTo.ProfilePicture,
+				Content:        replyContent,
+			}
 		}
 
 		msgResponse = append(msgResponse, item)
@@ -770,6 +785,16 @@ func (r *roomServices) UpdateLastReadMessages(ctx context.Context, room_id strin
 		return err
 	}
 
+	if err := r.roomRepositories.MarkMessageRead(ctx, room_id, userId); err != nil {
+		return err
+	}
+
+	r.hub.Broadcast <- dto.Message{
+		RoomID: room_id,
+		UserID: userId,
+		Type:   "readed",
+	}
+
 	return nil
 }
 
@@ -902,14 +927,20 @@ func (r *roomServices) GetMemberCount(ctx context.Context, room_id string) (int6
 
 // SaveMessage implements [core.RoomServices].
 func (r *roomServices) SaveMessage(msg dto.Message) error {
+	var replyToID *string
+	if msg.ReplyToID != "" {
+		replyToID = &msg.ReplyToID
+	}
+
 	message := models.Message{
 		ID:             msg.ID,
 		RoomID:         msg.RoomID,
 		UserID:         msg.UserID,
 		Username:       msg.Username,
-		Content:        msg.Content,
 		ProfilePicture: msg.ProfilePicture,
+		Content:        msg.Content,
 		Type:           msg.Type,
+		ReplyToID:      replyToID,
 		CreatedAt:      time.Now(),
 	}
 

@@ -13,6 +13,8 @@ export interface Message {
     content: string;
     status?: MessageStatus;
     is_read?: boolean;
+    reply_to_id?: string;
+    reply_to?: Message;
     time_stamp: string;
 }
 

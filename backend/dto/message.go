@@ -11,6 +11,9 @@ type Message struct {
 	ProfilePicture string      `json:"profile_picture"`
 	Content        string      `json:"content"`
 	Type           string      `json:"type"`
+	IsRead         bool        `json:"is_read"`
+	ReplyToID      string      `json:"reply_to_id,omitempty"`
+	ReplyTo        *Message    `json:"reply_to,omitempty"`
 	SDP            interface{} `json:"sdp,omitempty"`
 	WithVideo      bool        `json:"with_video,omitempty"`
 	Candidate      interface{} `json:"candidate,omitempty"`

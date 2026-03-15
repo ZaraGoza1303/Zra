@@ -14,7 +14,7 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } fr
 import { useDashboardStore } from '../store/dashboardStore';
 import { useToastStore } from '../store/toastStore';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onStartCall }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
     const { updateRoom } = useDashboardStore();
@@ -23,6 +23,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const {
         messages, setMessages,
         input, setInput,
+        replyTo, setReplyTo,
         hasMore, setHasMore,
         loadingMore, setLoadingMore,
         roomMembers, setRoomMembers,
@@ -102,7 +103,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 : `/room/${roomId}/history?limit=20`;
 
             const resp = await apiCall<{ data: Message[] }>(url, { method: 'GET' });
-            console.log(resp.data);
             const newMessages = (resp.data || []).map((m: Message) => ({
                 ...m,
                 status: m.user_id === user?.id ? (m.is_read ? 'read' as const : 'sent' as const) : undefined,
@@ -186,6 +186,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             time_stamp: new Date().toISOString(),
             type: 'chat',
             status: 'pending',
+            reply_to: replyTo ?? undefined,
+            reply_to_id: replyTo?.id || '',
         };
         setMessages(prev => [...prev, optimisticMsg]);
         setInput('');
@@ -205,7 +207,13 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 username: user?.username || '',
                 sent_at: new Date().toISOString(),
             });
-            ws.current.send(JSON.stringify({ content: messageContent, local_id: localId }));
+            ws.current.send(JSON.stringify({
+                content: messageContent,
+                local_id: localId,
+                reply_to_id: replyTo?.id || '',
+            }));
+            setReplyTo(null);
+
         } catch (err) {
             setMessages(prev =>
                 prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
@@ -265,7 +273,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         );
                         if (lastPendingIdx === -1) return prev;
                         const actualIdx = prev.length - 1 - lastPendingIdx;
-                        return prev.map((m, i) => i === actualIdx ? { ...m, status: 'sent' } : m);
+                        return prev.map((m, i) => i === actualIdx
+                            ? { ...m, status: 'sent', id: msg.id }
+                            : m
+                        );
                     });
                     return;
                 }
@@ -578,6 +589,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     onScroll={handleScroll}
                     onRetry={retryMessage}
                     isPrivate={isPrivate}
+                    onReply={(msg) => {
+                        setReplyTo(msg);
+                    }}
                 />
 
                 {isKicked ? (

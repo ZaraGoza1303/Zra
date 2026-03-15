@@ -130,7 +130,7 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 
 		// Forward WebRTC signals ke target user via GlobalClients
 		switch msg.Type {
-		case "call-offer", "call-answer", "ice-candidate", "call-rejected", "call-ended":
+		case "call-offer", "call-answer", "ice-candidate", "call-rejected", "call-ended", "call-busy":
 			log.Printf("Global signal [%s] dari user %d ke user %d", msg.Type, client.UserID, msg.ToID)
 			h.hub.Signal <- msg
 		default:
@@ -204,6 +204,14 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 			msg.Content = encryptedContent
 			if err := h.roomService.SaveMessage(msg); err != nil {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
+			}
+
+			h.hub.Broadcast <- dto.Message{
+				ID:       msg.ID,
+				RoomID:   msg.RoomID,
+				UserID:   msg.UserID,
+				Username: msg.Username,
+				Type:     "sent",
 			}
 		}(msg)
 	}

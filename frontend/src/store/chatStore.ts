@@ -5,6 +5,7 @@ import type { Message, RoomMember, RoomResponse, UserProfile } from '../types/ch
 interface ChatState {
     messages: Message[];
     input: string;
+    replyTo: Message | null;
     roomMembers: RoomMember[];
     totalMemberCount: number | null;
     activeMemberCount: number | null;
@@ -33,6 +34,7 @@ interface ChatState {
     privatePartner: { username: string; name?: string; user_bio?: string; user_profile_picture?: string } | null;
 
     setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
+    setReplyTo: (msg: Message | null) => void;
     setInput: (input: string) => void;
     setRoomMembers: (roomMembers: RoomMember[]) => void;
     setTotalMemberCount: (count: number | null) => void;
@@ -65,6 +67,7 @@ interface ChatState {
 export const useChatStore = create<ChatState>((set) => ({
     messages: [],
     input: '',
+    replyTo: null,
     roomMembers: [],
     totalMemberCount: null,
     activeMemberCount: null,
@@ -95,6 +98,7 @@ export const useChatStore = create<ChatState>((set) => ({
         set((state) => ({
             messages: typeof messagesOrFn === 'function' ? messagesOrFn(state.messages) : messagesOrFn
         })),
+    setReplyTo: (replyTo) => set({ replyTo }),
     setInput: (input) => set({ input }),
     setRoomMembers: (roomMembers) => set({ roomMembers }),
     setTotalMemberCount: (totalMemberCount) => set({ totalMemberCount }),
@@ -123,6 +127,7 @@ export const useChatStore = create<ChatState>((set) => ({
     resetChatState: () => set({
         messages: [],
         input: '',
+        replyTo: null,
         roomMembers: [],
         totalMemberCount: null,
         activeMemberCount: null,

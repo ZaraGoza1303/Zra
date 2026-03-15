@@ -27,9 +27,10 @@ const ICE_SERVERS: RTCConfiguration = {
 interface UseWebRTCProps {
     onRemoteStream: (stream: MediaStream) => void;
     onSignal: (type: string, payload: any, toId: number) => void;
+    onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 }
 
-export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
+export function useWebRTC({ onRemoteStream, onSignal, onConnectionStateChange }: UseWebRTCProps) {
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
     const iceCandidateBuffer = useRef<RTCIceCandidateInit[]>([]);
@@ -74,6 +75,7 @@ export function useWebRTC({ onRemoteStream, onSignal }: UseWebRTCProps) {
 
         pc.onconnectionstatechange = () => {
             console.log('🟢 Connection State:', pc.connectionState);
+            onConnectionStateChange?.(pc.connectionState); // ← Call the callback
         };
 
         pc.onicecandidate = (e) => {

@@ -26,6 +26,7 @@ type RoomRepositories interface {
 	IsAdmin(ctx context.Context, room_id string, user_id uint) (bool, error)
 	UpdateToAdmin(ctx context.Context, room_id string, user_id uint) error
 	UpdateReadMessages(ctx context.Context, room_id string, user_id uint, timeStamp time.Time) error
+	MarkMessageRead(ctx context.Context, room_id string, user_id uint) error
 	DeleteUser(ctx context.Context, room_id string, user_id uint) error
 
 	// Buat Websocket

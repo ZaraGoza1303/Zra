@@ -3,6 +3,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl } from '../../services/api';
 import { User } from 'lucide-react';
+import type { Message } from '../../types/chat';
 
 interface MessageListProps {
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -10,6 +11,7 @@ interface MessageListProps {
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
     onRetry: (localId: string, content: string) => void;
     isPrivate: boolean;
+    onReply: (msg: Message) => void;
 }
 
 export default function MessageList({
@@ -18,9 +20,19 @@ export default function MessageList({
     onScroll,
     onRetry,
     isPrivate,
+    onReply
 }: MessageListProps) {
     const { user } = useAuthStore();
     const { messages, fetchingHistory, loadingMore } = useChatStore();
+    const [expandedMessages, setExpandedMessages] = React.useState<Set<string>>(new Set());
+
+    const toggleExpand = (id: string) => {
+        setExpandedMessages(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
 
     // Group messages by date for date separators
     const getDateLabel = (timestamp: string) => {
@@ -90,13 +102,56 @@ export default function MessageList({
                         {!isMe && !isPrivate && (
                             <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
                         )}
-                        <div className={`relative px-4 pt-2.5 pb-2.5 rounded-2xl text-sm leading-relaxed break-words
-                ${isMe
+                        <div className={`relative group px-4 pt-2.5 pb-2.5 rounded-2xl text-sm leading-relaxed break-words
+    ${isMe
                                 ? 'bg-[#1d3a6e] text-[#cdd9f0] rounded-br-sm'
                                 : 'bg-[#1c2128] text-[#e6edf3] rounded-bl-sm border border-white/5'
                             }`}
                         >
-                            {msg.content}
+                            {msg.reply_to && (
+                                <div className={`flex items-stretch gap-0 mb-1 rounded-md overflow-hidden text-xs cursor-pointer
+        ${isMe ? 'bg-blue-950/40' : 'bg-white/[0.07]'}`}>
+                                    <div className="w-[3px] bg-blue-400 shrink-0" />
+                                    <div className="px-3 py-2 min-w-0">
+                                        <span className="text-blue-400 font-semibold block mb-0.5">{msg.reply_to.username}</span>
+                                        <p className={`truncate italic ${isMe ? 'text-[#cdd9f0]/60' : 'text-[#8b949e]'}`}>
+                                            {msg.reply_to.content}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                            {(() => {
+                                const msgKey = msg.local_id || msg.id || String(idx);
+                                const isExpanded = expandedMessages.has(msgKey);
+                                const isLong = msg.content.length > 300;
+                                const displayContent = isLong && !isExpanded
+                                    ? msg.content.slice(0, 300) + '...'
+                                    : msg.content;
+
+                                return (
+                                    <>
+                                        <div className="mt-1 whitespace-pre-wrap break-all">{displayContent}</div>
+                                        {isLong && (
+                                            <button
+                                                onClick={() => toggleExpand(msgKey)}
+                                                className={`text-xs mt-1 font-medium ${isMe ? 'text-blue-300' : 'text-blue-400'} hover:underline`}
+                                            >
+                                                {isExpanded ? 'Show less' : 'Read more'}
+                                            </button>
+                                        )}
+                                    </>
+                                );
+                            })()}
+                            <button
+                                onClick={() => {
+                                    onReply(msg);
+                                }}
+                                className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1c2128] border border-white/10 rounded-full p-1 text-[#8b949e] hover:text-[#e6edf3]"
+                            >
+                                <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+                                </svg>
+                            </button>
                         </div>
                         <div className="flex items-center gap-1 mt-1 mx-1">
                             {msg.time_stamp && (

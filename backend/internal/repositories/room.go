@@ -35,7 +35,10 @@ func (r *roomRepositories) GetAll(ctx context.Context, filter string, user_id ui
 		Where("room_members.user_id = ?", user_id)
 
 	if filter != "" {
-		query = query.Where("rooms.name LIKE ?", "%"+filter+"%")
+		query = query.Where(
+			"rooms.name LIKE ? OR (rooms.type = 'private' AND EXISTS (SELECT 1 FROM room_members rm2 JOIN users u ON u.id = rm2.user_id WHERE rm2.room_id = rooms.id AND rm2.user_id != ? AND u.username LIKE ?))",
+			"%"+filter+"%", user_id, "%"+filter+"%",
+		)
 	}
 
 	result := query.Find(&rooms)
@@ -346,20 +349,41 @@ func (r *roomRepositories) GetLastMessages(ctx context.Context, roomIds []string
 	return messages, nil
 }
 
+// MarkMessageRead implements [core.RoomRepositories].
+func (r *roomRepositories) MarkMessageRead(ctx context.Context, room_id string, user_id uint) error {
+	result := r.DB.WithContext(ctx).Model(&models.Message{}).
+		Where("room_id = ? AND user_id != ? AND is_read = false", room_id, user_id).
+		Update("is_read", true)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 // GetChatHistory implements [core.RoomRepositories].
-func (r *roomRepositories) GetChatHistory(ctx context.Context, room_id string, limit int, lastTimeTstamp time.Time) ([]models.Message, error) {
+func (r *roomRepositories) GetChatHistory(ctx context.Context, room_id string, limit int, lastTimestamp time.Time) ([]models.Message, error) {
 	var messages []models.Message
 
-	query := r.DB.WithContext(ctx).Where("room_id = ?", room_id).Order("created_at asc").Limit(limit)
+	query := r.DB.WithContext(ctx).
+		Preload("ReplyTo").
+		Where("room_id = ?", room_id).
+		Order("created_at DESC").
+		Limit(limit)
 
-	if !lastTimeTstamp.IsZero() {
-		query = query.Where("created_at < ?", lastTimeTstamp)
+	if !lastTimestamp.IsZero() {
+		query = query.Where("created_at < ?", lastTimestamp)
 	}
 
 	result := query.Find(&messages)
-
 	if result.Error != nil {
 		return nil, result.Error
+	}
+
+	// Balik urutan: FE expect ASC (lama → baru)
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
 	}
 
 	return messages, nil

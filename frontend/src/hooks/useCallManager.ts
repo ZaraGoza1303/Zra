@@ -28,10 +28,19 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
     const callStateRef = useRef<CallState>('idle'); // ← tambah ref untuk callState
     const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
 
+    const callingTimeoutRef = useRef<number | null>(null);
+
     // ← Sync callStateRef setiap kali callState berubah
     const setCallStateSync = useCallback((state: CallState) => {
         callStateRef.current = state;
         setCallState(state);
+    }, []);
+
+    const clearCallingTimeout = useCallback(() => {
+        if (callingTimeoutRef.current) {
+            window.clearTimeout(callingTimeoutRef.current);
+            callingTimeoutRef.current = null;
+        }
     }, []);
 
     const { startCall, answerCall, handleAnswer, handleIceCandidate, endCall, toggleMute, toggleVideo, localStreamRef } = useWebRTC({
@@ -41,9 +50,17 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
             setRemoteStream(stream);
         },
         onSignal: sendSignal,
+        onConnectionStateChange: (state) => {
+            console.log('🔗 Connection state changed to:', state);
+            if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+                useToastStore.getState().showToast('Call connection lost', 'error');
+                resetCallRef.current();
+            }
+        }
     });
 
     const resetCall = useCallback(() => {
+        clearCallingTimeout();
         endCall();
         setCallStateSync('idle');
         setCallInfo(null);
@@ -51,24 +68,31 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         setRemoteStream(null);
         callInfoRef.current = null;
         pendingOfferRef.current = null;
-    }, [endCall, setCallStateSync]);
+    }, [endCall, setCallStateSync, clearCallingTimeout]);
 
     const initiateCall = useCallback(async (info: Omit<CallInfo, 'isCaller'>) => {
-        if (callStateRef.current !== 'idle') return; // ← pakai ref biar tidak stale
+        if (callStateRef.current !== 'idle') return;
         const fullInfo: CallInfo = { ...info, isCaller: true };
         callInfoRef.current = fullInfo;
         setCallInfo(fullInfo);
         setCallStateSync('calling');
+
+        // Set timeout 30 detik
+        callingTimeoutRef.current = window.setTimeout(() => {
+            if (callStateRef.current === 'calling') {
+                useToastStore.getState().showToast('No response from user', 'info');
+                handleEndCall();
+            }
+        }, 30000);
 
         try {
             const stream = await startCall(info.partnerId, info.withVideo);
             setLocalStream(stream);
         } catch (e) {
             console.error('Failed to start call:', e);
-            setCallStateSync('idle');
-            setCallInfo(null);
+            resetCall();
         }
-    }, [startCall, setCallStateSync]);
+    }, [startCall, setCallStateSync, resetCall]);
 
     const handleIncomingOffer = useCallback((msg: {
         user_id: number;
@@ -80,6 +104,11 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
     }) => {
         // ← Pakai ref supaya tidak stale di dalam handleCallSignal
         if (callStateRef.current !== 'idle') {
+            // Beritahu user kita juga kalau ada yang nelpon tapi kita lagi sibuk
+            useToastStore.getState().showToast(
+                `${msg.username} tried to call you, but you are in another call`,
+                'info'
+            );
             // Kirim call-busy (bukan call-rejected) supaya caller bisa bedain
             sendSignal('call-busy', {}, msg.user_id);
             return;
@@ -110,6 +139,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         const sdp = pendingOfferRef.current;
         if (!info || !sdp) return;
 
+        clearCallingTimeout();
         setCallStateSync('active');
         try {
             const stream = await answerCall(info.partnerId, sdp, info.withVideo);
@@ -118,7 +148,7 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
             console.error('Failed to answer call:', e);
             handleEndCall();
         }
-    }, [answerCall, handleEndCall, setCallStateSync]);
+    }, [answerCall, handleEndCall, setCallStateSync, clearCallingTimeout]);
 
     const rejectCall = useCallback(() => {
         const info = callInfoRef.current;
@@ -128,10 +158,11 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
 
     const handleCallAnswer = useCallback(async (sdp: RTCSessionDescriptionInit) => {
         console.log('📨 Menerima call-answer, set remote desc...');
+        clearCallingTimeout();
         await handleAnswer(sdp);
         console.log('✅ Remote desc set, state active');
         setCallStateSync('active');
-    }, [handleAnswer, setCallStateSync]);
+    }, [handleAnswer, setCallStateSync, clearCallingTimeout]);
 
     const handleIncomingOfferRef = useRef(handleIncomingOffer);
     const handleCallAnswerRef = useRef(handleCallAnswer);

@@ -10,8 +10,11 @@ type Message struct {
 	ProfilePicture string    `gorm:"size:255"`
 	Content        string    `gorm:"type:text"`
 	Type           string    `gorm:"size:255"`
+	IsRead         bool      `gorm:"default:false"`
+	ReplyToID      *string   `gorm:"size:255"`
 	CreatedAt      time.Time `gorm:"autoCreateTime"`
 
-	Room Room `gorm:"foreignKey:RoomID;references:ID;constraint:OnDelete:CASCADE"`
-	User User `gorm:"foreignKey:UserID;references:ID"`
+	ReplyTo *Message `gorm:"foreignKey:ReplyToID"`
+	Room    Room     `gorm:"foreignKey:RoomID;references:ID;constraint:OnDelete:CASCADE"`
+	User    User     `gorm:"foreignKey:UserID;references:ID"`
 }

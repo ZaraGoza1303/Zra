@@ -23,6 +23,15 @@ import { useCallManager } from '../hooks/useCallManager';
 
 type NavItem = 'home' | 'rooms' | 'chats' | 'contacts' | 'settings';
 
+const sortByLatest = (arr: Room[]) => [...arr].sort((a, b) => {
+    const aTime = a.last_message?.sent_at || '';
+    const bTime = b.last_message?.sent_at || '';
+    if (!aTime && !bTime) return 0;
+    if (!aTime) return 1;
+    if (!bTime) return -1;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+});
+
 export default function Dashboard() {
     const { user, logoutState } = useAuthStore();
     const {
@@ -75,10 +84,11 @@ export default function Dashboard() {
             try {
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'chat') {
-                    const { selectedRoom, dmRoom, rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
+                    const { rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
 
                     const isSentByMe = msg.user_id === user?.id;
-                    const isActiveRoom = selectedRoom?.id === msg.room_id || dmRoom?.id === msg.room_id;
+                    const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === msg.room_id ||
+                        useDashboardStore.getState().dmRoom?.id === msg.room_id;
 
                     const updater = (r: Room) => r.id === msg.room_id
                         ? {
@@ -88,8 +98,8 @@ export default function Dashboard() {
                         }
                         : r;
 
-                    setRooms(rooms.map(updater));
-                    setAllRooms(allRooms.map(updater));
+                    setRooms(sortByLatest(rooms.map(updater)));
+                    setAllRooms(sortByLatest(allRooms.map(updater)));
                 }
 
                 if (msg.type === 'friend-request' || msg.type === 'friend-rejected') {
@@ -165,30 +175,6 @@ export default function Dashboard() {
         }
     }, [searchParams, rooms, setSelectedRoom, setSearchParams]);
 
-
-    const fetchRooms = async () => {
-        try {
-            const res = await apiCall<{ data: Room[] }>(`/room?search=${searchTerm}`, { method: 'GET' });
-            const freshRooms = res.data || [];
-
-            const { allRooms, setAllRooms, selectedRoom, dmRoom } = useDashboardStore.getState();
-
-            const merged = freshRooms.map(r => {
-                const existing = allRooms.find(cr => cr.id === r.id);
-
-                return existing ? { ...r, unread_message: existing.unread_message } : r;
-            });
-
-            setAllRooms(merged);
-
-            if (activeNav === 'home') setRooms(merged);
-            else if (activeNav === 'rooms') setRooms(merged.filter(r => r.type === 'group'));
-            else if (activeNav === 'chats') setRooms(merged.filter(r => r.type === 'private'));
-        } catch (err) {
-            console.error('Failed to fetch rooms', err);
-        }
-    };
-
     // Fetch unread count on mount
     const fetchUnreadNotifCount = async () => {
         try {
@@ -219,9 +205,40 @@ export default function Dashboard() {
         }
     };
 
+    const fetchRooms = useCallback(async (search?: string) => {
+        const term = search !== undefined ? search : searchTerm;
+        try {
+            const res = await apiCall<{ data: Room[] }>(`/room?search=${term}`, { method: 'GET' });
+            const freshRooms = res.data || [];
+
+            const { activeNav } = useDashboardStore.getState();
+
+            if (term) {
+                if (activeNav === 'rooms') setRooms(sortByLatest(freshRooms.filter(r => r.type === 'group')));
+                else if (activeNav === 'chats') setRooms(sortByLatest(freshRooms.filter(r => r.type === 'private')));
+                else setRooms(sortByLatest(freshRooms));
+                return;
+            }
+
+            const { allRooms, setAllRooms } = useDashboardStore.getState();
+            const merged = freshRooms.map(r => {
+                const existing = allRooms.find(cr => cr.id === r.id);
+                return existing ? { ...r, unread_message: existing.unread_message } : r;
+            });
+
+            setAllRooms(sortByLatest(merged));
+
+            if (activeNav === 'home') setRooms(sortByLatest(merged));
+            else if (activeNav === 'rooms') setRooms(sortByLatest(merged.filter(r => r.type === 'group')));
+            else if (activeNav === 'chats') setRooms(sortByLatest(merged.filter(r => r.type === 'private')));
+        } catch (err) {
+            console.error('Failed to fetch rooms', err);
+        }
+    }, [searchTerm, activeNav]);
+
     useEffect(() => {
         fetchRooms();
-    }, [searchTerm, activeNav]);
+    }, [fetchRooms]);
 
     const handleLogout = async () => {
         try {
@@ -281,6 +298,22 @@ export default function Dashboard() {
         };
     };
 
+    const signalQueue = useRef<{ type: string, payload: object, toId: number }[]>([]);
+
+    const flushSignalQueue = useCallback(() => {
+        if (globalWs.current?.readyState === WebSocket.OPEN && signalQueue.current.length > 0) {
+            console.log(`🚀 Flushing ${signalQueue.current.length} queued signals`);
+            while (signalQueue.current.length > 0) {
+                const { type, payload, toId } = signalQueue.current.shift()!;
+                globalWs.current.send(JSON.stringify({
+                    type,
+                    to_id: toId,
+                    ...payload
+                }));
+            }
+        }
+    }, []);
+
     const sendSignal = useCallback((type: string, payload: object, toId: number) => {
         if (globalWs.current?.readyState === WebSocket.OPEN) {
             console.log(`📡 Kirim signal [${type}] ke user ${toId}`);
@@ -290,9 +323,22 @@ export default function Dashboard() {
                 ...payload
             }));
         } else {
-            console.warn(`⚠️ Global WS not ready, signal [${type}] dropped`);
+            console.warn(`⚠️ Global WS not ready, queuing signal [${type}] for user ${toId}`);
+            signalQueue.current.push({ type, payload, toId });
         }
-    }, []); // ← tidak perlu dep apapun, pakai ref
+    }, []);
+
+    // Flush queue on connection
+    useEffect(() => {
+        const checkConnection = setInterval(() => {
+            if (globalWs.current?.readyState === WebSocket.OPEN) {
+                flushSignalQueue();
+                clearInterval(checkConnection);
+            }
+        }, 500);
+        return () => clearInterval(checkConnection);
+    }, [flushSignalQueue]);
+
 
     const {
         callState,
@@ -306,7 +352,7 @@ export default function Dashboard() {
         handleCallSignal,
         toggleMute,
         toggleVideo,
-    } = useCallManager({ sendSignal, currentUserId: user?.id });
+    } = useCallManager({ sendSignal });
 
     handleCallSignalRef.current = handleCallSignal;
 
@@ -579,8 +625,8 @@ export default function Dashboard() {
                                 ? { ...r, last_message: message, unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1 }
                                 : r;
 
-                            setRooms(rooms.map(updater));
-                            setAllRooms(allRooms.map(updater));
+                            setRooms(sortByLatest(rooms.map(updater)));
+                            setAllRooms(sortByLatest(allRooms.map(updater)));
                         }}
                         onRoomResolved={(resolvedRoomId) => {
                             const { dmRoom } = useDashboardStore.getState();

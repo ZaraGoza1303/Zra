@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Smile, Send } from 'lucide-react';
+import { Plus, Smile, Send, X } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -9,7 +9,7 @@ interface MessageInputProps {
 }
 
 export default function MessageInput({ sendMessage }: MessageInputProps) {
-    const { input, setInput } = useChatStore();
+    const { input, setInput, replyTo, setReplyTo } = useChatStore();
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +30,22 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
 
     return (
         <div className="px-5 py-4 bg-[#0d1117] shrink-0">
+            {/* Reply preview — di luar form tapi di dalam wrapper */}
+            {replyTo && (
+                <div className="flex items-center justify-between px-4 py-2 mb-2 bg-white/5 border border-white/10 rounded-xl text-xs text-[#8b949e]">
+                    <div className="flex items-center gap-2">
+                        <div className="w-0.5 h-8 bg-blue-400 rounded-full shrink-0" />
+                        <div>
+                            <span className="text-blue-400 font-medium block">{replyTo.username}</span>
+                            <p className="truncate max-w-[300px] opacity-70">{replyTo.content}</p>
+                        </div>
+                    </div>
+                    <button type="button" onClick={() => setReplyTo(null)} className="hover:text-[#e6edf3] ml-2">
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
             <form onSubmit={sendMessage} className="flex items-center gap-3">
                 <button
                     type="button"
@@ -54,7 +70,6 @@ export default function MessageInput({ sendMessage }: MessageInputProps) {
                         >
                             <Smile size={20} />
                         </button>
-
                         {showEmojiPicker && (
                             <div className="absolute bottom-10 right-0 z-50">
                                 <Picker
