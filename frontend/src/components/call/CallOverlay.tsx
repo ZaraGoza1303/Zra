@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2, Camera, RefreshCw } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Maximize2, Minimize2 } from 'lucide-react';
 
 interface CallOverlayProps {
     partnerName: string;
@@ -19,12 +19,13 @@ export default function CallOverlay({
 }: CallOverlayProps) {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
-    const remoteVideoMiniRef = useRef<HTMLVideoElement>(null);
+    const audioInstanceRef = useRef<HTMLAudioElement | null>(null);
 
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
     const [isMinimized, setIsMinimized] = useState(false);
     const [callDuration, setCallDuration] = useState(0);
+    const [autoplayError, setAutoplayError] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setCallDuration(d => d + 1), 1000);
@@ -46,10 +47,32 @@ export default function CallOverlay({
         const attachAudio = async () => {
             if (remoteVideoRef.current) {
                 remoteVideoRef.current.srcObject = remoteStream;
-                remoteVideoRef.current.volume = 1.0;
+            }
 
-                remoteVideoRef.current.play().catch(console.warn);
-                console.log('🔊 Audio attached and playing');
+            // Memastikan instance audio ada & terpisah dari React DOM tree
+            if (!audioInstanceRef.current) {
+                audioInstanceRef.current = new Audio();
+                audioInstanceRef.current.autoplay = true;
+                audioInstanceRef.current.muted = false; // Pastikan unmute
+            }
+
+            const audioObj = audioInstanceRef.current;
+
+            // Re-assign stream 
+            if (audioObj.srcObject !== remoteStream) {
+                audioObj.srcObject = remoteStream;
+            }
+
+            try {
+                // Mainkan pakai JS biasa
+                await audioObj.play();
+                console.log('🔊 NATIVE AUDIO attached and playing');
+                setAutoplayError(false);
+            } catch (err: any) {
+                console.warn("Autoplay failed on Native Audio:", err);
+                if (err.name === 'NotAllowedError') {
+                    setAutoplayError(true);
+                }
             }
         };
 
@@ -64,6 +87,11 @@ export default function CallOverlay({
 
         return () => {
             if (audioTrack) audioTrack.onunmute = null;
+            if (audioInstanceRef.current) {
+                audioInstanceRef.current.pause();
+                audioInstanceRef.current.srcObject = null;
+                audioInstanceRef.current = null;
+            }
         };
     }, [remoteStream, isMinimized]);
 
@@ -99,6 +127,7 @@ export default function CallOverlay({
                     ref={remoteVideoRef}
                     autoPlay
                     playsInline
+                    muted
                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500
     ${(withVideo && remoteStream) ? 'opacity-100' : 'opacity-0'}`}
                 />
@@ -156,6 +185,25 @@ export default function CallOverlay({
                     </div>
                 )}
 
+                {/* Autoplay Error Fallback */}
+                {autoplayError && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+                        <button
+                            onClick={() => {
+                                if (audioInstanceRef.current) {
+                                    audioInstanceRef.current.play()
+                                        .then(() => setAutoplayError(false))
+                                        .catch(console.error);
+                                }
+                            }}
+                            className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.5)] transform hover:scale-105 transition-all"
+                        >
+                            <Mic size={24} className="animate-pulse" />
+                            <span>Browser Blocked Audio. Click to Play!</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* CONTROLS */}
                 <div className="absolute bottom-10 left-0 right-0 z-30 flex items-center justify-center gap-6 animate-in fade-in slide-in-from-bottom-10 duration-500">
                     <button
@@ -194,7 +242,6 @@ export default function CallOverlay({
             {/* AREA MINIMIZED */}
             {isMinimized && (
                 <div className="flex items-center gap-3">
-                    <video ref={remoteVideoMiniRef} autoPlay playsInline className="hidden" />
                     <div className="relative flex-shrink-0">
                         {partnerPicture ? (
                             <img src={partnerPicture} className="w-10 h-10 rounded-full object-cover border border-white/10" />
