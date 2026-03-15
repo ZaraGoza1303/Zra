@@ -9,6 +9,7 @@ interface MessageListProps {
     messagesContainerRef: React.RefObject<HTMLDivElement | null>;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
     onRetry: (localId: string, content: string) => void;
+    isPrivate: boolean;
 }
 
 export default function MessageList({
@@ -16,10 +17,10 @@ export default function MessageList({
     messagesContainerRef,
     onScroll,
     onRetry,
+    isPrivate,
 }: MessageListProps) {
     const { user } = useAuthStore();
-    const { messages, fetchingHistory, loadingMore, roomDetails } = useChatStore();
-    const isPrivate = roomDetails?.type === 'private';
+    const { messages, fetchingHistory, loadingMore } = useChatStore();
 
     // Group messages by date for date separators
     const getDateLabel = (timestamp: string) => {
@@ -89,24 +90,31 @@ export default function MessageList({
                         {!isMe && !isPrivate && (
                             <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
                         )}
-                        <div className={`relative px-4 pt-2.5 pb-2 rounded-2xl text-sm leading-relaxed break-words
+                        <div className={`relative px-4 pt-2.5 pb-2.5 rounded-2xl text-sm leading-relaxed break-words
                 ${isMe
                                 ? 'bg-[#1d3a6e] text-[#cdd9f0] rounded-br-sm'
                                 : 'bg-[#1c2128] text-[#e6edf3] rounded-bl-sm border border-white/5'
                             }`}
                         >
-                            <span className="pr-3.5">{msg.content}</span>
-                            {isMe && msg.status && (
-                                <span className="absolute bottom-1.5 right-2 inline-flex items-center">
+                            {msg.content}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1 mx-1">
+                            {msg.time_stamp && (
+                                <span className="text-[10px] text-[#8b949e]">
+                                    {formatMsgTime(msg.time_stamp)}
+                                </span>
+                            )}
+                            {isMe && msg.status && isPrivate && (
+                                <span className="inline-flex items-center">
                                     {msg.status === 'pending' && (
-                                        <svg className="animate-spin w-2.5 h-2.5 text-[#cdd9f0] opacity-40" viewBox="0 0 24 24" fill="none">
+                                        <svg className="animate-spin w-2.5 h-2.5 text-[#8b949e]" viewBox="0 0 24 24" fill="none">
                                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
                                             <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                         </svg>
                                     )}
                                     {msg.status === 'sent' && (
                                         <svg viewBox="0 0 16 11" className="w-3 h-2.5" fill="none">
-                                            <path d="M1 5.5L5.5 10L15 1" stroke="#cdd9f0" strokeWidth="1.8" strokeOpacity="0.45" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path d="M1 5.5L5.5 10L15 1" stroke="#8b949e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                         </svg>
                                     )}
                                     {msg.status === 'read' && (
@@ -126,11 +134,6 @@ export default function MessageList({
                                 </span>
                             )}
                         </div>
-                        {msg.time_stamp && (
-                            <span className="text-[10px] text-[#8b949e] mt-1 mx-1">
-                                {formatMsgTime(msg.time_stamp)}
-                            </span>
-                        )}
                     </div>
                 </div>
             );

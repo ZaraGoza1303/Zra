@@ -190,7 +190,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setMessages(prev => [...prev, optimisticMsg]);
         setInput('');
 
-        // ✅ Coba kirim, kalau WS tidak ready → tandai failed
+        // Coba kirim, kalau WS tidak ready → tandai failed
         if (ws.current?.readyState !== WebSocket.OPEN) {
             setMessages(prev =>
                 prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
@@ -200,6 +200,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
 
         try {
+            onNewMessage?.(roomId, {
+                content: messageContent,
+                username: user?.username || '',
+                sent_at: new Date().toISOString(),
+            });
             ws.current.send(JSON.stringify({ content: messageContent, local_id: localId }));
         } catch (err) {
             setMessages(prev =>
@@ -243,9 +248,12 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 if (msg.type === 'chat') {
                     if (msg.user_id !== user?.id) {
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                    }
-                    if (msg.user_id !== user?.id) {
                         setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        onNewMessage?.(actualRoomId, {
+                            content: msg.content,
+                            username: msg.username,
+                            sent_at: msg.time_stamp,
+                        });
                     }
                     return;
                 }
@@ -279,14 +287,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 if (msg.type === 'update-room') {
                     refreshRoomData();
-                }
-
-                if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
-                    onNewMessage?.(actualRoomId, {
-                        content: msg.content,
-                        username: msg.username,
-                        sent_at: msg.time_stamp,
-                    });
                 }
 
                 if (msg.type === 'leave' && msg.user_id === user?.id) {
@@ -577,6 +577,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     messagesContainerRef={messagesContainerRef}
                     onScroll={handleScroll}
                     onRetry={retryMessage}
+                    isPrivate={isPrivate}
                 />
 
                 {isKicked ? (

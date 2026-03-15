@@ -66,20 +66,24 @@ export default function ChatHeader({
             </div>
 
             <div className="flex items-center gap-1.5">
-                <button
-                    onClick={() => onStartCall?.(true)}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
-                    title="Video Call"
-                >
-                    <Video size={18} />
-                </button>
-                <button
-                    onClick={() => onStartCall?.(false)}
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
-                    title="Voice Call"
-                >
-                    <Phone size={18} />
-                </button>
+                {isPrivate && (
+                    <button
+                        onClick={() => onStartCall?.(true)}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        title="Video Call"
+                    >
+                        <Video size={18} />
+                    </button>
+                )}
+                {isPrivate && (
+                    <button
+                        onClick={() => onStartCall?.(false)}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        title="Voice Call"
+                    >
+                        <Phone size={18} />
+                    </button>
+                )}
                 {!isPrivate && (
                     <button
                         onClick={onOpenUsersModal}
