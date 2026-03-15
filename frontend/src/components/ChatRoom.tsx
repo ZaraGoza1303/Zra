@@ -102,7 +102,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 : `/room/${roomId}/history?limit=20`;
 
             const resp = await apiCall<{ data: Message[] }>(url, { method: 'GET' });
-            const newMessages = resp.data || [];
+            console.log(resp.data);
+            const newMessages = (resp.data || []).map((m: Message) => ({
+                ...m,
+                status: m.user_id === user?.id ? (m.is_read ? 'read' as const : 'sent' as const) : undefined,
+            }));
 
             if (lastTimestamp) {
                 setMessages(prev => [...newMessages, ...prev]); // prepend
@@ -146,7 +150,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         e.preventDefault();
         if (!input.trim()) return;
 
-        // Kalau pending, resolve dulu
+        const messageContent = input.trim();
+        const localId = `local_${Date.now()}_${Math.random()}`;
+
+        // Kalau pending room, resolve dulu (logic lama tetap sama)
         if (isPendingRoom) {
             if (creatingDM) return;
             setCreatingDM(true);
@@ -155,25 +162,68 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'POST' });
                 const newRoomId = res.data;
                 resolvedRoomId.current = newRoomId;
-                console.log('DM room response:', res);
-
                 onRoomResolved?.(newRoomId);
-
                 const newWs = connectWs(newRoomId);
                 newWs.onopen = () => {
-                    newWs.send(JSON.stringify({ content: input }));
+                    newWs.send(JSON.stringify({ content: messageContent }));
                     setInput('');
                 };
             } catch (err) {
                 showToast('Failed to create DM room', 'error');
             } finally {
-                setCreatingDM(false); // ✅
+                setCreatingDM(false);
             }
             return;
         }
-        // Normal send
-        ws.current?.send(JSON.stringify({ content: input }));
+
+        const optimisticMsg: Message = {
+            id: '',
+            room_id: roomId,
+            local_id: localId,
+            content: messageContent,
+            username: user?.username || '',
+            user_id: user?.id,
+            time_stamp: new Date().toISOString(),
+            type: 'chat',
+            status: 'pending',
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
         setInput('');
+
+        // ✅ Coba kirim, kalau WS tidak ready → tandai failed
+        if (ws.current?.readyState !== WebSocket.OPEN) {
+            setMessages(prev =>
+                prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
+            );
+            showToast('Connection lost. Please retry.', 'error');
+            return;
+        }
+
+        try {
+            ws.current.send(JSON.stringify({ content: messageContent, local_id: localId }));
+        } catch (err) {
+            setMessages(prev =>
+                prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
+            );
+            showToast('Failed to send message.', 'error');
+        }
+    };
+
+    const retryMessage = (localId: string, content: string) => {
+        if (ws.current?.readyState !== WebSocket.OPEN) {
+            showToast('Still disconnected.', 'error');
+            return;
+        }
+        setMessages(prev =>
+            prev.map(m => m.local_id === localId ? { ...m, status: 'pending' } : m)
+        );
+        try {
+            ws.current.send(JSON.stringify({ content, local_id: localId }));
+        } catch {
+            setMessages(prev =>
+                prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
+            );
+        }
     };
 
     const connectWs = (targetRoomId?: string): WebSocket => {
@@ -191,16 +241,48 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 const msg: any = JSON.parse(event.data);
 
                 if (msg.type === 'chat') {
-                    apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                    if (msg.user_id !== user?.id) {
+                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                    }
+                    if (msg.user_id !== user?.id) {
+                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                    }
+                    return;
+                }
+
+                if (msg.type === 'sent') {
+                    setMessages(prev => {
+                        const lastPendingIdx = [...prev].reverse().findIndex(
+                            m => m.user_id === user?.id && m.status === 'pending'
+                        );
+                        if (lastPendingIdx === -1) return prev;
+                        const actualIdx = prev.length - 1 - lastPendingIdx;
+                        return prev.map((m, i) => i === actualIdx ? { ...m, status: 'sent' } : m);
+                    });
+                    return;
+                }
+
+
+                if (msg.type === 'readed') {
+                    // msg.user_id = yang sudah baca (bukan pengirim)
+                    if (msg.user_id !== user?.id) {
+                        setMessages(prev =>
+                            prev.map(m =>
+                                m.user_id === user?.id && m.status === 'sent'
+                                    ? { ...m, status: 'read' }
+                                    : m
+                            )
+                        );
+                    }
+                    return;
                 }
 
                 if (msg.type === 'update-room') {
                     refreshRoomData();
                 }
 
-
                 if (msg.type !== 'join' && msg.type !== 'leave' && msg.type !== 'system') {
-                    onNewMessage?.(actualRoomId, { // <-- pakai actualRoomId, bukan roomId
+                    onNewMessage?.(actualRoomId, {
                         content: msg.content,
                         username: msg.username,
                         sent_at: msg.time_stamp,
@@ -210,13 +292,14 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 if (msg.type === 'leave' && msg.user_id === user?.id) {
                     setIsKicked(true);
                     showToast('You have been removed from this room.', 'error');
-
                     const { rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
                     setRooms(rooms.filter(r => r.id !== actualRoomId));
                     setAllRooms(allRooms.filter(r => r.id !== actualRoomId));
                 }
 
-                setMessages((prev) => [...prev, msg]);
+                if (msg.type !== 'chat' && msg.type !== 'readed') {
+                    setMessages(prev => [...prev, msg]);
+                }
             } catch (e) {
                 console.error("Failed to parse message", e);
             }
@@ -493,6 +576,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     messagesEndRef={messagesEndRef}
                     messagesContainerRef={messagesContainerRef}
                     onScroll={handleScroll}
+                    onRetry={retryMessage}
                 />
 
                 {isKicked ? (

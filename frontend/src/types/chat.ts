@@ -1,13 +1,18 @@
 // src/types/chat.ts
 
+export type MessageStatus = 'pending' | 'sent' | 'read' | 'failed';
+
 export interface Message {
     id: string;
+    local_id?: string;
     room_id: string;
-    user_id: number;
+    user_id?: number;
     username: string;
     profile_picture?: string;
     type: string;
     content: string;
+    status?: MessageStatus;
+    is_read?: boolean;
     time_stamp: string;
 }
 

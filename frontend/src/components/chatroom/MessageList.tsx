@@ -8,12 +8,14 @@ interface MessageListProps {
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
     messagesContainerRef: React.RefObject<HTMLDivElement | null>;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
+    onRetry: (localId: string, content: string) => void;
 }
 
 export default function MessageList({
     messagesEndRef,
     messagesContainerRef,
-    onScroll
+    onScroll,
+    onRetry,
 }: MessageListProps) {
     const { user } = useAuthStore();
     const { messages, fetchingHistory, loadingMore, roomDetails } = useChatStore();
@@ -70,8 +72,7 @@ export default function MessageList({
 
             const isMe = msg.user_id === user?.id;
             elements.push(
-                <div key={msg.id || idx} className={`flex items-center gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                    {/* Avatar for others */}
+                <div key={msg.local_id || msg.id || idx} className={`flex items-end gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     {!isMe && !isPrivate && (
                         <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 mb-[2px]">
                             {msg.profile_picture ? (
@@ -88,13 +89,42 @@ export default function MessageList({
                         {!isMe && !isPrivate && (
                             <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
                         )}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words
-                            ${isMe
+                        <div className={`relative px-4 pt-2.5 pb-2 rounded-2xl text-sm leading-relaxed break-words
+                ${isMe
                                 ? 'bg-[#1d3a6e] text-[#cdd9f0] rounded-br-sm'
                                 : 'bg-[#1c2128] text-[#e6edf3] rounded-bl-sm border border-white/5'
                             }`}
                         >
-                            {msg.content}
+                            <span className="pr-3.5">{msg.content}</span>
+                            {isMe && msg.status && (
+                                <span className="absolute bottom-1.5 right-2 inline-flex items-center">
+                                    {msg.status === 'pending' && (
+                                        <svg className="animate-spin w-2.5 h-2.5 text-[#cdd9f0] opacity-40" viewBox="0 0 24 24" fill="none">
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+                                            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                                        </svg>
+                                    )}
+                                    {msg.status === 'sent' && (
+                                        <svg viewBox="0 0 16 11" className="w-3 h-2.5" fill="none">
+                                            <path d="M1 5.5L5.5 10L15 1" stroke="#cdd9f0" strokeWidth="1.8" strokeOpacity="0.45" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    )}
+                                    {msg.status === 'read' && (
+                                        <svg viewBox="0 0 20 11" className="w-4 h-2.5" fill="none">
+                                            <path d="M1 5.5L5.5 10L15 1" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path d="M6 5.5L10.5 10L20 1" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    )}
+                                    {msg.status === 'failed' && (
+                                        <button
+                                            onClick={() => msg.local_id && onRetry(msg.local_id, msg.content)}
+                                            className="text-red-400 underline hover:text-red-300 cursor-pointer text-[10px]"
+                                        >
+                                            Retry
+                                        </button>
+                                    )}
+                                </span>
+                            )}
                         </div>
                         {msg.time_stamp && (
                             <span className="text-[10px] text-[#8b949e] mt-1 mx-1">
