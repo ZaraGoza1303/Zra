@@ -48,15 +48,20 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 		var provider string
 
 		if user.ProfilePicture != nil {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+			if user.Provider != nil {
+				profilePicture = *user.ProfilePicture
+			} else {
+				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+
+			}
 		} else {
 			profilePicture = ""
 		}
 
 		if user.Provider != nil {
-			profilePicture = *user.Provider
+			provider = *user.Provider
 		} else {
-			profilePicture = ""
+			provider = ""
 		}
 
 		item := dto.UserResponse{
@@ -174,15 +179,28 @@ func (u *userServices) FindListFriend(ctx context.Context, filter string) ([]dto
 
 	for _, user := range users {
 		var profilePicture string
+		var provider string
+
 		if user.ProfilePicture != nil {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+			if user.Provider != nil {
+				profilePicture = *user.ProfilePicture
+			} else {
+				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+			}
 		} else {
 			profilePicture = ""
+		}
+
+		if user.Provider != nil {
+			provider = *user.Provider
+		} else {
+			provider = ""
 		}
 
 		item := dto.UserResponse{
 			ID:             user.ID,
 			Email:          user.Email,
+			Provider:       provider,
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
 			Name:           user.Name,
@@ -211,15 +229,28 @@ func (u *userServices) FindListFriendRequest(ctx context.Context, filter string)
 
 	for _, user := range users {
 		var profilePicture string
+		var provider string
+
 		if user.ProfilePicture != nil {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+			if user.Provider != nil {
+				profilePicture = *user.ProfilePicture
+			} else {
+				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+			}
 		} else {
 			profilePicture = ""
+		}
+
+		if user.Provider != nil {
+			provider = *user.Provider
+		} else {
+			provider = ""
 		}
 
 		item := dto.UserResponse{
 			ID:             user.ID,
 			Email:          user.Email,
+			Provider:       provider,
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
 			Name:           user.Name,

@@ -64,7 +64,6 @@ export default function Login() {
     }, [searchParams, navigate, loginState, redirectTo]);
 
     const handleGoogleLogin = () => {
-        // Tambahin prompt=consent agar Google menampilkan layar persetujuan aslinya
         window.location.href = `${BACKEND_URL}/auth/google?rememberMe=${rememberMe}&prompt=consent`;
     };
 

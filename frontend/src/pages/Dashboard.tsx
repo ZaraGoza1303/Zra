@@ -205,9 +205,9 @@ export default function Dashboard() {
             const res = await apiCall<{ data: UnreadNotif[] }>('/user/unread-notifications', { method: 'GET' });
             const data = res.data || [];
 
-            const friendReq = data.find(d => d.type === 'friend-request')?.count ?? 0;
-            const friendRej = data.find(d => d.type === 'friend-rejected')?.count ?? 0;
-            const friendAcc = data.find(d => d.type === 'friend-accepted')?.count ?? 0;
+            const friendReq = Number(data.find(d => d.type === 'friend-request')?.count ?? 0);
+            const friendRej = Number(data.find(d => d.type === 'friend-rejected')?.count ?? 0);
+            const friendAcc = Number(data.find(d => d.type === 'friend-accepted')?.count ?? 0);
 
             setFriendRequestNotif(friendReq + friendRej);
             setFriendAcceptedNotif(friendAcc);

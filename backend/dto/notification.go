@@ -1,6 +1,6 @@
 package dto
 
 type UnreadNotifResponse struct {
-	Count string `json:"count"`
+	Count int    `json:"count"`
 	Type  string `json:"type"`
 }
