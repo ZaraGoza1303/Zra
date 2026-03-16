@@ -5,10 +5,14 @@ import (
 	"chatapp/dto"
 	"chatapp/internal/helper"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/google"
+	"github.com/shareed2k/goth_fiber"
 	"gorm.io/gorm"
 )
 
@@ -23,9 +27,21 @@ func NewAuth(router fiber.Router, authServices core.AuthServices, userServices c
 		UserServices: userServices,
 	}
 
+	clientId := os.Getenv("GOOGLE_CLIENT_ID")
+	clientSecret := os.Getenv("GOOGLE_CLIENT_SECRET")
+	backendUrl := os.Getenv("BACKEND_URL")
+	googleUrl := fmt.Sprintf("%s/auth/google/callback", backendUrl)
+
+	goth.UseProviders(
+		google.New(clientId, clientSecret, googleUrl, "profile", "email"),
+	)
+
 	route := router.Group("/api")
 	route.Post("/auth/register", handler.Register)
 	route.Post("/auth/login", handler.Login)
+	route.Get("/auth/me", middleware, handler.Me)
+	router.Get("/auth/:provider", handler.BeginLoginProvider)
+	router.Get("/auth/:provider/callback", handler.LoginProvider)
 	route.Post("/auth/forgot-password", handler.ForgotPassword)
 	route.Get("/auth/verify-reset", handler.VerifyResetPassword)
 	route.Post("/auth/reset-password", handler.ResetPassword)
@@ -33,6 +49,7 @@ func NewAuth(router fiber.Router, authServices core.AuthServices, userServices c
 
 	route.Post("/auth/refresh", handler.Refresh)
 	route.Post("/auth/logout", middleware, handler.Logout)
+	router.Get("/auth/logout/:provider", middleware, handler.LogoutProvider)
 }
 
 func (h *authHandler) Register(c *fiber.Ctx) error {
@@ -91,6 +108,31 @@ func (h *authHandler) Login(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Login Successfully", response))
+}
+
+func (h *authHandler) BeginLoginProvider(c *fiber.Ctx) error {
+	return goth_fiber.BeginAuthHandler(c)
+}
+
+func (h *authHandler) LoginProvider(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	user, err := goth_fiber.CompleteUserAuth(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	result, err := h.AuthServices.LoginProvider(ctx, user)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	return c.Redirect(
+		frontendURL+"/login?oauth=success&access_token="+result.AccessToken+"&refresh_token="+result.RefreshToken,
+		fiber.StatusTemporaryRedirect,
+	)
 }
 
 func (h *authHandler) ForgotPassword(c *fiber.Ctx) error {
@@ -224,6 +266,44 @@ func (h *authHandler) Logout(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Logout Successfully", nil))
 }
 
+func (h *authHandler) LogoutProvider(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	var request dto.LogoutRequest
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	userToken := c.Locals("user").(*jwt.Token)
+	claims := userToken.Claims.(jwt.MapClaims)
+	userID := uint(claims["ID"].(float64))
+	accessUUID := claims["access_uuid"].(string)
+	refreshUUID := claims["refresh_uuid"].(string)
+
+	request.UserID = userID
+	request.AccessUUID = accessUUID
+	request.RefreshUUID = refreshUUID
+
+	validateErr := helper.Validate(request)
+	if validateErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
+	}
+
+	if err := goth_fiber.Logout(c); err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Gagal logout")
+	}
+
+	if err := h.AuthServices.Logout(ctx, request); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Logout Successfully", nil))
+}
+
 func (h *authHandler) Refresh(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
@@ -255,4 +335,17 @@ func (h *authHandler) Refresh(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Refreshed", refreshToken))
+}
+
+func (h *authHandler) Me(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id").(uint)
+	user, err := h.UserServices.FindById(ctx, userId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Get Data", user))
 }

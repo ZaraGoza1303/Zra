@@ -34,6 +34,13 @@ export interface ChatRoomProps {
     onRoomResolved?: (resolvedRoomId: string) => void;
     onStartCall?: (withVideo: boolean) => void;
     onlineUserIds?: Set<number>;
+    /** When opening a pending DM, pass partner info so online status shows immediately */
+    privatePartnerInfo?: {
+        user_id: number;
+        username: string;
+        user_profile_picture?: string;
+        user_bio?: string;
+    };
 }
 
 export interface RoomMember {
@@ -41,7 +48,7 @@ export interface RoomMember {
     user_profile_picture?: string;
     username: string;
     user_bio?: string;
-    role: string;
+    role?: string;
     is_verified?: boolean;
     created_at?: string;
 }
@@ -90,7 +97,10 @@ export interface ProfileModalProps {
 export interface UserProfile {
     id: number;
     name: string;
+    username: string;
     bio: string;
     email: string;
     profile_picture?: string;
+    is_verified?: boolean;
+    created_at?: string;
 }

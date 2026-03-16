@@ -5,7 +5,6 @@ interface ImageCropModalProps {
     file: File;
     onConfirm: (croppedFile: File) => void;
     onCancel: () => void;
-    aspectRatio?: number; // default 1 (square)
     outputSize?: number;  // default 512px
 }
 
@@ -13,7 +12,6 @@ export default function ImageCropModal({
     file,
     onConfirm,
     onCancel,
-    aspectRatio = 1,
     outputSize = 512,
 }: ImageCropModalProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -110,12 +108,14 @@ export default function ImageCropModal({
 
     // Pointer drag
     const onPointerDown = (e: React.PointerEvent) => {
+        e.stopPropagation();
         isDragging.current = true;
         lastPos.current = { x: e.clientX, y: e.clientY };
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
     };
 
     const onPointerMove = (e: React.PointerEvent) => {
+        e.stopPropagation();
         if (!isDragging.current) return;
         const dx = e.clientX - lastPos.current.x;
         const dy = e.clientY - lastPos.current.y;
@@ -123,11 +123,15 @@ export default function ImageCropModal({
         setOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
     };
 
-    const onPointerUp = () => { isDragging.current = false; };
+    const onPointerUp = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        isDragging.current = false;
+    };
 
     // Wheel zoom
     const onWheel = (e: React.WheelEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         setZoom(prev => Math.max(0.1, Math.min(10, prev - e.deltaY * 0.001)));
     };
 
@@ -173,8 +177,14 @@ export default function ImageCropModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-sm mx-4 bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div
+            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+        >
+            <div
+                className="relative w-full max-w-sm mx-4 bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+                onClick={e => e.stopPropagation()}
+            >
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5">
@@ -220,7 +230,7 @@ export default function ImageCropModal({
                 <div className="px-5 pb-3">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => setZoom(z => Math.max(0.1, z - 0.1))}
+                            onClick={(e) => { e.stopPropagation(); setZoom(z => Math.max(0.1, z - 0.1)); }}
                             className="text-[#8b949e] hover:text-white transition-colors flex-shrink-0"
                         >
                             <ZoomOut size={15} />
@@ -232,6 +242,8 @@ export default function ImageCropModal({
                             step={0.01}
                             value={zoom}
                             onChange={e => setZoom(parseFloat(e.target.value))}
+                            onClick={e => e.stopPropagation()}
+                            onPointerDown={e => e.stopPropagation()}
                             className="flex-1 h-1 appearance-none bg-white/10 rounded-full outline-none cursor-pointer
                             [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
                             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:cursor-pointer
@@ -239,7 +251,7 @@ export default function ImageCropModal({
                             [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
                         />
                         <button
-                            onClick={() => setZoom(z => Math.min(10, z + 0.1))}
+                            onClick={(e) => { e.stopPropagation(); setZoom(z => Math.min(10, z + 0.1)); }}
                             className="text-[#8b949e] hover:text-white transition-colors flex-shrink-0"
                         >
                             <ZoomIn size={15} />
@@ -250,14 +262,14 @@ export default function ImageCropModal({
                 {/* Rotate + Reset controls */}
                 <div className="flex items-center justify-center gap-2 px-5 pb-4">
                     <button
-                        onClick={() => rotate(-90)}
+                        onClick={(e) => { e.stopPropagation(); rotate(-90); }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 hover:text-white border border-white/5 transition-all"
                     >
                         <RotateCcw size={13} />
                         <span>-90°</span>
                     </button>
                     <button
-                        onClick={() => rotate(-15)}
+                        onClick={(e) => { e.stopPropagation(); rotate(-15); }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 hover:text-white border border-white/5 transition-all"
                     >
                         <RotateCcw size={13} />
@@ -265,7 +277,7 @@ export default function ImageCropModal({
                     </button>
 
                     <button
-                        onClick={reset}
+                        onClick={(e) => { e.stopPropagation(); reset(); }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 hover:text-white border border-white/5 transition-all"
                         title="Reset"
                     >
@@ -273,14 +285,14 @@ export default function ImageCropModal({
                     </button>
 
                     <button
-                        onClick={() => rotate(15)}
+                        onClick={(e) => { e.stopPropagation(); rotate(15); }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 hover:text-white border border-white/5 transition-all"
                     >
                         <RotateCw size={13} />
                         <span>+15°</span>
                     </button>
                     <button
-                        onClick={() => rotate(90)}
+                        onClick={(e) => { e.stopPropagation(); rotate(90); }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 hover:text-white border border-white/5 transition-all"
                     >
                         <RotateCw size={13} />

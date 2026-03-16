@@ -120,16 +120,19 @@ func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
 
 func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 	defer func() {
+		h.hub.ClientMu.Lock()
+		if existing, ok := h.hub.GlobalClients[client.UserID]; ok && existing == client {
+			delete(h.hub.GlobalClients, client.UserID)
+		}
+		h.hub.ClientMu.Unlock()
+
 		h.hub.Leave <- client
 		client.Conn.Close()
+
 		go func() {
-			log.Printf("User %d disconnected from global WS. Wait 500ms before checking online status...", client.UserID)
-			// Kasih jeda sedikit biar hub proses Leave, atau refresh
 			time.Sleep(500 * time.Millisecond)
 
-			// Kalau ternyata user masih online (di tab lain / baru reconnect), jangan kirim offline
 			if h.hub.IsOnline(client.UserID) {
-				log.Printf("User %d is still online (has other connections). Skipping user-offline broadcast.", client.UserID)
 				return
 			}
 
@@ -214,6 +217,14 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		msg.TimeStamp = time.Now()
 
 		msg.Type = "chat"
+
+		if msg.ReplyToID != "" {
+			replyMsg, err := h.roomService.FindMessageByID(context.Background(), msg.ReplyToID)
+			if err == nil && replyMsg != nil {
+				msg.ReplyTo = replyMsg
+			}
+		}
+
 		h.hub.Broadcast <- msg
 
 		go func(msg dto.Message) {

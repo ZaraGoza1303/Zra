@@ -6,6 +6,7 @@ type User struct {
 	ID             uint      `gorm:"primaryKey"`
 	ProfilePicture *string   `gorm:"size:255"`
 	Email          string    `gorm:"size:255;not null;unique"`
+	Provider       *string   `gorm:"size:255"`
 	Bio            string    `gorm:"size:255"`
 	Username       string    `gorm:"size:255;not null"`
 	Name           string    `gorm:"size:255"`

@@ -260,6 +260,22 @@ func (r *roomRepositories) GetIdPrivateRoom(ctx context.Context, userID uint, ta
 	return roomID, nil
 }
 
+// GetMessageByID implements [core.RoomRepositories].
+func (r *roomRepositories) GetMessageByID(ctx context.Context, message_id string) (*models.Message, error) {
+	var messages models.Message
+
+	result := r.DB.WithContext(ctx).
+		Model(&models.Message{}).
+		Where("id = ?", message_id).
+		First(&messages)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &messages, nil
+}
+
 // GetMutualRooms implements [core.RoomRepositories].
 func (r *roomRepositories) GetMutualRooms(ctx context.Context, user_id uint, target_id uint) ([]models.Room, error) {
 	var rooms []models.Room
@@ -335,7 +351,7 @@ func (r *roomRepositories) GetAllRoomMembersByUserId(ctx context.Context, user_i
 
 	result := r.DB.WithContext(ctx).
 		Model(&models.RoomMember{}).
-		Distinct("room_members.user_id").
+		Distinct("rm2.user_id").
 		Joins("JOIN room_members rm2 ON room_members.room_id = rm2.room_id").
 		Where("room_members.user_id = ? AND rm2.user_id != ?", user_id, user_id).
 		Pluck("rm2.user_id", &memberIds)

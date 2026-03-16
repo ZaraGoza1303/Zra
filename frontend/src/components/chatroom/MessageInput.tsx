@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Plus, Smile, Send, X } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
 import data from '@emoji-mart/data';
@@ -8,90 +8,106 @@ interface MessageInputProps {
     sendMessage: (e: React.FormEvent) => void;
 }
 
-export default function MessageInput({ sendMessage }: MessageInputProps) {
-    const { input, setInput, replyTo, setReplyTo } = useChatStore();
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-    const pickerRef = useRef<HTMLDivElement>(null);
+export interface MessageInputHandle {
+    focus: () => void;
+}
 
-    // Tutup picker kalau klik di luar
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-                setShowEmojiPicker(false);
-            }
+const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
+    ({ sendMessage }, ref) => {
+        const { input, setInput, replyTo, setReplyTo } = useChatStore();
+        const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+        const pickerRef = useRef<HTMLDivElement>(null);
+        const inputRef = useRef<HTMLInputElement>(null);
+
+        // expose focus() ke parent
+        useImperativeHandle(ref, () => ({
+            focus: () => inputRef.current?.focus(),
+        }));
+
+        useEffect(() => {
+            const handleClickOutside = (e: MouseEvent) => {
+                if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+                    setShowEmojiPicker(false);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }, []);
+
+        const handleEmojiSelect = (emoji: any) => {
+            setInput(input + emoji.native);
+            inputRef.current?.focus();
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
-    const handleEmojiSelect = (emoji: any) => {
-        setInput(input + emoji.native);
-    };
+        return (
+            <div className="px-5 py-4 bg-[#0d1117] shrink-0">
+                {replyTo && (
+                    <div className="flex items-center justify-between px-4 py-2 mb-2 bg-white/5 border border-white/10 rounded-xl text-xs text-[#8b949e]">
+                        <div className="flex items-center gap-2">
+                            <div className="w-0.5 h-8 bg-blue-400 rounded-full shrink-0" />
+                            <div>
+                                <span className="text-blue-400 font-medium block">{replyTo.username}</span>
+                                <p className="truncate max-w-[300px] opacity-70">{replyTo.content}</p>
+                            </div>
+                        </div>
+                        <button type="button" onClick={() => setReplyTo(null)} className="hover:text-[#e6edf3] ml-2">
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
 
-    return (
-        <div className="px-5 py-4 bg-[#0d1117] shrink-0">
-            {/* Reply preview — di luar form tapi di dalam wrapper */}
-            {replyTo && (
-                <div className="flex items-center justify-between px-4 py-2 mb-2 bg-white/5 border border-white/10 rounded-xl text-xs text-[#8b949e]">
-                    <div className="flex items-center gap-2">
-                        <div className="w-0.5 h-8 bg-blue-400 rounded-full shrink-0" />
-                        <div>
-                            <span className="text-blue-400 font-medium block">{replyTo.username}</span>
-                            <p className="truncate max-w-[300px] opacity-70">{replyTo.content}</p>
+                <form onSubmit={sendMessage} className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] hover:border-white/20 transition-all shrink-0"
+                    >
+                        <Plus size={18} />
+                    </button>
+
+                    <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-[#1c2128] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
+                        <input
+                            ref={inputRef}  // ← pasang ref di sini
+                            type="text"
+                            placeholder="Type a message..."
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            className="flex-1 bg-transparent border-none text-[15px] text-[#e6edf3] placeholder-[#8b949e] outline-none"
+                        />
+                        <div className="relative" ref={pickerRef}>
+                            <button
+                                type="button"
+                                onClick={() => setShowEmojiPicker(prev => !prev)}
+                                className="text-[#8b949e] hover:text-[#e6edf3] transition-colors shrink-0"
+                            >
+                                <Smile size={20} />
+                            </button>
+                            {showEmojiPicker && (
+                                <div className="absolute bottom-10 right-0 z-50">
+                                    <Picker
+                                        data={data}
+                                        onEmojiSelect={handleEmojiSelect}
+                                        theme="dark"
+                                        previewPosition="none"
+                                        skinTonePosition="none"
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
-                    <button type="button" onClick={() => setReplyTo(null)} className="hover:text-[#e6edf3] ml-2">
-                        <X size={14} />
+
+                    <button
+                        type="submit"
+                        disabled={!input.trim()}
+                        className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 transition-all shadow-lg shadow-blue-600/30 shrink-0"
+                    >
+                        <Send size={18} className="translate-x-[1px]" />
                     </button>
-                </div>
-            )}
+                </form>
+            </div>
+        );
+    }
+);
 
-            <form onSubmit={sendMessage} className="flex items-center gap-3">
-                <button
-                    type="button"
-                    className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] hover:border-white/20 transition-all shrink-0"
-                >
-                    <Plus size={18} />
-                </button>
+MessageInput.displayName = 'MessageInput';
 
-                <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-[#1c2128] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
-                    <input
-                        type="text"
-                        placeholder="Type a message..."
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        className="flex-1 bg-transparent border-none text-[15px] text-[#e6edf3] placeholder-[#8b949e] outline-none"
-                    />
-                    <div className="relative" ref={pickerRef}>
-                        <button
-                            type="button"
-                            onClick={() => setShowEmojiPicker(prev => !prev)}
-                            className="text-[#8b949e] hover:text-[#e6edf3] transition-colors shrink-0"
-                        >
-                            <Smile size={20} />
-                        </button>
-                        {showEmojiPicker && (
-                            <div className="absolute bottom-10 right-0 z-50">
-                                <Picker
-                                    data={data}
-                                    onEmojiSelect={handleEmojiSelect}
-                                    theme="dark"
-                                    previewPosition="none"
-                                    skinTonePosition="none"
-                                />
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <button
-                    type="submit"
-                    disabled={!input.trim()}
-                    className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 transition-all shadow-lg shadow-blue-600/30 shrink-0"
-                >
-                    <Send size={18} className="translate-x-[1px]" />
-                </button>
-            </form>
-        </div>
-    );
-}
+export default MessageInput;

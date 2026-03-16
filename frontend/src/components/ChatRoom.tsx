@@ -6,7 +6,7 @@ import { apiCall } from '../services/api';
 import { BACKEND_URL } from '../config';
 import ChatHeader from './chatroom/ChatHeader';
 import MessageList from './chatroom/MessageList';
-import MessageInput from './chatroom/MessageInput';
+import MessageInput, { type MessageInputHandle } from './chatroom/MessageInput';
 import RoomInfoSidebar from './chatroom/RoomInfoSidebar';
 import PreviewPictureModal from './chatroom/PreviewPictureModal';
 import MembersModal from './chatroom/MembersModal';
@@ -14,12 +14,13 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } fr
 import { useDashboardStore } from '../store/dashboardStore';
 import { useToastStore } from '../store/toastStore';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds, privatePartnerInfo }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
     const { updateRoom } = useDashboardStore();
     const isPendingRoom = roomId.startsWith('pending:');
-    const resolvedRoomId = useRef<string>(isPendingRoom ? '' : roomId);
+    const messageInputRef = useRef<MessageInputHandle>(null);
+    const resolvedRoomId = useRef<string>('');
     const {
         messages, setMessages,
         input, setInput,
@@ -174,7 +175,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         const messageContent = input.trim();
         const localId = `local_${Date.now()}_${Math.random()}`;
 
-        // Kalau pending room, resolve dulu (logic lama tetap sama)
         if (isPendingRoom) {
             if (creatingDM) return;
             setCreatingDM(true);
@@ -183,11 +183,33 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'POST' });
                 const newRoomId = res.data;
                 resolvedRoomId.current = newRoomId;
+
+                const optimisticMsg: Message = {
+                    id: '',
+                    room_id: newRoomId,
+                    local_id: localId,
+                    content: messageContent,
+                    username: user?.username || '',
+                    user_id: user?.id,
+                    time_stamp: new Date().toISOString(),
+                    type: 'chat',
+                    status: 'pending',
+                    reply_to: replyTo ?? undefined,
+                    reply_to_id: replyTo?.id || '',
+                };
+                setMessages(prev => [...prev, optimisticMsg]);
+                setInput('');
+
                 onRoomResolved?.(newRoomId);
                 const newWs = connectWs(newRoomId);
                 newWs.onopen = () => {
-                    newWs.send(JSON.stringify({ content: messageContent }));
-                    setInput('');
+                    newWs.send(JSON.stringify({ content: messageContent, local_id: localId, reply_to_id: replyTo?.id || '' }));
+                    onNewMessage?.(newRoomId, {
+                        content: messageContent,
+                        username: user?.username || '',
+                        sent_at: optimisticMsg.time_stamp!,
+                    });
+                    setReplyTo(null);
                 };
             } catch (err) {
                 showToast('Failed to create DM room', 'error');
@@ -263,7 +285,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const connectWs = (targetRoomId?: string): WebSocket => {
         const actualRoomId = targetRoomId || roomId; // <-- simpan di variable lokal
         const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-        ws.current = new WebSocket(`${wsBaseUrl}/ws/${actualRoomId}?token=${token}`);
+        const newWs = new WebSocket(`${wsBaseUrl}/ws/${actualRoomId}?token=${token}`);
+        (newWs as any).roomId = actualRoomId;
+        ws.current = newWs;
 
         ws.current.onopen = () => {
             console.log('Connected to WS', roomId);
@@ -365,13 +389,35 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
     useEffect(() => {
         if (!roomId || !user || !token) return;
-        if (isPendingRoom) return;
 
-        // Reset state saat ganti room
-        setIsKicked(false);
-        resetChatState();
-        fetchChatHistory();
-        connectWs();
+        if (isPendingRoom) {
+            // Only reset if this is a DIFFERENT pending room (prevents reset when roomId is stable)
+            if (resolvedRoomId.current !== roomId) {
+                resetChatState();
+                resolvedRoomId.current = roomId;
+            }
+
+            // Set partner info immediately from props so header shows it
+            if (privatePartnerInfo) {
+                setPrivatePartner({
+                    user_id: privatePartnerInfo.user_id,
+                    username: privatePartnerInfo.username,
+                    user_profile_picture: privatePartnerInfo.user_profile_picture,
+                    user_bio: privatePartnerInfo.user_bio,
+                });
+            }
+            return;
+        }
+
+        // Real Room Initialization
+        // Only reset if this is NOT the room we just resolved (prevents message disappearance)
+        if (resolvedRoomId.current !== roomId) {
+            setIsKicked(false);
+            resetChatState();
+            fetchChatHistory();
+            connectWs();
+            resolvedRoomId.current = roomId;
+        }
 
         if (isPrivate) {
             fetchRoomMembers();
@@ -379,11 +425,17 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
 
         return () => {
+            // Cleanup: Only close the WS if we are actually moving to a DIFFERENT room
+            // and NOT if we are in the middle of resolving one.
             if (ws.current) {
-                ws.current.close();
+                const wsRoomId = (ws.current as any).roomId;
+                if (wsRoomId !== resolvedRoomId.current) {
+                    ws.current.close();
+                    ws.current = null;
+                }
             }
         };
-    }, [roomId, user, token, resetChatState]);
+    }, [roomId, isPendingRoom, user, token, resetChatState, privatePartnerInfo, setPrivatePartner, isPrivate]);
 
 
     const fetchCounts = async () => {
@@ -631,6 +683,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     isPrivate={isPrivate}
                     onReply={(msg) => {
                         setReplyTo(msg);
+                        setTimeout(() => messageInputRef.current?.focus(), 0);
                     }}
                 />
 
@@ -647,7 +700,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         </button>
                     </div>
                 ) : (
-                    <MessageInput sendMessage={sendMessage} />
+                    <MessageInput ref={messageInputRef} sendMessage={sendMessage} />
                 )}
             </div>
 

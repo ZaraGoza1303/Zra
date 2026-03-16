@@ -31,7 +31,7 @@ export interface UserDetailDrawerProps {
 
 export interface ContactsPanelProps {
     isVisible: boolean;
-    onOpenDM: (roomId: string, targetName: string, targetPicture?: string) => void;
+    onOpenDM: (roomId: string, targetName: string, targetPicture?: string, targetUserId?: number) => void;
     friendRequestNotif?: number;
     friendAcceptedNotif?: number;
     onRequestTabOpen?: () => void;

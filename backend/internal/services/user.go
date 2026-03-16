@@ -45,8 +45,16 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 
 	for _, user := range users {
 		var profilePicture string
+		var provider string
+
 		if user.ProfilePicture != nil {
 			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+		} else {
+			profilePicture = ""
+		}
+
+		if user.Provider != nil {
+			profilePicture = *user.Provider
 		} else {
 			profilePicture = ""
 		}
@@ -54,6 +62,7 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 		item := dto.UserResponse{
 			ID:             user.ID,
 			Email:          user.Email,
+			Provider:       provider,
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
 			Name:           user.Name,
@@ -74,16 +83,30 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 	}
 
 	var profilePicture string
+	var provider string
+
 	if user.ProfilePicture != nil {
-		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+		if user.Provider != nil {
+			profilePicture = *user.ProfilePicture
+		} else {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+
+		}
 	} else {
 		profilePicture = ""
+	}
+
+	if user.Provider != nil {
+		provider = *user.Provider
+	} else {
+		provider = ""
 	}
 
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
+		Provider:       provider,
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
@@ -101,16 +124,30 @@ func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse
 	}
 
 	var profilePicture string
+	var provider string
+
 	if user.ProfilePicture != nil {
-		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+		if user.Provider != nil {
+			profilePicture = *user.ProfilePicture
+		} else {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+
+		}
 	} else {
 		profilePicture = ""
+	}
+
+	if user.Provider != nil {
+		provider = *user.Provider
+	} else {
+		provider = ""
 	}
 
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
+		Provider:       provider,
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
@@ -202,16 +239,25 @@ func (u *userServices) FindByToken(ctx context.Context, token string) (*dto.User
 	}
 
 	var profilePicture string
+	var userProvider string
+
 	if user.ProfilePicture != nil {
 		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
 	} else {
 		profilePicture = ""
 	}
 
+	if user.Provider != nil {
+		userProvider = *user.Provider
+	} else {
+		userProvider = ""
+	}
+
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
+		Provider:       userProvider,
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
@@ -261,16 +307,25 @@ func (u *userServices) FindByEmailAndProvider(ctx context.Context, email, provid
 	}
 
 	var profilePicture string
+	var userProvider string
+
 	if user.ProfilePicture != nil {
 		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
 	} else {
 		profilePicture = ""
 	}
 
+	if user.Provider != nil {
+		userProvider = *user.Provider
+	} else {
+		userProvider = ""
+	}
+
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
+		Provider:       userProvider,
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,

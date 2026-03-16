@@ -29,6 +29,7 @@ func NewUser(router fiber.Router, service core.UserServices, middleware fiber.Ha
 	route.Get("/user/list-friend", middleware, handler.FindListFriend)
 	route.Get("/user/list-friend-requests", middleware, handler.FindListFriendRequest)
 	route.Get("/user/unread-notifications", middleware, handler.FindUnreadNotifCount)
+	route.Get("/user/:id", middleware, handler.FindById)
 	route.Get("/user/:username", middleware, handler.FindByUsername)
 	route.Post("/user/make-friend-requests/:target_id", middleware, handler.MakeFriendRequest)
 	route.Put("/user/read-notifications", middleware, handler.ReadNotifications)
@@ -64,6 +65,25 @@ func (h *userHandler) FindByUsername(c *fiber.Ctx) error {
 	username := c.Params("username")
 
 	user, err := h.UserServices.FindByUsername(ctx, username)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing user", user))
+}
+
+func (h *userHandler) FindById(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	id, err := helper.GetParams(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	user, err := h.UserServices.FindById(ctx, id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}

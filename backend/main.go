@@ -87,6 +87,7 @@ func main() {
 			return c.Next()
 		},
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+			log.Printf("=== JWT ERROR === %v", err)
 			return ctx.Status(fiber.StatusUnauthorized).JSON(dto.SendErrorResponse("Unauthorized, silahkan refresh token atau login ulang"))
 		},
 	})

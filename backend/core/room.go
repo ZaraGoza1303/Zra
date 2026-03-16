@@ -15,6 +15,7 @@ type RoomRepositories interface {
 	Delete(ctx context.Context, room_id string) error
 
 	GetByLink(ctx context.Context, room_link string) (*models.Room, error)
+	GetMessageByID(ctx context.Context, message_id string) (*models.Message, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]models.RoomMember, error)
 	GetMutualRooms(ctx context.Context, user_id uint, target_id uint) ([]models.Room, error)
 	GetIdPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
@@ -61,6 +62,7 @@ type RoomServices interface {
 	GetActiveMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetActiveMembers(room_id string) ([]uint, error)
 	GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error)
+	FindMessageByID(ctx context.Context, message_id string) (*dto.Message, error)
 	OnlineUsers(ctx context.Context, room_id string) ([]uint, error)
 	IsMember(room_id string, user_id uint) (bool, error)
 	SaveMessage(msg dto.Message) error

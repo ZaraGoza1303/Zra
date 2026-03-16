@@ -33,7 +33,10 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onViewDetai
                 {/* DM button - aktif kalau bukan diri sendiri */}
                 {!isSelf ? (
                     <button
-                        onClick={() => onDirectMessage(user.id, user)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDirectMessage(user.id, user);
+                        }}
                         disabled={dmLoading}
                         title="Direct Message"
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-blue-500/15 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

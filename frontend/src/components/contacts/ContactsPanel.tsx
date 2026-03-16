@@ -11,7 +11,6 @@ import { useToastStore } from '../../store/toastStore';
 
 export default function ContactsPanel({ isVisible, onOpenDM, friendRequestNotif = 0, friendAcceptedNotif = 0, onRequestTabOpen, onFriendsTabOpen, onlineUserIds = new Set() }: ContactsPanelProps) {
     const { user } = useAuthStore();
-    const [dmLoading, setDmLoading] = useState<number | null>(null);
 
     const [activeTab, setActiveTab] = useState<ActiveTab>('search');
     const [searchQuery, setSearchQuery] = useState('');
@@ -119,14 +118,16 @@ export default function ContactsPanel({ isVisible, onOpenDM, friendRequestNotif 
         if (action === 'reject') handleReject(userId);
     };
 
-    const handleDirectMessage = async (targetId: number, targetUser?: SearchedUser) => {
+    const handleDirectMessage = (targetId: number, targetUser?: SearchedUser) => {
         const target = targetUser || selectedUser;
+        if (!target) return;
 
-        // Jangan hit API dulu, langsung buka UI chat dengan targetId
+        // Buka UI chat dengan pending room flag, dan pass user ID target
         onOpenDM(
-            `pending:${targetId}`,  // flag "pending" room
-            target?.name || target?.username || '',
-            target?.profile_picture
+            `pending:${targetId}`,
+            target.name || target.username || '',
+            target.profile_picture,
+            targetId  // pass numeric ID so ChatRoom can set privatePartner immediately
         );
         setSelectedUser(null);
     };
@@ -149,7 +150,7 @@ export default function ContactsPanel({ isVisible, onOpenDM, friendRequestNotif 
                     onUnfriend={handleUnfriend}
                     onDirectMessage={handleDirectMessage}
                     actionLoading={actionLoading}
-                    dmLoading={dmLoading === selectedUser.id}
+                    dmLoading={false}
                 />
             )}
 
@@ -212,7 +213,7 @@ export default function ContactsPanel({ isVisible, onOpenDM, friendRequestNotif 
                                 onAdd={handleSendRequest}
                                 onViewDetail={() => setSelectedUser(u)}
                                 onDirectMessage={handleDirectMessage}
-                                dmLoading={dmLoading === u.id}
+                                dmLoading={false}
                                 currentUserId={user?.id}
                             />
                         ))}

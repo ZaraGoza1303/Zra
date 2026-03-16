@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/markbates/goth"
 	"github.com/matcornic/hermes/v2"
 	"gorm.io/gorm"
 )
@@ -121,7 +122,7 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 	response := dto.UserRegisterResponse{
 		Email:    newUser.Email,
 		Username: newUser.Username,
-		Password: newUser.Password, // Perhatian: Mengembalikan password yang di-hash di response biasanya tidak disarankan untuk production.
+		Password: newUser.Password,
 		Notes:    notes,
 	}
 
@@ -179,6 +180,7 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	}
 
 	var profilePicture string
+
 	if user.ProfilePicture != nil {
 		profilePicture = *user.ProfilePicture
 	}
@@ -194,7 +196,87 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	}
 
 	return &response, nil
+}
 
+func (s *authService) LoginProvider(ctx context.Context, req goth.User) (*dto.LoginProviderResponse, error) {
+	existUser, err := s.UserServices.FindByEmailAndProvider(ctx, req.Email, req.Provider)
+	if err != nil {
+		newUser := models.User{
+			ProfilePicture: &req.AvatarURL,
+			Email:          req.Email,
+			Provider:       &req.Provider,
+			Username:       req.Name,
+			Name:           req.Name,
+			IsVerified:     true,
+		}
+
+		errReg := s.AuthRepositories.Register(ctx, &newUser)
+		if errReg != nil {
+			return nil, errReg
+		}
+
+		var profilePicture string
+		var provider string
+
+		if newUser.ProfilePicture != nil {
+			profilePicture = *newUser.ProfilePicture
+		}
+
+		if newUser.Provider != nil {
+			provider = *newUser.Provider
+		}
+
+		existUser = &dto.UserResponse{
+			ID:             newUser.ID,
+			ProfilePicture: profilePicture,
+			Email:          newUser.Email,
+			Provider:       provider,
+			Username:       newUser.Username,
+			Name:           newUser.Name,
+			Bio:            newUser.Bio,
+			IsVerified:     newUser.IsVerified,
+		}
+	}
+
+	jwtAccessKey := os.Getenv("JWT_KEY")
+	jwtRefreshKey := os.Getenv("JWT_REFRESH_KEY")
+
+	jwtAccessDuration, _ := strconv.Atoi(os.Getenv("JWT_EXP"))
+	jwtRefreshDuration, _ := strconv.Atoi(os.Getenv("JWT_REFRESH_EXP"))
+
+	accessDuration := time.Duration(jwtAccessDuration) * time.Second
+	refreshDuration := time.Duration(jwtRefreshDuration) * time.Minute
+
+	genTokenReq := dto.GenerateJwtRequest{
+		UserID:          existUser.ID,
+		JwtAccessKey:    jwtAccessKey,
+		JwtRefreshKey:   jwtRefreshKey,
+		AccessDuration:  accessDuration,
+		RefreshDuration: refreshDuration,
+	}
+
+	genToken, err := helper.GenerateJwtToken(genTokenReq)
+
+	insertRefreshReq := dto.InsertRefreshRequest{
+		UserID:          existUser.ID,
+		RefreshToken:    genToken.SignedRefreshKey,
+		RefreshUUID:     genToken.RefreshUUID,
+		AccessUUID:      genToken.AccessUUID,
+		AccessDuration:  accessDuration,
+		RefreshDuration: refreshDuration,
+	}
+
+	err = s.AuthRepositories.InsertRefreshToken(ctx, insertRefreshReq)
+	if err != nil {
+		return nil, err
+	}
+
+	response := dto.LoginProviderResponse{
+		AccessToken:  genToken.SignedAccessKey,
+		RefreshToken: genToken.SignedRefreshKey,
+	}
+
+	return &response, nil
 }
 
 func (s *authService) ForgotPassword(ctx context.Context, req dto.ForgotPasswordRequest) (string, error) {

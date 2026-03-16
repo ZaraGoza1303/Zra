@@ -148,6 +148,11 @@ func (r *cachedRoomServices) UpdateLastReadMessages(ctx context.Context, room_id
 	return nil
 }
 
+// FindMessageByID implements [core.RoomServices].
+func (r *cachedRoomServices) FindMessageByID(ctx context.Context, message_id string) (*dto.Message, error) {
+	panic("unimplemented")
+}
+
 // GetActiveMemberCount implements [core.RoomServices].
 func (r *cachedRoomServices) GetActiveMemberCount(ctx context.Context, room_id string) (int64, error) {
 	return 0, nil

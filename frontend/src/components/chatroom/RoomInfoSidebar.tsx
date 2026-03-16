@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, User, Users, Pencil, UserPlus, Bell, Star, AlertTriangle, LogOut, Copy } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
-import { getUserImageUrl } from '../../services/api';
+import { FRONTEND_JOIN_URL, getUserImageUrl } from '../../config';
 import { useToastStore } from '../../store/toastStore';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ImageCropModal from '../ImageCropModal';
@@ -40,7 +40,6 @@ export default function RoomInfoSidebar({
 }: RoomInfoSidebarProps) {
     const [showAddMember, setShowAddMember] = useState(false);
     const [cropFile, setCropFile] = useState<File | null>(null); // ← BARU
-    const { user } = useAuthStore();
     const {
         fetchingInfo,
         fetchingMembers,
@@ -48,14 +47,12 @@ export default function RoomInfoSidebar({
         roomDetails,
         roomMembers,
         totalMemberCount,
-        activeMemberCount,
         actionLoading,
         editingName, setEditingName,
         editingDesc, setEditingDesc,
         editName, setEditName,
         editDesc, setEditDesc,
         editLoading,
-        setPreviewPicture,
         friendsList,
         addingMember,
         activeMembers,
@@ -167,8 +164,8 @@ export default function RoomInfoSidebar({
                         {/* ── Group: avatar bulat + crop modal ── */}
                         <div className="relative w-[104px] h-[104px] group/avatar mb-4">
                             <div className="w-full h-full rounded-full bg-[#2a3441] flex items-center justify-center overflow-hidden shadow-xl border border-white/5">
-                                {roomPicture ? (
-                                    <img src={roomPicture} alt={roomName} className="w-full h-full object-cover" />
+                                {roomDetails?.picture || roomPicture ? (
+                                    <img src={roomDetails?.picture || roomPicture} alt={roomName} className="w-full h-full object-cover" />
                                 ) : (
                                     <Users size={40} className="text-[#8b949e]" />
                                 )}
@@ -396,44 +393,17 @@ export default function RoomInfoSidebar({
                         )}
                     </div>
 
-                    {/* Shared Media */}
-                    <div className="flex flex-col p-6 border-b border-[#21262d] shrink-0">
-                        <div className="flex items-center justify-between mb-5">
-                            <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase">Shared Media</h3>
-                            <button className="text-blue-500 text-[12px] hover:text-blue-400 font-medium">View All</button>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex-1 aspect-square rounded-[14px] bg-[#eef5ef] bg-opacity-5 flex items-center justify-center overflow-hidden border border-white/5 p-2">
-                                <div className="w-full h-full relative">
-                                    <div className="absolute top-2 left-2 w-3 h-3 bg-[#4b7a63] rounded-full"></div>
-                                    <div className="absolute bottom-2 left-4 w-4 h-4 bg-[#7ab89b] rounded-full blur-[1px]"></div>
-                                    <div className="absolute top-4 right-2 w-5 h-5 bg-[#2c4e3f] rounded-full"></div>
-                                </div>
-                            </div>
-                            <div className="flex-1 aspect-square rounded-[14px] bg-[#455c56] bg-opacity-20 flex items-center justify-center overflow-hidden border border-white/5 p-2">
-                                <div className="w-full h-full relative opacity-70">
-                                    <div className="absolute top-1 left-3 w-4 h-4 bg-[#6e9a8f] rounded-full"></div>
-                                    <div className="absolute bottom-3 right-2 w-3 h-3 bg-[#94c3b7] rounded-full"></div>
-                                    <div className="absolute bottom-1 left-2 w-2 h-2 bg-[#4b6d64] rounded-full"></div>
-                                </div>
-                            </div>
-                            <div className="flex-1 aspect-square rounded-[14px] bg-[#21262d] flex items-center justify-center text-[#8b949e] text-[13px] font-medium border border-white/5 hover:bg-[#2a3038] cursor-pointer transition-colors">
-                                +12
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Room Link */}
                     <div className="flex flex-col p-6 border-b border-[#21262d] shrink-0">
                         <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase mb-4">Room Link</h3>
                         <div className="flex items-center gap-2">
                             <div className="flex-1 px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-xl text-[13px] text-[#8b949e] truncate">
-                                {roomDetails?.room_link || '-'}
+                                {roomDetails?.room_link ? `${FRONTEND_JOIN_URL}/${roomDetails.room_link}` : '-'}
                             </div>
                             <button
                                 onClick={() => {
                                     if (roomDetails?.room_link) {
-                                        navigator.clipboard.writeText(roomDetails.room_link);
+                                        navigator.clipboard.writeText(`${FRONTEND_JOIN_URL}/${roomDetails.room_link}`);
                                         showToast('Room link copied!');
                                     }
                                 }}
@@ -446,19 +416,8 @@ export default function RoomInfoSidebar({
 
                     {/* Settings */}
                     <div className="flex flex-col p-6 shrink-0">
-                        <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase mb-5">Settings</h3>
+                        <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase mb-8">Options</h3>
                         <div className="flex flex-col gap-1">
-                            <div className="flex items-center justify-between p-2.5 -mx-2.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all">
-                                <div className="flex items-center gap-3.5 text-[#e6edf3] text-[14px] font-medium">
-                                    <Bell size={18} className="text-[#8b949e]" /> Mute Notifications
-                                </div>
-                                <div className="w-[36px] h-[20px] bg-[#2a3038] rounded-full relative cursor-pointer border border-white/5">
-                                    <div className="w-[14px] h-[14px] bg-[#8b949e] rounded-full absolute top-[2px] left-[2px] shadow-sm"></div>
-                                </div>
-                            </div>
-                            <button className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#e6edf3] text-[14px] font-medium hover:bg-white/5 transition-all">
-                                <Star size={18} className="text-[#8b949e]" /> Add to Favorites
-                            </button>
                             <button className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all mt-1">
                                 <AlertTriangle size={18} /> Report Group
                             </button>

@@ -1,4 +1,4 @@
-import React from 'react';
+// No need for React import 
 import { ArrowLeft, User, Users, Video, Phone, MoreHorizontal } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
 
@@ -15,7 +15,6 @@ interface ChatHeaderProps {
 }
 
 export default function ChatHeader({
-    roomId,
     roomName,
     roomPicture,
     roomType,
@@ -25,7 +24,7 @@ export default function ChatHeader({
     onStartCall,
     onlineUserIds
 }: ChatHeaderProps) {
-    const { totalMemberCount, activeMemberCount, roomDetails, privatePartner } = useChatStore();
+    const { totalMemberCount, roomDetails, privatePartner } = useChatStore();
     const isPrivate = roomType === 'private';
 
     return (
@@ -44,8 +43,8 @@ export default function ChatHeader({
                     className="flex items-center gap-3 cursor-pointer group"
                     onClick={onOpenInfoModal}
                 >
-                    {roomPicture ? (
-                        <img src={roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
+                    {roomDetails?.picture || roomPicture ? (
+                        <img src={roomDetails?.picture || roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
                     ) : (
                         <div className="w-10 h-10 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
                             {isPrivate ? <User size={18} /> : <Users size={18} />}
@@ -57,7 +56,7 @@ export default function ChatHeader({
                         </h3>
                         <p className="text-[12px] text-[#8b949e] leading-tight mt-0.5">
                             {isPrivate
-                                ? (privatePartner && onlineUserIds?.has(privatePartner.user_id)
+                                ? (privatePartner && onlineUserIds?.has(Number(privatePartner.user_id))
                                     ? <span className="text-green-400">● Online</span>
                                     : <span>● Offline</span>)
                                 : totalMemberCount !== null

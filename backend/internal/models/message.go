@@ -14,7 +14,7 @@ type Message struct {
 	ReplyToID      *string   `gorm:"size:255"`
 	CreatedAt      time.Time `gorm:"autoCreateTime"`
 
-	ReplyTo *Message `gorm:"foreignKey:ReplyToID"`
+	ReplyTo *Message `gorm:"foreignKey:ReplyToID;constraint:OnDelete:CASCADE"`
 	Room    Room     `gorm:"foreignKey:RoomID;references:ID;constraint:OnDelete:CASCADE"`
 	User    User     `gorm:"foreignKey:UserID;references:ID"`
 }

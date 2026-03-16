@@ -8,7 +8,7 @@ interface DashboardState {
     allRooms: Room[];
     rooms: Room[];
     selectedRoom: Room | null;
-    dmRoom: { id: string; name: string; picture?: string } | null;
+    dmRoom: { id: string; name: string; picture?: string | null } | null;
     searchTerm: string;
     activeNav: NavItem;
     isModalOpen: boolean;
@@ -16,7 +16,7 @@ interface DashboardState {
     setAllRooms: (rooms: Room[]) => void;
     setRooms: (rooms: Room[]) => void;
     setSelectedRoom: (room: Room | null) => void;
-    setDmRoom: (dmRoom: { id: string; name: string; picture?: string } | null) => void;
+    setDmRoom: (dmRoom: { id: string; name: string; picture?: string | null } | null) => void;
     setSearchTerm: (term: string) => void;
     setActiveNav: (nav: NavItem) => void;
     setIsModalOpen: (isOpen: boolean) => void;
@@ -45,5 +45,7 @@ export const useDashboardStore = create<DashboardState>((set) => ({
     updateRoom: (roomId: string, updates: Partial<Room>) => set(state => ({
         rooms: state.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r),
         allRooms: state.allRooms.map(r => r.id === roomId ? { ...r, ...updates } : r),
+        selectedRoom: state.selectedRoom?.id === roomId ? { ...state.selectedRoom, ...updates } : state.selectedRoom,
+        dmRoom: state.dmRoom?.id === roomId ? { ...state.dmRoom, ...(updates as any) } : state.dmRoom,
     })),
 }));

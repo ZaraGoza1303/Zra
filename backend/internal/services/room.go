@@ -74,7 +74,10 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 			picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
 		}
 
-		roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
+		var roomLink string
+		if room.RoomLink != nil {
+			roomLink = *room.RoomLink
+		}
 
 		unreadMessage, err := r.roomRepositories.GetUnreadMessagesCount(ctx, room.ID, userId)
 		if err != nil {
@@ -156,7 +159,10 @@ func (r *roomServices) FindById(ctx context.Context, room_id string) (*dto.RoomR
 		picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
 	}
 
-	roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
+	var roomLink string
+	if room.RoomLink != nil {
+		roomLink = *room.RoomLink
+	}
 
 	response := dto.RoomResponse{
 		ID:          room.ID,
@@ -187,7 +193,10 @@ func (r *roomServices) FindRoomPreview(ctx context.Context, room_link string) (*
 		picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
 	}
 
-	roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
+	var roomLink string
+	if room.RoomLink != nil {
+		roomLink = *room.RoomLink
+	}
 
 	response := dto.RoomResponse{
 		ID:          room.ID,
@@ -891,6 +900,30 @@ func (r *roomServices) FindMutualRooms(ctx context.Context, target_id uint) ([]d
 	}
 
 	return response, nil
+}
+
+// GetMessageByID implements [core.RoomServices].
+func (r *roomServices) FindMessageByID(ctx context.Context, message_id string) (*dto.Message, error) {
+	message, err := r.roomRepositories.GetMessageByID(ctx, message_id)
+	if err != nil {
+		return nil, err
+	}
+
+	decrypt, err := helper.Decrypt(message.Content)
+	if err == nil {
+		message.Content = decrypt
+	}
+
+	response := dto.Message{
+		ID:       message.ID,
+		RoomID:   message.RoomID,
+		UserID:   message.UserID,
+		Username: message.Username,
+		Content:  message.Content,
+		Type:     message.Type,
+	}
+
+	return &response, nil
 }
 
 // GetActiveMemberCount implements [core.RoomServices].

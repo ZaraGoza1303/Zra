@@ -70,12 +70,8 @@ func (h *Hub) handleJoin(client *Client) {
 func (h *Hub) handleLeave(client *Client) {
 	if client.RoomID == "global" {
 		h.ClientMu.Lock()
-		if existing, ok := h.GlobalClients[client.UserID]; ok {
-			if existing == client {
-				delete(h.GlobalClients, client.UserID)
-			} else {
-				log.Printf("handleLeave untuk user %d: existing client != client yang left, tapi dibiarkan dulu bila ghost", client.UserID)
-			}
+		if existing, ok := h.GlobalClients[client.UserID]; ok && existing == client {
+			delete(h.GlobalClients, client.UserID)
 		}
 		h.ClientMu.Unlock()
 	} else {
