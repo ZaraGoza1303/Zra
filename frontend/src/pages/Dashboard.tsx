@@ -71,10 +71,12 @@ export default function Dashboard() {
 
 
     const connectGlobalWs = React.useCallback(() => {
-        if (!token) return;
+        // Baca token terbaru dari store (bukan closure yang mungkin stale)
+        const currentToken = useAuthStore.getState().token;
+        if (!currentToken) return;
 
         const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-        const ws = new WebSocket(`${wsBaseUrl}/ws/global?token=${token}`);
+        const ws = new WebSocket(`${wsBaseUrl}/ws/global?token=${currentToken}`);
         globalWs.current = ws;
 
         ws.onopen = () => {

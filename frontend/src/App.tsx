@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
-import type { User } from './types/chat';
+import { refreshToken as apiRefreshToken } from './services/api';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -10,6 +10,20 @@ import Dashboard from './pages/Dashboard';
 import JoinRoom from './pages/JoinRoom';
 import ResetPassword from './pages/ResetPassword';
 import Toast from './components/Toast';
+
+// Decode JWT payload untuk mendapatkan expiry time
+const getTokenExpiry = (token: string): number | null => {
+  try {
+    const payloadB64 = token.split('.')[1];
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    return payload.exp ? payload.exp * 1000 : null; // convert ke milliseconds
+  } catch {
+    return null;
+  }
+};
+
+// Refresh 2 menit sebelum token expired
+const REFRESH_BUFFER_MS = 2 * 60 * 1000;
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = useAuthStore((state) => state.token);
@@ -28,112 +42,72 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const REFRESH_INTERVAL = 15 * 60 * 1000; // 15 menit
-const TOKEN_REFRESH_URL = '/api/auth/refresh';
-
 function App() {
-  const { token, user, lastRefreshed, setAuthData, logoutState } = useAuthStore();
+  const { token, user, logoutState } = useAuthStore();
   const refreshTimeoutRef = useRef<number | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
 
-  const refreshToken = useCallback(async (): Promise<boolean> => {
+  const doRefresh = useCallback(async (): Promise<boolean> => {
     if (isRefreshingRef.current) return false;
-
-    const currentToken = token || localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    let currentUser: User | null = user;
-
-    if (!currentUser && savedUser) {
-      try {
-        currentUser = JSON.parse(savedUser);
-      } catch {
-        currentUser = null;
-      }
-    }
-
-    if (!currentToken || !currentUser?.refresh_token) return false;
-
     isRefreshingRef.current = true;
-
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiUrl}${TOKEN_REFRESH_URL}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          refresh_token: currentUser.refresh_token
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Token refresh failed');
-      }
-
-      if (data.data) {
-        const newToken = data.data.access_token;
-        const newRefreshToken = data.data.refresh_token;
-
-        const updatedUser = {
-          ...currentUser,
-          refresh_token: newRefreshToken
-        };
-
-        const now = new Date();
-        setAuthData(newToken, updatedUser, now);
-        console.log('Token refreshed successfully at', now.toLocaleTimeString());
+      const newToken = await apiRefreshToken();
+      if (newToken) {
+        console.log('✅ App: Token refreshed at', new Date().toLocaleTimeString());
         return true;
       }
-
+      // Refresh returned null → refresh_token sudah invalid
+      console.warn('⚠️ App: Refresh token invalid, logging out');
+      logoutState();
       return false;
     } catch (error) {
-      console.error('Failed to refresh token:', error);
-      if (error instanceof Error &&
-        (error.message.includes('expired') || error.message.includes('invalid'))) {
-        logoutState();
-      }
+      console.error('❌ App: Failed to refresh token:', error);
+      logoutState();
       return false;
     } finally {
       isRefreshingRef.current = false;
     }
-  }, [token, user, logoutState, setAuthData]);
+  }, [logoutState]);
 
-  const scheduleRefresh = useCallback(() => {
+  const scheduleNextRefresh = useCallback(() => {
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
       refreshTimeoutRef.current = null;
     }
 
-    if (!token || !user) return;
+    const currentToken = useAuthStore.getState().token;
+    if (!currentToken) return;
 
+    const expiry = getTokenExpiry(currentToken);
+    if (!expiry) {
+      // Kalau nggak bisa baca expiry, fallback ke 13 menit
+      refreshTimeoutRef.current = window.setTimeout(async () => {
+        const ok = await doRefresh();
+        if (ok) scheduleNextRefresh();
+      }, 13 * 60 * 1000) as unknown as number;
+      return;
+    }
+
+    const msUntilExpiry = expiry - Date.now();
+    const msUntilRefresh = msUntilExpiry - REFRESH_BUFFER_MS;
+
+    if (msUntilRefresh <= 0) {
+      // Token sudah expired / hampir expired → refresh sekarang
+      console.log('🔄 App: Token near/past expiry, refreshing now...');
+      doRefresh().then(ok => { if (ok) scheduleNextRefresh(); });
+      return;
+    }
+
+    console.log(`⏰ App: Next refresh in ${Math.round(msUntilRefresh / 1000)}s (token expires in ${Math.round(msUntilExpiry / 1000)}s)`);
     refreshTimeoutRef.current = window.setTimeout(async () => {
-      const success = await refreshToken();
-      if (success) scheduleRefresh();
-    }, REFRESH_INTERVAL) as unknown as number;
-  }, [token, user, refreshToken]);
+      const ok = await doRefresh();
+      if (ok) scheduleNextRefresh();
+    }, msUntilRefresh) as unknown as number;
+  }, [doRefresh]);
 
   useEffect(() => {
     if (token && user) {
-      if (lastRefreshed) {
-        const timeSinceLastRefresh = Date.now() - lastRefreshed.getTime();
-        const timeUntilNextRefresh = REFRESH_INTERVAL - timeSinceLastRefresh;
-
-        if (timeUntilNextRefresh <= 0) {
-          refreshToken().then(success => {
-            if (success) scheduleRefresh();
-          });
-        } else {
-          refreshTimeoutRef.current = window.setTimeout(async () => {
-            const success = await refreshToken();
-            if (success) scheduleRefresh();
-          }, timeUntilNextRefresh) as unknown as number;
-        }
-      } else {
-        scheduleRefresh();
-      }
+      scheduleNextRefresh();
     }
 
     return () => {
@@ -142,7 +116,7 @@ function App() {
         refreshTimeoutRef.current = null;
       }
     };
-  }, [token, user, lastRefreshed, refreshToken, scheduleRefresh]);
+  }, [token, user, scheduleNextRefresh]);
 
   return (
     <Router>
