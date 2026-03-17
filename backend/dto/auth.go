@@ -23,8 +23,9 @@ type VerifyEmailOTPRequest struct {
 }
 
 type UserLoginRequest struct {
-	Email    string `json:"email" validate:"required"`
-	Password string `json:"password" validate:"required"`
+	Email      string `json:"email" validate:"required"`
+	Password   string `json:"password" validate:"required"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 type UserLoginResponse struct {
@@ -80,6 +81,7 @@ type GenerateJwtRequest struct {
 	JwtRefreshKey   string
 	AccessDuration  time.Duration
 	RefreshDuration time.Duration
+	IsPersistent    bool
 }
 
 type GenerateJwtResponse struct {

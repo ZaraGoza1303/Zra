@@ -322,6 +322,28 @@ func (u *userRepositories) DeleteResetToken(ctx context.Context, token string) e
 	return err
 }
 
+// DeleteRefreshToken implements [core.UserRepositories].
+func (u *userRepositories) DeleteExpiredRefreshToken(ctx context.Context) error {
+	result := u.DB.WithContext(ctx).Where("expired_at < NOW()").Delete(&models.UserToken{})
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+
+// DeleteReadedNotifications implements [core.UserRepositories].
+func (u *userRepositories) DeleteReadedNotifications(ctx context.Context) error {
+	result := u.DB.WithContext(ctx).Where("is_read = true").Delete(&models.Notification{})
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+
 func (u *userRepositories) VerifyEmail(ctx context.Context, id uint, req *models.User) error {
 	result := u.DB.WithContext(ctx).Where("id = ?", id).Save(req)
 	if result.Error != nil {

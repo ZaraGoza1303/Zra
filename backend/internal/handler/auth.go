@@ -111,6 +111,14 @@ func (h *authHandler) Login(c *fiber.Ctx) error {
 }
 
 func (h *authHandler) BeginLoginProvider(c *fiber.Ctx) error {
+	rememberMe := c.Query("rememberMe")
+	if rememberMe != "" {
+		c.Cookie(&fiber.Cookie{
+			Name:  "remember_me",
+			Value: rememberMe,
+			Path:  "/",
+		})
+	}
 	return goth_fiber.BeginAuthHandler(c)
 }
 
@@ -123,7 +131,8 @@ func (h *authHandler) LoginProvider(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	result, err := h.AuthServices.LoginProvider(ctx, user)
+	rememberMe := c.Cookies("remember_me") == "true"
+	result, err := h.AuthServices.LoginProvider(ctx, user, rememberMe)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}

@@ -7,6 +7,8 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.12
 	github.com/joho/godotenv v1.5.1
 	github.com/markbates/goth v1.82.0
+	github.com/robfig/cron/v3 v3.0.1
+	github.com/supabase-community/storage-go v0.8.1
 	gorm.io/driver/postgres v1.6.0
 )
 

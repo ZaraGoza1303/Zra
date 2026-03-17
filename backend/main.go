@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chatapp/cron"
 	"chatapp/databases"
 	"chatapp/dto"
 	"chatapp/internal/handler"
@@ -95,6 +96,8 @@ func main() {
 	hub := dto.NewHub()
 	go hub.Run()
 
+	localStorage := services.NewLocalStorage()
+
 	userRepository := repositories.NewUser(db)
 	userService := services.NewUser(userRepository, hub)
 
@@ -107,9 +110,12 @@ func main() {
 
 	handler.NewAuth(app, authService, userService, jwtWare)
 	handler.NewUser(app, userService, jwtWare)
-	handler.NewRoom(app, roomService, cachedRoomServices, jwtWare)
+	handler.NewRoom(app, roomService, cachedRoomServices, localStorage, jwtWare)
 	handler.NewWebSocket(app, hub, roomService, cachedRoomServices, userService, middleware.WebsocketMiddleware(rdb))
 
+	go cron.RefreshTokenJob(userService)
+	go cron.NotificationJob(userService)
+	
 	fmt.Printf("Server Berjalan Cuy")
 	log.Fatal(app.Listen(":8000"))
 }

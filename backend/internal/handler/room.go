@@ -18,9 +18,10 @@ import (
 type roomHandler struct {
 	roomServices      core.RoomServices
 	cachedRoomService core.RoomServices
+	localStorageServices core.LocalStorageServices
 }
 
-func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServices core.RoomServices, middleware fiber.Handler) {
+func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServices core.RoomServices, localStorageServices core.LocalStorageServices, middleware fiber.Handler) {
 	handler := roomHandler{
 		roomServices:      roomService,
 		cachedRoomService: cachedRoomServices,
@@ -138,9 +139,8 @@ func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Only images are allowed (jpg/png/webp)"))
 		}
 
-		fileName := fmt.Sprintf("%s_%s", uuid.New().String(), picture.Filename)
-		filePath := fmt.Sprintf("./public/rooms/%s", fileName)
-		if err := c.SaveFile(picture, filePath); err != nil {
+		fileName, err := h.localStorageServices.UploadFile("rooms", picture)
+		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 		}
 

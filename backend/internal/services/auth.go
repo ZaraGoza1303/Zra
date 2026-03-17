@@ -152,8 +152,19 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	jwtAccessDuration, _ := strconv.Atoi(os.Getenv("JWT_EXP"))
 	jwtRefreshDuration, _ := strconv.Atoi(os.Getenv("JWT_REFRESH_EXP"))
 
+	if jwtAccessDuration == 0 {
+		jwtAccessDuration = 900
+	}
+	if jwtRefreshDuration == 0 {
+		jwtRefreshDuration = 3600 // Default 1 Jam
+	}
+
 	accessDuration := time.Duration(jwtAccessDuration) * time.Second
 	refreshDuration := time.Duration(jwtRefreshDuration) * time.Minute
+
+	if req.RememberMe {
+		refreshDuration = 30 * 24 * time.Hour
+	}
 
 	genTokenReq := dto.GenerateJwtRequest{
 		UserID:          user.ID,
@@ -161,6 +172,7 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 		JwtRefreshKey:   jwtRefreshKey,
 		AccessDuration:  accessDuration,
 		RefreshDuration: refreshDuration,
+		IsPersistent:    req.RememberMe,
 	}
 
 	genToken, err := helper.GenerateJwtToken(genTokenReq)
@@ -198,7 +210,7 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	return &response, nil
 }
 
-func (s *authService) LoginProvider(ctx context.Context, req goth.User) (*dto.LoginProviderResponse, error) {
+func (s *authService) LoginProvider(ctx context.Context, req goth.User, rememberMe bool) (*dto.LoginProviderResponse, error) {
 	existUser, err := s.UserServices.FindByEmailAndProvider(ctx, req.Email, req.Provider)
 	if err != nil {
 		newUser := models.User{
@@ -244,8 +256,19 @@ func (s *authService) LoginProvider(ctx context.Context, req goth.User) (*dto.Lo
 	jwtAccessDuration, _ := strconv.Atoi(os.Getenv("JWT_EXP"))
 	jwtRefreshDuration, _ := strconv.Atoi(os.Getenv("JWT_REFRESH_EXP"))
 
+	if jwtAccessDuration == 0 {
+		jwtAccessDuration = 900
+	}
+	if jwtRefreshDuration == 0 {
+		jwtRefreshDuration = 3600 // Default 1 Jam
+	}
+
 	accessDuration := time.Duration(jwtAccessDuration) * time.Second
 	refreshDuration := time.Duration(jwtRefreshDuration) * time.Minute
+
+	if rememberMe {
+		refreshDuration = 30 * 24 * time.Hour
+	}
 
 	genTokenReq := dto.GenerateJwtRequest{
 		UserID:          existUser.ID,
@@ -253,6 +276,7 @@ func (s *authService) LoginProvider(ctx context.Context, req goth.User) (*dto.Lo
 		JwtRefreshKey:   jwtRefreshKey,
 		AccessDuration:  accessDuration,
 		RefreshDuration: refreshDuration,
+		IsPersistent:    rememberMe,
 	}
 
 	genToken, err := helper.GenerateJwtToken(genTokenReq)
@@ -283,6 +307,10 @@ func (s *authService) ForgotPassword(ctx context.Context, req dto.ForgotPassword
 	existUser, err := s.UserServices.FindByEmail(ctx, req.Email)
 	if err != nil {
 		return "Email reset password telah dikirim", nil
+	}
+
+	if existUser.Provider != "" {
+		return "", errors.New("Your account is using google provider!")
 	}
 
 	token, err := helper.GenerateCustomToken(16)
@@ -403,6 +431,15 @@ func (s *authService) Refresh(ctx context.Context, req dto.RefreshRequest) (*dto
 
 	claims := token.Claims.(jwt.MapClaims)
 	userID := uint(claims["ID"].(float64))
+
+	// Labih aman ambil boolean dari claims
+	var isPersistent bool
+	if rem, ok := claims["rem"]; ok {
+		if val, bOk := rem.(bool); bOk {
+			isPersistent = val
+		}
+	}
+
 	oldAccessUUID, ok := claims["access_uuid"].(string)
 	if !ok {
 		return nil, helper.ErrUnauthorized
@@ -430,8 +467,19 @@ func (s *authService) Refresh(ctx context.Context, req dto.RefreshRequest) (*dto
 	jwtAccessDuration, _ := strconv.Atoi(os.Getenv("JWT_EXP"))
 	jwtRefreshDuration, _ := strconv.Atoi(os.Getenv("JWT_REFRESH_EXP"))
 
+	if jwtAccessDuration == 0 {
+		jwtAccessDuration = 900
+	}
+	if jwtRefreshDuration == 0 {
+		jwtRefreshDuration = 60
+	}
+
 	accessDuration := time.Duration(jwtAccessDuration) * time.Second
 	refreshDuration := time.Duration(jwtRefreshDuration) * time.Minute
+
+	if isPersistent {
+		refreshDuration = 30 * 24 * time.Hour
+	}
 
 	genTokenReq := dto.GenerateJwtRequest{
 		UserID:          userID,
@@ -439,6 +487,7 @@ func (s *authService) Refresh(ctx context.Context, req dto.RefreshRequest) (*dto
 		JwtRefreshKey:   jwtRefreshKey,
 		AccessDuration:  accessDuration,
 		RefreshDuration: refreshDuration,
+		IsPersistent:    isPersistent,
 	}
 
 	genToken, err := helper.GenerateJwtToken(genTokenReq)

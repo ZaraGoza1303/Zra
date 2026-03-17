@@ -34,6 +34,7 @@ func GenerateJwtToken(req dto.GenerateJwtRequest) (*dto.GenerateJwtResponse, err
 		"access_uuid":  accessUUID,
 		"refresh_uuid": refreshUUID,
 		"exp":          time.Now().Add(req.AccessDuration).Unix(),
+		"rem":          req.IsPersistent,
 	}
 
 	refreshClaims := jwt.MapClaims{
@@ -41,6 +42,7 @@ func GenerateJwtToken(req dto.GenerateJwtRequest) (*dto.GenerateJwtResponse, err
 		"access_uuid":  accessUUID,
 		"refresh_uuid": refreshUUID,
 		"exp":          time.Now().Add(req.RefreshDuration).Unix(),
+		"rem":          req.IsPersistent,
 	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)

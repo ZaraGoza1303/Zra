@@ -55,7 +55,7 @@ func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
 	h.hub.Join <- &client
 	go h.writePump(&client)
 	go func() {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(2000 * time.Millisecond)
 
 		members, err := h.roomService.GetAllRoomMembersByUserId(context.Background(), userId)
 		if err != nil {
@@ -130,7 +130,7 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 		client.Conn.Close()
 
 		go func() {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(2000 * time.Millisecond)
 
 			if h.hub.IsOnline(client.UserID) {
 				return
@@ -275,13 +275,22 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 func (h *webSocketHandler) writePump(client *dto.Client) {
 	ticker := time.NewTicker(25 * time.Second)
 	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from writePump panic: %v", r)
+		}
 		ticker.Stop()
-		client.Conn.Close()
+		if client.Conn != nil {
+			client.Conn.Close()
+		}
 	}()
 
 	for {
 		select {
 		case message, ok := <-client.Send:
+			if client.Conn == nil {
+				return
+			}
+
 			if !ok {
 				client.Conn.WriteMessage(websocket.CloseMessage, []byte(""))
 				return
@@ -294,6 +303,10 @@ func (h *webSocketHandler) writePump(client *dto.Client) {
 			}
 
 		case <-ticker.C:
+			if client.Conn == nil {
+				return
+			}
+
 			client.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := client.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return

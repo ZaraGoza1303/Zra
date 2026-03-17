@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"gorm.io/driver/postgres"
@@ -18,20 +19,31 @@ func InitDB() (*gorm.DB, error) {
 		log.Fatal("Error loading .env file")
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s Timezone=%s",
-		os.Getenv("DB_HOST"), os.Getenv("DB_PORT"), os.Getenv("DB_USER"),
-		os.Getenv("DB_NAME"), os.Getenv("DB_SSL_MODE"), os.Getenv("DB_TIMEZONE"))
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+		os.Getenv("DB_HOST_SUPABASE"), os.Getenv("DB_PORT_SUPABASE"), os.Getenv("DB_USER_SUPABASE"), os.Getenv("DB_PASSWORD_SUPABASE"),
+		os.Getenv("DB_NAME_SUPABASE"), os.Getenv("DB_SSL_MODE_SUPABASE"), os.Getenv("DB_TIMEZONE_SUPABASE"))
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		TranslateError: true,
-		Logger:         logger.Default.LogMode(logger.Info),
+	newLogger := logger.New(
+	log.New(os.Stdout, "\r\n", log.LstdFlags), 
+	logger.Config{
+		SlowThreshold:              time.Second,   
+		LogLevel:                   logger.Warn, 
+		Colorful:                  true,        
+	},
+	)
+
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN: dsn,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{
+		Logger: newLogger,
 	})
 
 	if err != nil {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.User{}, &models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{})
+	db.AutoMigrate(&models.User{}, &models.Friend{},&models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{})
 
 	return db, nil
 }

@@ -28,6 +28,8 @@ type UserRepositories interface {
 	DeleteFriendRequest(ctx context.Context, user_id uint, target_id uint) error
 	DeleteFriendship(ctx context.Context, user_id uint, target_id uint) error
 	DeleteResetToken(ctx context.Context, token string) error
+	DeleteExpiredRefreshToken(ctx context.Context) error
+	DeleteReadedNotifications(ctx context.Context) error
 
 	VerifyEmail(ctx context.Context, id uint, req *models.User) error
 }
@@ -52,6 +54,8 @@ type UserServices interface {
 	RejectFriendRequest(ctx context.Context, target_id uint) error
 	ChangePassword(ctx context.Context, id uint, req dto.ChangePasswordRequest) error
 	ExecuteReset(ctx context.Context, token string, req dto.ResetPasswordRequest) error
+	CleanRefreshToken(ctx context.Context) error
+	CleanNotifications(ctx context.Context) error
 
 	//For Websocket
 	FindByIdWithoutCtx(id uint) (*dto.UserResponse, error)

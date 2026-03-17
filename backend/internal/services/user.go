@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -48,14 +49,12 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 		var provider string
 
 		if user.ProfilePicture != nil {
-			if user.Provider != nil {
-				profilePicture = *user.ProfilePicture
+			pic := *user.ProfilePicture
+			if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+				profilePicture = pic
 			} else {
-				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-
+				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
 			}
-		} else {
-			profilePicture = ""
 		}
 
 		if user.Provider != nil {
@@ -91,14 +90,12 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 	var provider string
 
 	if user.ProfilePicture != nil {
-		if user.Provider != nil {
-			profilePicture = *user.ProfilePicture
+		pic := *user.ProfilePicture
+		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+			profilePicture = pic
 		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
 		}
-	} else {
-		profilePicture = ""
 	}
 
 	if user.Provider != nil {
@@ -132,14 +129,12 @@ func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse
 	var provider string
 
 	if user.ProfilePicture != nil {
-		if user.Provider != nil {
-			profilePicture = *user.ProfilePicture
+		pic := *user.ProfilePicture
+		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+			profilePicture = pic
 		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
 		}
-	} else {
-		profilePicture = ""
 	}
 
 	if user.Provider != nil {
@@ -182,13 +177,12 @@ func (u *userServices) FindListFriend(ctx context.Context, filter string) ([]dto
 		var provider string
 
 		if user.ProfilePicture != nil {
-			if user.Provider != nil {
-				profilePicture = *user.ProfilePicture
+			pic := *user.ProfilePicture
+			if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+				profilePicture = pic
 			} else {
-				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
 			}
-		} else {
-			profilePicture = ""
 		}
 
 		if user.Provider != nil {
@@ -232,13 +226,12 @@ func (u *userServices) FindListFriendRequest(ctx context.Context, filter string)
 		var provider string
 
 		if user.ProfilePicture != nil {
-			if user.Provider != nil {
-				profilePicture = *user.ProfilePicture
+			pic := *user.ProfilePicture
+			if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+				profilePicture = pic
 			} else {
-				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
+				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
 			}
-		} else {
-			profilePicture = ""
 		}
 
 		if user.Provider != nil {
@@ -273,9 +266,12 @@ func (u *userServices) FindByToken(ctx context.Context, token string) (*dto.User
 	var userProvider string
 
 	if user.ProfilePicture != nil {
-		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-	} else {
-		profilePicture = ""
+		pic := *user.ProfilePicture
+		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+			profilePicture = pic
+		} else {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
+		}
 	}
 
 	if user.Provider != nil {
@@ -309,16 +305,26 @@ func (u *userServices) FindByEmail(ctx context.Context, email string) (*dto.User
 	}
 
 	var profilePicture string
+	var provider string
+
 	if user.ProfilePicture != nil {
-		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-	} else {
-		profilePicture = ""
+		pic := *user.ProfilePicture
+		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+			profilePicture = pic
+		} else {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
+		}
+	}
+
+	if user.Provider != nil {
+		provider = *user.Provider
 	}
 
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
+		Provider:       provider,
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
@@ -341,9 +347,12 @@ func (u *userServices) FindByEmailAndProvider(ctx context.Context, email, provid
 	var userProvider string
 
 	if user.ProfilePicture != nil {
-		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-	} else {
-		profilePicture = ""
+		pic := *user.ProfilePicture
+		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+			profilePicture = pic
+		} else {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
+		}
 	}
 
 	if user.Provider != nil {
@@ -757,6 +766,26 @@ func (u *userServices) ExecuteReset(ctx context.Context, token string, req dto.R
 	return nil
 }
 
+// CheckAndDeleteRefreshToken implements [core.UserServices].
+func (u *userServices) CleanRefreshToken(ctx context.Context) error {
+	if err := u.UserRepositories.DeleteExpiredRefreshToken(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+// CleanNotifications implements [core.UserServices].
+func (u *userServices) CleanNotifications(ctx context.Context) error {
+	if err := u.UserRepositories.DeleteReadedNotifications(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
 // Unfriend implements [core.UserServices].
 func (u *userServices) Unfriend(ctx context.Context, target_id uint) error {
 	userId, ok := ctx.Value("user_id").(uint)
@@ -806,9 +835,12 @@ func (u *userServices) FindByIdWithoutCtx(id uint) (*dto.UserResponse, error) {
 
 	var profilePicture string
 	if user.ProfilePicture != nil {
-		profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, *user.ProfilePicture)
-	} else {
-		profilePicture = ""
+		pic := *user.ProfilePicture
+		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
+			profilePicture = pic
+		} else {
+			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
+		}
 	}
 
 	response := dto.UserResponse{
