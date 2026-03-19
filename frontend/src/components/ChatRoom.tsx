@@ -528,7 +528,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         if (!roomId || !user || !token) return;
 
         if (isPendingRoom) {
-            // Only reset if this is a DIFFERENT pending room (prevents reset when roomId is stable)
             if (resolvedRoomId.current !== roomId) {
                 resetChatState();
                 resolvedRoomId.current = roomId;
