@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/markbates/goth"
 	"github.com/matcornic/hermes/v2"
 	storage_go "github.com/supabase-community/storage-go"
@@ -431,34 +430,11 @@ func (s *authService) Logout(ctx context.Context, req dto.LogoutRequest) error {
 	return nil
 }
 
-func (s *authService) Refresh(ctx context.Context, req dto.RefreshRequest) (*dto.RefreshResponse, error) {
-	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_REFRESH_KEY")), nil
-	})
-
-	if err != nil || !token.Valid {
-		return nil, helper.ErrRefreshTokenNotValid
-	}
-
-	claims := token.Claims.(jwt.MapClaims)
-	userID := uint(claims["ID"].(float64))
-
-	// Labih aman ambil boolean dari claims
-	var isPersistent bool
-	if rem, ok := claims["rem"]; ok {
-		if val, bOk := rem.(bool); bOk {
-			isPersistent = val
-		}
-	}
-
-	oldAccessUUID, ok := claims["access_uuid"].(string)
-	if !ok {
-		return nil, helper.ErrUnauthorized
-	}
-	oldRefreshUUID, ok := claims["refresh_uuid"].(string)
-	if !ok {
-		return nil, helper.ErrUnauthorized
-	}
+func (s *authService) Refresh(ctx context.Context, req dto.RefreshTokenClaimsRequest) (*dto.RefreshResponse, error) {
+	userID := req.UserID
+	isPersistent := req.IsPersistent
+	oldAccessUUID := req.AccessUUID
+	oldRefreshUUID := req.RefreshUUID
 
 	exists, err := s.AuthRepositories.SelectRefreshToken(ctx, req.RefreshToken, oldRefreshUUID)
 	if err != nil {

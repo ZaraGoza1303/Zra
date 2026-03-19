@@ -173,7 +173,7 @@ func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {
 
 	if err := h.roomServices.CreateRoom(ctx, roomReq); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 
@@ -351,7 +351,7 @@ func (h *roomHandler) UpdateMessage(c *fiber.Ctx) error {
 
 	if err := h.roomServices.UpdateMessage(ctx, msgId, &msgReq); err != nil {
 		if errors.Is(err, helper.ErrNotAllowed) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
@@ -369,7 +369,7 @@ func (h *roomHandler) DeleteRoom(c *fiber.Ctx) error {
 
 	if err := h.roomServices.Delete(ctx, roomId); err != nil {
 		if errors.Is(err, helper.ErrNotAllowed) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
@@ -413,7 +413,7 @@ func (h *roomHandler) RemoveMessage(c *fiber.Ctx) error {
 
 	if err := h.roomServices.RemoveMessage(ctx, msgId); err != nil {
 		if errors.Is(err, helper.ErrNotAllowed) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
@@ -435,7 +435,7 @@ func (h *roomHandler) RemoveMultipleMessages(c *fiber.Ctx) error {
 
 	if err := h.roomServices.RemoveMultipleMessages(ctx, req); err != nil {
 		if errors.Is(err, helper.ErrNotAllowed) {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}

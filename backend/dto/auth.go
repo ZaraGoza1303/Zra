@@ -70,6 +70,14 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+type RefreshTokenClaimsRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+	UserID       uint   `json:"user_id"`
+	AccessUUID   string `json:"access_uuid"`
+	RefreshUUID  string `json:"refresh_uuid"`
+	IsPersistent bool   `json:"is_persistent"`
+}
+
 type RefreshResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`

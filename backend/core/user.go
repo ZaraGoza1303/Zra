@@ -46,14 +46,14 @@ type UserServices interface {
 	FindListFriendRequest(ctx context.Context, filter string) ([]dto.UserResponse, error)
 	FindUnreadNotifCount(ctx context.Context) ([]dto.UnreadNotifResponse, error)
 	MakeFriendRequest(ctx context.Context, target_id uint) error
-	Update(ctx context.Context, id uint, req *dto.UpdateUserRequest) (*models.User, error)
+	Update(ctx context.Context, req *dto.UpdateUserRequest) (*models.User, error)
 	UpdateFriendRequest(ctx context.Context, target_id uint) error
 	UpdateReadNotifications(ctx context.Context) error
 	UpdatePassResetToken(ctx context.Context, id uint, req dto.UpdatePassResetTokenRequest) error
 	Delete(ctx context.Context, id uint) error
 	Unfriend(ctx context.Context, target_id uint) error
 	RejectFriendRequest(ctx context.Context, target_id uint) error
-	ChangePassword(ctx context.Context, id uint, req dto.ChangePasswordRequest) error
+	ChangePassword(ctx context.Context, req dto.ChangePasswordRequest) error
 	ExecuteReset(ctx context.Context, token string, req dto.ResetPasswordRequest) error
 	CleanRefreshToken(ctx context.Context) error
 	CleanResetToken(ctx context.Context) error

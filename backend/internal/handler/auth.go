@@ -4,12 +4,12 @@ import (
 	"chatapp/core"
 	"chatapp/dto"
 	"chatapp/internal/helper"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/google"
 	"github.com/shareed2k/goth_fiber"
@@ -134,7 +134,7 @@ func (h *authHandler) LoginProvider(c *fiber.Ctx) error {
 	rememberMe := c.Cookies("remember_me") == "true"
 	result, err := h.AuthServices.LoginProvider(ctx, user, rememberMe)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+		return c.Status(fiber.StatusConflict).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
 	frontendURL := os.Getenv("FRONTEND_URL")
@@ -166,6 +166,10 @@ func (h *authHandler) ForgotPassword(c *fiber.Ctx) error {
 
 		if errors.Is(err, helper.ErrAlreadySent) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+
+		if err.Error() == "Your account is using google provider!" {
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
@@ -214,6 +218,10 @@ func (h *authHandler) ResetPassword(c *fiber.Ctx) error {
 		if errors.Is(err, helper.ErrPasswordNotMatch) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 		}
+
+		if errors.Is(err, helper.ErrTokenExpired) {
+			return c.Status(fiber.StatusUnauthorized).JSON(dto.SendErrorResponse(err.Error()))
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
@@ -250,15 +258,9 @@ func (h *authHandler) Logout(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	userToken := c.Locals("user").(*jwt.Token)
-	claims := userToken.Claims.(jwt.MapClaims)
-	userID := uint(claims["ID"].(float64))
-	accessUUID := claims["access_uuid"].(string)
-	refreshUUID := claims["refresh_uuid"].(string)
-
-	request.UserID = userID
-	request.AccessUUID = accessUUID
-	request.RefreshUUID = refreshUUID
+	request.UserID = c.Locals("user_id").(uint)
+	request.AccessUUID = c.Locals("access_uuid").(string)
+	request.RefreshUUID = c.Locals("refresh_uuid").(string)
 
 	validateErr := helper.Validate(request)
 	if validateErr != nil {
@@ -284,15 +286,9 @@ func (h *authHandler) LogoutProvider(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	userToken := c.Locals("user").(*jwt.Token)
-	claims := userToken.Claims.(jwt.MapClaims)
-	userID := uint(claims["ID"].(float64))
-	accessUUID := claims["access_uuid"].(string)
-	refreshUUID := claims["refresh_uuid"].(string)
-
-	request.UserID = userID
-	request.AccessUUID = accessUUID
-	request.RefreshUUID = refreshUUID
+	request.UserID = c.Locals("user_id").(uint)
+	request.AccessUUID = c.Locals("access_uuid").(string)
+	request.RefreshUUID = c.Locals("refresh_uuid").(string)
 
 	validateErr := helper.Validate(request)
 	if validateErr != nil {
@@ -300,7 +296,7 @@ func (h *authHandler) LogoutProvider(c *fiber.Ctx) error {
 	}
 
 	if err := goth_fiber.Logout(c); err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Gagal logout")
+		return c.Status(fiber.StatusBadRequest).SendString("Gagal logout")
 	}
 
 	if err := h.AuthServices.Logout(ctx, request); err != nil {
@@ -327,7 +323,25 @@ func (h *authHandler) Refresh(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
 	}
 
-	refreshToken, err := h.AuthServices.Refresh(ctx, request)
+	userID, accessUUID, refreshUUID, isPersistent, err := helper.ParseRefreshToken(request.RefreshToken)
+	if err != nil {
+		if errors.Is(err, helper.ErrRefreshTokenNotValid) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	ctx = context.WithValue(ctx, "user_id", userID)
+
+	enrichedRequest := dto.RefreshTokenClaimsRequest{
+		RefreshToken: request.RefreshToken,
+		UserID:       userID,
+		AccessUUID:   accessUUID,
+		RefreshUUID:  refreshUUID,
+		IsPersistent: isPersistent,
+	}
+
+	refreshToken, err := h.AuthServices.Refresh(ctx, enrichedRequest)
 	if err != nil {
 		if errors.Is(err, helper.ErrTokenExpired) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
@@ -353,6 +367,9 @@ func (h *authHandler) Me(c *fiber.Ctx) error {
 	userId := c.Locals("user_id").(uint)
 	user, err := h.UserServices.FindById(ctx, userId)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(dto.SendErrorResponse(err.Error()))
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 

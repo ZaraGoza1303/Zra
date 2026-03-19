@@ -1110,7 +1110,6 @@ func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 	if isOnline {
 		targetUsername = client.Username
 	} else {
-		// Fetch username dari DB
 		targetUser, err := r.userRepositories.GetById(ctx, userId)
 		if err == nil {
 			targetUsername = targetUser.Name

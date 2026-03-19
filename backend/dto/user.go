@@ -20,7 +20,6 @@ type UserResponse struct {
 }
 
 type UpdateUserRequest struct {
-	ID             uint    `form:"id" json:"id" validate:"required"`
 	ProfilePicture *string `form:"profile_picture" json:"profile_picture"`
 	Bio            *string `form:"bio" json:"bio"`
 	Name           *string `form:"name" json:"name"`
@@ -37,7 +36,6 @@ type UpdateUserResponse struct {
 }
 
 type ChangePasswordRequest struct {
-	UserId          uint   `json:"user_id" validate:"required"`
 	OldPassword     string `json:"old_password" validate:"required"`
 	NewPassword     string `json:"new_password" validate:"required"`
 	ConfirmPassword string `json:"confirm_password" validate:"required"`

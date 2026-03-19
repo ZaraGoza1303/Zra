@@ -76,6 +76,14 @@ func main() {
 				c.Locals("user_id", uint(id))
 			}
 
+			if accessUUID, ok := claims["access_uuid"].(string); ok {
+				c.Locals("access_uuid", accessUUID)
+			}
+
+			if refreshUUID, ok := claims["refresh_uuid"].(string); ok {
+				c.Locals("refresh_uuid", refreshUUID)
+			}
+
 			accessUUID := claims["access_uuid"].(string)
 
 			key := "access:" + accessUUID

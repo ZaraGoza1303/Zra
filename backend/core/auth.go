@@ -24,5 +24,5 @@ type AuthServices interface {
 	ForgotPassword(ctx context.Context, req dto.ForgotPasswordRequest) (string, error)
 	VerifyEmail(ctx context.Context, req dto.VerifyEmailOTPRequest) error
 	Logout(ctx context.Context, req dto.LogoutRequest) error
-	Refresh(ctx context.Context, req dto.RefreshRequest) (*dto.RefreshResponse, error)
+	Refresh(ctx context.Context, req dto.RefreshTokenClaimsRequest) (*dto.RefreshResponse, error)
 }

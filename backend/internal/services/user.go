@@ -502,17 +502,18 @@ func (u *userServices) UpdateFriendRequest(ctx context.Context, target_id uint) 
 	return nil
 }
 
-func (u *userServices) Update(ctx context.Context, userId uint, req *dto.UpdateUserRequest) (*models.User, error) {
+func (u *userServices) Update(ctx context.Context, req *dto.UpdateUserRequest) (*models.User, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
 	existUser, err := u.UserRepositories.GetById(ctx, userId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("User id tidak ditemukan: %w", err)
 		}
 		return nil, err
-	}
-
-	if existUser.ID != req.ID {
-		return nil, helper.ErrNotAllowed
 	}
 
 	if req.ProfilePicture != nil {
@@ -531,7 +532,7 @@ func (u *userServices) Update(ctx context.Context, userId uint, req *dto.UpdateU
 		existUser.Password = *req.Password
 	}
 
-	if err := u.UserRepositories.Update(ctx, req.ID, existUser); err != nil {
+	if err := u.UserRepositories.Update(ctx, existUser.ID, existUser); err != nil {
 		return nil, err
 	}
 
@@ -647,17 +648,18 @@ func (u *userServices) RejectFriendRequest(ctx context.Context, target_id uint) 
 	return nil
 }
 
-func (u *userServices) ChangePassword(ctx context.Context, id uint, req dto.ChangePasswordRequest) error {
-	user, err := u.UserRepositories.GetById(ctx, id)
+func (u *userServices) ChangePassword(ctx context.Context, req dto.ChangePasswordRequest) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	user, err := u.UserRepositories.GetById(ctx, userId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("User id tidak ditemukan: %w", err)
 		}
 		return err
-	}
-
-	if user.ID != req.UserId {
-		return helper.ErrNotAllowed
 	}
 
 	if req.NewPassword != req.ConfirmPassword {
@@ -677,7 +679,7 @@ func (u *userServices) ChangePassword(ctx context.Context, id uint, req dto.Chan
 		Password: newPasswordHash,
 	}
 
-	if err := u.UserRepositories.Update(ctx, req.UserId, &newPassword); err != nil {
+	if err := u.UserRepositories.Update(ctx, userId, &newPassword); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("Password user tidak berhasil diubah: %w", err)
 		}

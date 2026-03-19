@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -189,25 +188,17 @@ func (h *userHandler) Update(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
 
-	userId, err := helper.GetParams(c.Params("id"))
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
-	}
+	userId := c.Locals("user_id").(uint)
+	ctx = context.WithValue(ctx, "user_id", userId)
 
 	var user dto.UpdateUserRequest
 	if err := c.BodyParser(&user); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.SendErrorResponse(err.Error()))
 	}
-
-	userToken := c.Locals("user").(*jwt.Token)
-	claims := userToken.Claims.(jwt.MapClaims)
-	userIDJwt := uint(claims["ID"].(float64))
-
-	user.ID = userIDJwt
 
 	oldUser, err := h.UserServices.FindById(ctx, userId)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse("User tidak ditemukan"))
+		return c.Status(fiber.StatusNotFound).JSON(dto.SendErrorResponse("User tidak ditemukan"))
 	}
 
 	image, err := c.FormFile("profile_picture")
@@ -238,7 +229,7 @@ func (h *userHandler) Update(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
 	}
 
-	result, err := h.UserServices.Update(ctx, userId, &user)
+	result, err := h.UserServices.Update(ctx, &user)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
@@ -276,23 +267,20 @@ func (h *userHandler) ChangePassword(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
 
-	userToken := c.Locals("user").(*jwt.Token)
-	claims := userToken.Claims.(jwt.MapClaims)
-	userID := uint(claims["ID"].(float64))
+	userId := c.Locals("user_id").(uint)
+	ctx = context.WithValue(ctx, "user_id", userId)
 
 	var password dto.ChangePasswordRequest
 	if err := c.BodyParser(&password); err != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	password.UserId = userID
-
 	validateErr := helper.Validate(password)
 	if validateErr != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
 	}
 
-	err := h.UserServices.ChangePassword(ctx, userID, password)
+	err := h.UserServices.ChangePassword(ctx, password)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
