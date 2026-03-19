@@ -328,6 +328,22 @@ func (r *roomRepositories) GetMessageByID(ctx context.Context, message_id string
 	return &messages, nil
 }
 
+// GetMessagesByReplyToID implements [core.RoomRepositories].
+func (r *roomRepositories) GetMessagesByReplyToID(ctx context.Context, msgId string) ([]models.Message, error) {
+	var messages []models.Message
+
+	result := r.DB.WithContext(ctx).
+		Model(&models.Message{}).
+		Where("reply_to_id = ?", msgId).
+		Find(&messages)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return messages, nil
+}
+
 // GetMultipleMessageByIDs implements [core.RoomRepositories].
 func (r *roomRepositories) GetMultipleMessagesByIDs(ctx context.Context, msgIds []string) ([]models.Message, error) {
 	var messages []models.Message

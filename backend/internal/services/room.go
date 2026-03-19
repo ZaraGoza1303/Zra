@@ -120,7 +120,6 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 		if msg, ok := lastMsgMap[room.ID]; ok {
 			decryptedContent, err := helper.Decrypt(msg.Content)
 			if err != nil {
-				log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
 				decryptedContent = "Failed to load messages..."
 			}
 
@@ -513,13 +512,11 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 	for _, msg := range messages {
 		decryptedContent, err := helper.Decrypt(msg.Content)
 		if err != nil {
-			log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
 			decryptedContent = "Failed to load messages..."
 		}
 
 		decryptedCaption, err := helper.Decrypt(msg.Caption)
 		if err != nil {
-			log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
 			decryptedContent = "Failed to load messages..."
 		}
 
@@ -645,16 +642,32 @@ func (r *roomServices) RemoveMessage(ctx context.Context, msgId string) error {
 		return helper.ErrNotAllowed
 	}
 
-	if existsMsg.Type == "image" {
-		if existsMsg.Content != "" {
-			decryptContent, err := helper.Decrypt(existsMsg.Content)
+	replyMsgs, err := r.roomRepositories.GetMessagesByReplyToID(ctx, existsMsg.ID)
+	if err != nil {
+		return err
+	}
+
+	for _, replyMsg := range replyMsgs {
+		if replyMsg.Type == "image" && replyMsg.Content != "" {
+			decryptContent, err := helper.Decrypt(replyMsg.Content)
 			if err != nil {
 				return err
 			}
 
 			if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
-				log.Printf("warn: failed to remove file %s: %v", decryptContent, err)
+				log.Printf("failed to remove reply image message :%v", err)
 			}
+		}
+	}
+
+	if existsMsg.Type == "image" && existsMsg.Content != "" {
+		decryptContent, err := helper.Decrypt(existsMsg.Content)
+		if err != nil {
+			return err
+		}
+
+		if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+			log.Printf("warn: failed to remove file %s: %v", decryptContent, err)
 		}
 	}
 
@@ -715,16 +728,28 @@ func (r *roomServices) RemoveMultipleMessages(ctx context.Context, req dto.Multi
 			return helper.ErrNotAllowed
 		}
 
-		if msg.Type == "image" {
-			if msg.Content != "" {
-				decryptContent, err := helper.Decrypt(msg.Content)
-				if err != nil {
-					return err
+		replyMsgs, err := r.roomRepositories.GetMessagesByReplyToID(ctx, msg.ID)
+		if err != nil {
+			log.Printf("error getting reply messages: %v", err)
+		}
+		for _, replyMsg := range replyMsgs {
+			if replyMsg.Type == "image" && replyMsg.Content != "" {
+				decryptContent, err := helper.Decrypt(replyMsg.Content)
+				if err == nil {
+					if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+						log.Printf("failed to remove reply image: %v", err)
+					}
 				}
+			}
+		}
 
-				if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
-					log.Printf("warn: failed to remove file %s: %v", decryptContent, err)
-				}
+		if msg.Type == "image" && msg.Content != "" {
+			decryptContent, err := helper.Decrypt(msg.Content)
+			if err != nil {
+				return err
+			}
+			if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+				log.Printf("warn: failed to remove file %s: %v", decryptContent, err)
 			}
 		}
 

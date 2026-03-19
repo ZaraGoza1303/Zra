@@ -17,6 +17,7 @@ type RoomRepositories interface {
 
 	GetByLink(ctx context.Context, room_link string) (*models.Room, error)
 	GetMessageByID(ctx context.Context, message_id string) (*models.Message, error)
+	GetMessagesByReplyToID(ctx context.Context, msgId string) ([]models.Message, error)
 	GetMultipleMessagesByIDs(ctx context.Context, msgIds []string) ([]models.Message, error)
 	GetAllStickers(ctx context.Context, filter string, category string) ([]models.Sticker, error)
 	GetAllRoomMembers(ctx context.Context, room_id string) ([]models.RoomMember, error)

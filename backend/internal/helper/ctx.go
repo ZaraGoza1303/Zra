@@ -9,5 +9,5 @@ import (
 
 func GetCtx(c *fiber.Ctx) (context.Context, context.CancelFunc) {
 	ctx := c.Context()
-	return context.WithTimeout(ctx, 5*time.Second)
+	return context.WithTimeout(ctx, 30*time.Second)
 }

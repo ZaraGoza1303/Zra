@@ -7,7 +7,6 @@ import type { Message } from '../../types/chat';
 import ConfirmDialog from '../ui/ConfirmDialog';
 
 interface MessageListProps {
-    roomId: string;
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
     messagesContainerRef: React.RefObject<HTMLDivElement | null>;
     onScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -17,7 +16,6 @@ interface MessageListProps {
 }
 
 export default function MessageList({
-    roomId,
     messagesEndRef,
     messagesContainerRef,
     onScroll,
@@ -33,7 +31,6 @@ export default function MessageList({
     const [editingId, setEditingId] = React.useState<string | null>(null);
     const [editContent, setEditContent] = React.useState('');
     const [editCaption, setEditCaption] = React.useState('');
-    const [deletingId, setDeletingId] = React.useState<string | null>(null);
     const [actionLoading, setActionLoading] = React.useState(false);
     const editInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -49,7 +46,6 @@ export default function MessageList({
         setSelectMode(true);
         setSelectedIds(new Set([msgId]));
         setEditingId(null);
-        setDeletingId(null);
     };
 
     const exitSelectMode = () => {
@@ -57,10 +53,15 @@ export default function MessageList({
         setSelectedIds(new Set());
     };
 
-    const toggleSelect = (msgId: string) => {
+    const toggleSelect = (msgId: string, isMe: boolean) => {
+        if (!isMe) return;
         setSelectedIds(prev => {
             const next = new Set(prev);
-            next.has(msgId) ? next.delete(msgId) : next.add(msgId);
+            if (next.has(msgId)) {
+                next.delete(msgId);
+            } else {
+                next.add(msgId);
+            }
             return next;
         });
     };
@@ -87,7 +88,11 @@ export default function MessageList({
     const toggleExpand = (id: string) => {
         setExpandedMessages(prev => {
             const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
             return next;
         });
     };
@@ -112,7 +117,6 @@ export default function MessageList({
         setEditingId(msg.id);
         setEditContent(msg.content);
         setEditCaption(msg.caption || '');
-        setDeletingId(null);
         setTimeout(() => editInputRef.current?.focus(), 50);
     };
 
@@ -152,6 +156,9 @@ export default function MessageList({
 
     // ─── Delete ───────────────────────────────────────────────────────────────
     const confirmDelete = (msgId: string) => {
+        console.log('confirmDelete called with msgId:', msgId);
+        const target = messages.find(m => m.id === msgId);
+        console.log('target message:', target?.content, target?.id);
         pendingDeleteId.current = msgId;
         setShowDeleteConfirm(true);
         setEditingId(null);
@@ -167,7 +174,9 @@ export default function MessageList({
         setActionLoading(true);
         try {
             await apiCall(`/room/${msgId}/message`, { method: 'DELETE' });
-            setMessages(prev => prev.filter(m => m.id !== msgId));
+            // Jangan hapus dari state secara lokal di sini.
+            // Biarkan WS broadcast 'delete-message' yang menghapus untuk semua user
+            // (termasuk user 1 sendiri), sehingga kedua user pakai satu sumber kebenaran.
             setShowDeleteConfirm(false);
             pendingDeleteId.current = null;
         } catch (e) {
@@ -324,10 +333,10 @@ export default function MessageList({
                         ${selectMode ? 'cursor-pointer' : ''}
                         ${selectMode && msg.id && selectedIds.has(msg.id) ? (isMe ? 'bg-blue-500/10' : 'bg-blue-500/10') : ''}
                         rounded-xl transition-colors px-1`}
-                    onClick={selectMode && msg.id ? () => toggleSelect(msg.id) : undefined}
+                    onClick={selectMode && msg.id && isMe ? () => toggleSelect(msg.id, isMe) : undefined}
                 >
                     {/* Checkbox di select mode */}
-                    {selectMode && msg.id && (
+                    {selectMode && msg.id && isMe && (
                         <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
                             ${selectedIds.has(msg.id) ? 'bg-blue-500 border-blue-500' : 'border-white/30'}`}>
                             {selectedIds.has(msg.id) && (

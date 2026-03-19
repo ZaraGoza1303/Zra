@@ -93,6 +93,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
     }, []);
 
+    // AFTER
     const fetchChatHistory = async (lastTimestamp?: string) => {
         if (lastTimestamp) {
             setLoadingMore(true);
@@ -111,12 +112,16 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             }));
 
             if (lastTimestamp) {
-                setMessages(prev => [...newMessages, ...prev]); // prepend
+                setMessages(prev => {
+                    const existingIds = new Set(prev.map((m: Message) => m.id));
+                    const filtered = newMessages.filter((m: Message) => !existingIds.has(m.id));
+                    return [...filtered, ...prev];
+                });
             } else {
                 setMessages(newMessages);
             }
 
-            setHasMore(newMessages.length === 20); // kalau kurang dari limit, berarti sudah habis
+            setHasMore(newMessages.length === 20);
         } catch (e) {
             console.error("Failed to fetch chat history", e);
         } finally {
@@ -402,20 +407,20 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 }
 
                 if (msg.type === 'sent') {
+                    if (msg.user_id !== user?.id) return;
+
                     setMessages(prev => {
-                        const lastPendingIdx = [...prev].reverse().findIndex(
-                            m => m.user_id === user?.id && m.status === 'pending'
-                        );
-                        if (lastPendingIdx === -1) return prev;
-                        const actualIdx = prev.length - 1 - lastPendingIdx;
-                        return prev.map((m, i) => i === actualIdx
-                            ? { ...m, status: 'sent', id: msg.id }
-                            : m
-                        );
+                        let updated = false;
+                        return prev.map(m => {
+                            if (!updated && m.local_id && m.status === 'pending' && m.user_id === user?.id) {
+                                updated = true;
+                                return { ...m, status: 'sent', id: msg.id };
+                            }
+                            return m;
+                        });
                     });
                     return;
                 }
-
 
                 if (msg.type === 'readed') {
                     // msg.user_id = yang sudah baca (bukan pengirim)
@@ -473,7 +478,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 if (msg.type === 'delete-message') {
                     if (msg.edited_message_id) {
-                        setMessages(prev => prev.filter(m => m.id !== msg.edited_message_id));
+                        const deletedId = msg.edited_message_id;
+                        setMessages(prev => prev.filter(m => m.id !== deletedId));
                     }
                     return;
                 }
@@ -807,7 +813,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 />
 
                 <MessageList
-                    roomId={roomId}
                     messagesEndRef={messagesEndRef}
                     messagesContainerRef={messagesContainerRef}
                     onScroll={handleScroll}

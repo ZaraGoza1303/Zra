@@ -21,7 +21,7 @@ type Message struct {
 	WithVideo       bool        `json:"with_video,omitempty"`
 	Candidate       interface{} `json:"candidate,omitempty"`
 	Muted           bool        `json:"muted,omitempty"`
-	EditedMessageID string      `json:"edited_message_i,omitempty"`
+	EditedMessageID string      `json:"edited_message_id,omitempty"`
 	TimeStamp       time.Time   `json:"time_stamp"`
 }
 
