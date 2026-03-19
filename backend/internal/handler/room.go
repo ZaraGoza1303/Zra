@@ -7,24 +7,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"github.com/h2non/filetype"
 	"gorm.io/gorm"
 )
 
 type roomHandler struct {
 	roomServices      core.RoomServices
 	cachedRoomService core.RoomServices
-	localStorageServices core.LocalStorageServices
+	storageService    core.StorageService
 }
 
-func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServices core.RoomServices, localStorageServices core.LocalStorageServices, middleware fiber.Handler) {
+func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServices core.RoomServices, storageService core.StorageService, middleware fiber.Handler) {
 	handler := roomHandler{
 		roomServices:      roomService,
 		cachedRoomService: cachedRoomServices,
+		storageService:    storageService,
 	}
 	router.Get("/api/room/:room_link/preview", handler.FindRoomPreview)
 	router.Get("/api/room/:id/active-members", handler.GetActiveMembers)
@@ -33,19 +33,24 @@ func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServi
 
 	route := router.Group("/api", middleware)
 	route.Get("/room", handler.FindAll)
+	route.Get("/room/stickers", handler.FindAllStickers)
 	route.Get("/room/:id", handler.FindById)
 	route.Get("/room/:id/members", handler.GetAllRoomMember)
 	route.Get("/room/:id/history", handler.TakeChatHistory)
 	route.Get("/room/:target_id/mutual", handler.FindMutualRooms)
 	route.Get("/room/:id/private", handler.GetPrivateRoom)
 	route.Post("/room", handler.CreateRoom)
+	route.Post("/room/upload-image", handler.UploadImage)
 	route.Post("/room/:id/private", handler.MakePrivateRoom)
 	route.Post("room/:id/join", handler.JoinRoom)
 	route.Post("room/:id/add-member", handler.AddMember)
 	route.Put("/room/:id", handler.UpdateRoom)
+	route.Put("/room/:id/message", handler.UpdateMessage)
 	route.Put("/room/:id/read", handler.UpdateLastReadMessages)
 	route.Put("/room/:id/to-admin", handler.MakeAdmin)
+	route.Delete("/room/multiple-messages", handler.RemoveMultipleMessages)
 	route.Delete("/room/:id", handler.DeleteRoom)
+	route.Delete("/room/:id/message", handler.RemoveMessage)
 	route.Delete("/room/:id/kick", handler.KickUser)
 	route.Delete("/room/:id/leave", handler.LeaveRoom)
 }
@@ -128,18 +133,31 @@ func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {
 	var roomReq dto.RoomCreateRequest
 	if err := c.BodyParser(&roomReq); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
-
 	}
 
 	roomReq.OwnerID = userId
 	picture, err := c.FormFile("picture")
 	if err == nil {
-		contentType := picture.Header.Get("Content-Type")
-		if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
-			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Only images are allowed (jpg/png/webp)"))
+		if picture.Size > 8*1024*1024 {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("File Too Large"))
 		}
 
-		fileName, err := h.localStorageServices.UploadFile("rooms", picture)
+		kind, err := helper.CheckFileType(picture)
+		if err != nil || kind == filetype.Unknown {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+
+		allowed := map[string]bool{
+			"jpg":  true,
+			"png":  true,
+			"webp": true,
+		}
+
+		if !allowed[kind.Extension] {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Invalid Type"))
+		}
+
+		fileName, err := h.storageService.UploadFile("rooms", picture)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 		}
@@ -162,6 +180,43 @@ func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room Created", nil))
+}
+
+func (h *roomHandler) UploadImage(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if file.Size > 8*1024*1024 {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("File Too Large"))
+	}
+
+	kind, err := helper.CheckFileType(file)
+	if err != nil || kind == filetype.Unknown {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	allowed := map[string]bool{
+		"jpg":  true,
+		"png":  true,
+		"webp": true,
+		"gif":  true,
+	}
+
+	if !allowed[kind.Extension] {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Invalid File Type"))
+	}
+
+	fileUrl, err := h.roomServices.SendImage(ctx, file)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Uploaded", fileUrl))
 }
 
 func (h *roomHandler) GetPrivateRoom(c *fiber.Ctx) error {
@@ -194,7 +249,7 @@ func (h *roomHandler) MakePrivateRoom(c *fiber.Ctx) error {
 
 	roomId, err := h.roomServices.MakePrivateRoom(ctx, userId, targetId)
 	if err != nil {
-		fmt.Println("MakePrivateRoom error:", err) // ← tambah ini
+		fmt.Println("MakePrivateRoom error:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room private found or created", roomId))
@@ -225,15 +280,18 @@ func (h *roomHandler) UpdateRoom(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Only images are allowed (jpg/png/webp)"))
 		}
 
-		fileName := fmt.Sprintf("%s_%s", uuid.New().String(), picture.Filename)
-		filePath := fmt.Sprintf("./public/rooms/%s", fileName)
-
-		if err := c.SaveFile(picture, filePath); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+		// Jika ada gambar lama, hapus dulu
+		if existsRoom.Picture != nil {
+			if err := h.storageService.RemoveFile("rooms", *existsRoom.Picture); err != nil {
+				// Log error tapi tidak menghentikan proses
+				fmt.Printf("Failed to remove old file: %v\n", err)
+			}
 		}
 
-		if existsRoom.Picture != nil {
-			_ = os.Remove("./public/rooms/" + *existsRoom.Picture)
+		// Upload gambar baru
+		fileName, err := h.storageService.UploadFile("rooms", picture)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 		}
 
 		roomReq.Picture = &fileName
@@ -273,6 +331,34 @@ func (h *roomHandler) UpdateLastReadMessages(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Messages Readed", nil))
 }
 
+func (h *roomHandler) UpdateMessage(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	msgId := c.Params("id")
+
+	var msgReq dto.MessageUpdateRequest
+	if err := c.BodyParser(&msgReq); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	validateErr := helper.Validate(msgReq)
+	if validateErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
+	}
+
+	if err := h.roomServices.UpdateMessage(ctx, msgId, &msgReq); err != nil {
+		if errors.Is(err, helper.ErrNotAllowed) {
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Message Updated", nil))
+}
+
 func (h *roomHandler) DeleteRoom(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
@@ -289,7 +375,6 @@ func (h *roomHandler) DeleteRoom(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Room Deleted", nil))
-
 }
 
 func (h *roomHandler) KickUser(c *fiber.Ctx) error {
@@ -316,6 +401,61 @@ func (h *roomHandler) KickUser(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("User Kicked Successfully", nil))
+}
+
+func (h *roomHandler) RemoveMessage(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+	msgId := c.Params("id")
+
+	if err := h.roomServices.RemoveMessage(ctx, msgId); err != nil {
+		if errors.Is(err, helper.ErrNotAllowed) {
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Message Deleted", nil))
+}
+
+func (h *roomHandler) RemoveMultipleMessages(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	var req dto.MultipleMsgDeleteReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.roomServices.RemoveMultipleMessages(ctx, req); err != nil {
+		if errors.Is(err, helper.ErrNotAllowed) {
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Message Deleted", nil))
+}
+
+func (h *roomHandler) FindAllStickers(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	filter := c.Query("search")
+	category := c.Query("category")
+
+	stickers, err := h.roomServices.FindAllStickers(ctx, filter, category)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Stickers", stickers))
 }
 
 func (h *roomHandler) GetAllRoomMember(c *fiber.Ctx) error {

@@ -42,4 +42,12 @@ type LastMessageInfo struct {
 	Content  string    `json:"content"`
 	Username string    `json:"username"`
 	SentAt   time.Time `json:"sent_at"`
+	Type 	string `json:"type"`
+}
+
+type StickerResponse struct {
+	ID uint `json:"id"`
+	Name string `json:"name"`
+	Url string `json:"url"`
+	Category string `json:"category"`
 }

@@ -12,6 +12,7 @@ type Message struct {
 	Type           string    `gorm:"size:255"`
 	IsRead         bool      `gorm:"default:false"`
 	ReplyToID      *string   `gorm:"size:255"`
+	Caption        string    `gorm:"size:255"`
 	CreatedAt      time.Time `gorm:"autoCreateTime"`
 
 	ReplyTo *Message `gorm:"foreignKey:ReplyToID;constraint:OnDelete:CASCADE"`

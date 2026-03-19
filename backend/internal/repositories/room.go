@@ -37,7 +37,7 @@ func (r *roomRepositories) GetAll(ctx context.Context, filter string, user_id ui
 	if filter != "" {
 		query = query.Where(
 			"rooms.name LIKE ? OR (rooms.type = 'private' AND EXISTS (SELECT 1 FROM room_members rm2 JOIN users u ON u.id = rm2.user_id WHERE rm2.room_id = rooms.id AND rm2.user_id != ? AND u.username LIKE ?))",
-			"%"+filter+"%", user_id, "%"+filter+"%",
+			filter+"%", user_id, filter+"%",
 		)
 	}
 
@@ -203,6 +203,16 @@ func (r *roomRepositories) UpdateReadMessages(ctx context.Context, room_id strin
 	return nil
 }
 
+// UpdateMessageById implements [core.RoomRepositories].
+func (r *roomRepositories) UpdateMessageById(ctx context.Context, msgId string, newMsg *models.Message) error {
+	result := r.DB.WithContext(ctx).Where("id = ?", msgId).Updates(newMsg)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 // DeleteUser implements [core.RoomRepositories].
 func (r *roomRepositories) DeleteUser(ctx context.Context, room_id string, user_id uint) error {
 	result := r.DB.WithContext(ctx).
@@ -218,6 +228,48 @@ func (r *roomRepositories) DeleteUser(ctx context.Context, room_id string, user_
 	}
 
 	return nil
+}
+
+// DeleteMessageById implements [core.RoomRepositories].
+func (r *roomRepositories) DeleteMessageById(ctx context.Context, msgId string) error {
+	result := r.DB.WithContext(ctx).Where("id = ?", msgId).Delete(&models.Message{})
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// DeleteMultipleMessages implements [core.RoomRepositories].
+func (r *roomRepositories) DeleteMultipleMessages(ctx context.Context, msgId []string) error {
+	result := r.DB.WithContext(ctx).Where("id IN (?)", msgId).Delete(&models.Message{})
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// GetAllStickers implements [core.RoomRepositories].
+func (r *roomRepositories) GetAllStickers(ctx context.Context, filter string, category string) ([]models.Sticker, error) {
+	var stickers []models.Sticker
+
+	query := r.DB.WithContext(ctx).Model(&models.Sticker{})
+
+	if filter != "" {
+		query = query.Where("name LIKE ?", filter+"%")
+	}
+
+	if category != "" {
+		query = query.Where("category = ?", category)
+	}
+
+	result := query.Find(&stickers)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return stickers, nil
 }
 
 // GetAllRoomMembers implements [core.RoomRepositories].
@@ -274,6 +326,18 @@ func (r *roomRepositories) GetMessageByID(ctx context.Context, message_id string
 	}
 
 	return &messages, nil
+}
+
+// GetMultipleMessageByIDs implements [core.RoomRepositories].
+func (r *roomRepositories) GetMultipleMessagesByIDs(ctx context.Context, msgIds []string) ([]models.Message, error) {
+	var messages []models.Message
+
+	result := r.DB.WithContext(ctx).Where("id IN (?)", msgIds).Find(&messages)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return messages, nil
 }
 
 // GetMutualRooms implements [core.RoomRepositories].

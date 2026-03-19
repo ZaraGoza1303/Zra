@@ -36,6 +36,7 @@ func InitDB() (*gorm.DB, error) {
 		DSN: dsn,
 		PreferSimpleProtocol: true,
 	}), &gorm.Config{
+		TranslateError: true,
 		Logger: newLogger,
 	})
 
@@ -43,7 +44,7 @@ func InitDB() (*gorm.DB, error) {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.User{}, &models.Friend{},&models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{})
+	db.AutoMigrate(&models.User{}, &models.Friend{},&models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{}, &models.Sticker{})
 
 	return db, nil
 }

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,12 +48,7 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 		var provider string
 
 		if user.ProfilePicture != nil {
-			pic := *user.ProfilePicture
-			if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-				profilePicture = pic
-			} else {
-				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-			}
+			profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 		}
 
 		if user.Provider != nil {
@@ -90,12 +84,7 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 	var provider string
 
 	if user.ProfilePicture != nil {
-		pic := *user.ProfilePicture
-		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-			profilePicture = pic
-		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-		}
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 	}
 
 	if user.Provider != nil {
@@ -129,12 +118,7 @@ func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse
 	var provider string
 
 	if user.ProfilePicture != nil {
-		pic := *user.ProfilePicture
-		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-			profilePicture = pic
-		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-		}
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 	}
 
 	if user.Provider != nil {
@@ -177,12 +161,7 @@ func (u *userServices) FindListFriend(ctx context.Context, filter string) ([]dto
 		var provider string
 
 		if user.ProfilePicture != nil {
-			pic := *user.ProfilePicture
-			if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-				profilePicture = pic
-			} else {
-				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-			}
+			profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 		}
 
 		if user.Provider != nil {
@@ -226,12 +205,7 @@ func (u *userServices) FindListFriendRequest(ctx context.Context, filter string)
 		var provider string
 
 		if user.ProfilePicture != nil {
-			pic := *user.ProfilePicture
-			if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-				profilePicture = pic
-			} else {
-				profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-			}
+			profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 		}
 
 		if user.Provider != nil {
@@ -266,12 +240,7 @@ func (u *userServices) FindByToken(ctx context.Context, token string) (*dto.User
 	var userProvider string
 
 	if user.ProfilePicture != nil {
-		pic := *user.ProfilePicture
-		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-			profilePicture = pic
-		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-		}
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 	}
 
 	if user.Provider != nil {
@@ -308,12 +277,7 @@ func (u *userServices) FindByEmail(ctx context.Context, email string) (*dto.User
 	var provider string
 
 	if user.ProfilePicture != nil {
-		pic := *user.ProfilePicture
-		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-			profilePicture = pic
-		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-		}
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 	}
 
 	if user.Provider != nil {
@@ -347,12 +311,7 @@ func (u *userServices) FindByEmailAndProvider(ctx context.Context, email, provid
 	var userProvider string
 
 	if user.ProfilePicture != nil {
-		pic := *user.ProfilePicture
-		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-			profilePicture = pic
-		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-		}
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 	}
 
 	if user.Provider != nil {
@@ -592,7 +551,7 @@ func (u *userServices) UpdatePassResetToken(ctx context.Context, id uint, req dt
 	updateReq := models.PasswordReset{
 		UserID:    req.UserID,
 		Token:     req.Token,
-		ExpiresAt: req.ExpiresAt,
+		ExpiredAt: req.ExpiresAt,
 	}
 
 	if err := u.UserRepositories.UpdatePassResetToken(ctx, &updateReq); err != nil {
@@ -734,7 +693,7 @@ func (u *userServices) ExecuteReset(ctx context.Context, token string, req dto.R
 		return helper.ErrTokenExpired
 	}
 
-	if result.ExpiresAt.Before(time.Now()) {
+	if result.ExpiredAt.Before(time.Now()) {
 		return helper.ErrTokenExpired
 	}
 
@@ -775,6 +734,14 @@ func (u *userServices) CleanRefreshToken(ctx context.Context) error {
 	return nil
 }
 
+// CleanResetToken implements [core.UserServices].
+func (u *userServices) CleanResetToken(ctx context.Context) error {
+	if err := u.UserRepositories.DeleteExpiredResetToken(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // CleanNotifications implements [core.UserServices].
 func (u *userServices) CleanNotifications(ctx context.Context) error {
@@ -784,7 +751,6 @@ func (u *userServices) CleanNotifications(ctx context.Context) error {
 
 	return nil
 }
-
 
 // Unfriend implements [core.UserServices].
 func (u *userServices) Unfriend(ctx context.Context, target_id uint) error {
@@ -835,12 +801,7 @@ func (u *userServices) FindByIdWithoutCtx(id uint) (*dto.UserResponse, error) {
 
 	var profilePicture string
 	if user.ProfilePicture != nil {
-		pic := *user.ProfilePicture
-		if strings.HasPrefix(pic, "http://") || strings.HasPrefix(pic, "https://") {
-			profilePicture = pic
-		} else {
-			profilePicture = fmt.Sprintf("%s%s%s", u.backendUrl, u.usersPath, pic)
-		}
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
 	}
 
 	response := dto.UserResponse{

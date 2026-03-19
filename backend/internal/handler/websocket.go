@@ -216,7 +216,9 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		msg.ProfilePicture = client.ProfilePicture
 		msg.TimeStamp = time.Now()
 
-		msg.Type = "chat"
+		if msg.Type == "" {
+			msg.Type = "chat"
+		}
 
 		if msg.ReplyToID != "" {
 			replyMsg, err := h.roomService.FindMessageByID(context.Background(), msg.ReplyToID)
@@ -256,7 +258,15 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 				log.Printf("Gagal enkripsi: %v", err)
 				return
 			}
+
+			encryptedCaption, err := helper.Encrypt(msg.Caption)
+			if err != nil {
+				log.Printf("Gagal enkripsi: %v", err)
+				return
+			}
+
 			msg.Content = encryptedContent
+			msg.Caption = encryptedCaption
 			if err := h.roomService.SaveMessage(msg); err != nil {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
 			}

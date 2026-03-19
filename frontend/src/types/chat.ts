@@ -13,6 +13,8 @@ export interface Message {
     content: string;
     status?: MessageStatus;
     is_read?: boolean;
+    caption?: string;
+    edited_message_id?: string;
     reply_to_id?: string;
     reply_to?: Message;
     time_stamp: string;
@@ -22,6 +24,7 @@ export interface LastMessage {
     content: string;
     username: string;
     sent_at: string;
+    type?: string;
 }
 
 export interface ChatRoomProps {

@@ -265,6 +265,96 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
     };
 
+    const sendSticker = (stickerUrl: string) => {
+        const localId = `local_${Date.now()}_${Math.random()}`;
+
+        const optimisticMsg: Message = {
+            id: '',
+            room_id: roomId,
+            local_id: localId,
+            content: stickerUrl,
+            username: user?.username || '',
+            user_id: user?.id,
+            time_stamp: new Date().toISOString(),
+            type: 'sticker',
+            status: 'pending',
+            reply_to: replyTo ?? undefined,
+            reply_to_id: replyTo?.id || '',
+        };
+
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        if (ws.current?.readyState !== WebSocket.OPEN) {
+            setMessages(prev =>
+                prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
+            );
+            showToast('Connection lost. Please retry.', 'error');
+            return;
+        }
+
+        ws.current.send(JSON.stringify({
+            content: stickerUrl,
+            local_id: localId,
+            type: 'sticker',
+            reply_to_id: replyTo?.id || '',
+        }));
+
+        onNewMessage?.(roomId, {
+            content: '🎭 Sticker',
+            username: user?.username || '',
+            sent_at: new Date().toISOString(),
+            type: 'sticker',
+        });
+
+        setReplyTo(null);
+    };
+
+    const sendImage = (imageUrl: string, caption?: string) => {
+        const localId = `local_${Date.now()}_${Math.random()}`;
+
+        const optimisticMsg: Message = {
+            id: '',
+            room_id: roomId,
+            local_id: localId,
+            content: imageUrl,
+            caption: caption,
+            username: user?.username || '',
+            user_id: user?.id,
+            time_stamp: new Date().toISOString(),
+            type: 'image',
+            status: 'pending',
+            reply_to: replyTo ?? undefined,
+            reply_to_id: replyTo?.id || '',
+        };
+
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        if (ws.current?.readyState !== WebSocket.OPEN) {
+            setMessages(prev =>
+                prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
+            );
+            showToast('Connection lost. Please retry.', 'error');
+            return;
+        }
+
+        ws.current.send(JSON.stringify({
+            content: imageUrl,
+            caption: caption,
+            local_id: localId,
+            type: 'image',
+            reply_to_id: replyTo?.id || '',
+        }));
+
+        onNewMessage?.(roomId, {
+            content: caption ? `📷 ${caption}` : '📷 Image',
+            username: user?.username || '',
+            sent_at: new Date().toISOString(),
+            type: 'image',
+        });
+
+        setReplyTo(null);
+    };
+
     const retryMessage = (localId: string, content: string) => {
         if (ws.current?.readyState !== WebSocket.OPEN) {
             showToast('Still disconnected.', 'error');
@@ -353,9 +443,50 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     setAllRooms(allRooms.filter(r => r.id !== actualRoomId));
                 }
 
-                if (msg.type !== 'chat' && msg.type !== 'readed') {
+                if (msg.type === 'sticker') {
+                    if (msg.user_id !== user?.id) {
+                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        onNewMessage?.(actualRoomId, {
+                            content: '🎭 Sticker',
+                            username: msg.username,
+                            sent_at: msg.time_stamp,
+                            type: 'sticker'
+                        });
+                    }
+                    return;
+                }
+
+                if (msg.type === 'image') {
+                    if (msg.user_id !== user?.id) {
+                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        onNewMessage?.(actualRoomId, {
+                            content: '📷 Image',
+                            username: msg.username,
+                            sent_at: msg.time_stamp,
+                            type: 'image',
+                        });
+                    }
+                    return;
+                }
+
+                if (msg.type === 'delete-message') {
+                    if (msg.edited_message_id) {
+                        setMessages(prev => prev.filter(m => m.id !== msg.edited_message_id));
+                    }
+                    return;
+                }
+
+                if (msg.type === 'update-message') {
+                    return;
+                }
+
+                if (msg.type !== 'chat' && msg.type !== 'readed' && msg.type !== 'sticker'
+                    && msg.type !== 'image' && msg.type !== 'delete-message' && msg.type !== 'update-message') {
                     setMessages(prev => [...prev, msg]);
                 }
+
             } catch (e) {
                 console.error("Failed to parse message", e);
             }
@@ -676,6 +807,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 />
 
                 <MessageList
+                    roomId={roomId}
                     messagesEndRef={messagesEndRef}
                     messagesContainerRef={messagesContainerRef}
                     onScroll={handleScroll}
@@ -700,7 +832,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         </button>
                     </div>
                 ) : (
-                    <MessageInput ref={messageInputRef} sendMessage={sendMessage} />
+                    <MessageInput ref={messageInputRef} sendMessage={sendMessage} onSendSticker={sendSticker} onSendImage={sendImage} />
                 )}
             </div>
 

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"os"
 	"time"
 
@@ -20,23 +21,29 @@ type roomServices struct {
 	hub              *dto.Hub
 	roomRepositories core.RoomRepositories
 	userRepositories core.UserRepositories
+	storageServices  core.StorageService
 	frontendUrl      string
 	backendUrl       string
 	frontendJoinUrl  string
 	roomsPath        string
 	usersPath        string
+	stickersPath     string
+	uploadsPath      string
 }
 
-func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories) core.RoomServices {
+func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories, storageServices core.StorageService) core.RoomServices {
 	return &roomServices{
 		hub:              hub,
 		roomRepositories: roomRepo,
 		userRepositories: userRepo,
+		storageServices:  storageServices,
 		frontendUrl:      os.Getenv("FRONTEND_URL"),
 		backendUrl:       os.Getenv("BACKEND_URL"),
 		frontendJoinUrl:  os.Getenv("FRONTEND_JOIN_URL"),
 		roomsPath:        os.Getenv("ROOMS_PATH"),
 		usersPath:        os.Getenv("USERS_PATH"),
+		stickersPath:     os.Getenv("STICKERS_PATH"),
+		uploadsPath:      os.Getenv("UPLOADS_PATH"),
 	}
 }
 
@@ -71,7 +78,7 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 	for _, room := range rooms {
 		var picture string
 		if room.Picture != nil {
-			picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
+			picture = helper.NormalizeImagePath(*room.Picture, r.backendUrl, r.roomsPath)
 		}
 
 		var roomLink string
@@ -100,7 +107,7 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 			for _, m := range room.Members {
 				pfp := ""
 				if m.User.ProfilePicture != nil {
-					pfp = fmt.Sprintf("%s%s%s", r.backendUrl, r.usersPath, *m.User.ProfilePicture)
+					pfp = helper.NormalizeImagePath(*m.User.ProfilePicture, r.backendUrl, r.usersPath)
 				}
 				item.Members = append(item.Members, dto.RoomMemberResponse{
 					UserID:             m.UserID,
@@ -156,7 +163,7 @@ func (r *roomServices) FindById(ctx context.Context, room_id string) (*dto.RoomR
 
 	var picture string
 	if room.Picture != nil {
-		picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
+		picture = helper.NormalizeImagePath(*room.Picture, r.backendUrl, r.roomsPath)
 	}
 
 	var roomLink string
@@ -190,7 +197,7 @@ func (r *roomServices) FindRoomPreview(ctx context.Context, room_link string) (*
 
 	var picture string
 	if room.Picture != nil {
-		picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
+		picture = helper.NormalizeImagePath(*room.Picture, r.backendUrl, r.roomsPath)
 	}
 
 	var roomLink string
@@ -278,12 +285,7 @@ func (r *roomServices) Update(ctx context.Context, room_id string, roomReq *dto.
 		return helper.ErrNotAllowed
 	}
 
-	if existRoom.Picture != nil {
-		fullPath := fmt.Sprintf(".%s%s", r.roomsPath, *existRoom.Picture)
-		if _, err := os.Stat(fullPath); err == nil {
-			_ = os.Remove(fullPath)
-		}
-	}
+	// Picture deletion is now handled by handler via storageService
 
 	if roomReq.Picture != nil {
 		existRoom.Picture = roomReq.Picture
@@ -380,6 +382,29 @@ func (r *roomServices) IsMember(room_id string, user_id uint) (bool, error) {
 	return result, nil
 }
 
+// FindAllStickers implements [core.RoomServices].
+func (r *roomServices) FindAllStickers(ctx context.Context, filter string, category string) ([]dto.StickerResponse, error) {
+	stickers, err := r.roomRepositories.GetAllStickers(ctx, filter, category)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.StickerResponse
+
+	for _, sticker := range stickers {
+		imageUrl := helper.NormalizeImagePath(sticker.Name, r.backendUrl, r.stickersPath)
+
+		response = append(response, dto.StickerResponse{
+			ID:       sticker.ID,
+			Name:     sticker.Name,
+			Url:      imageUrl,
+			Category: sticker.Category,
+		})
+	}
+
+	return response, nil
+}
+
 // GetAllRoomMembers implements [core.RoomServices].
 func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error) {
 	_, err := r.roomRepositories.GetById(ctx, room_id)
@@ -400,7 +425,7 @@ func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([
 	for _, room := range rooms {
 		var userProfilePicture string
 		if room.User.ProfilePicture != nil {
-			userProfilePicture = fmt.Sprintf("%s%s%s", r.backendUrl, r.usersPath, *room.User.ProfilePicture)
+			userProfilePicture = helper.NormalizeImagePath(*room.User.ProfilePicture, r.backendUrl, r.usersPath)
 		}
 
 		item := dto.RoomMemberResponse{
@@ -457,6 +482,17 @@ func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target
 	return newRoom.ID, nil
 }
 
+// SendImage implements [core.RoomServices].
+func (r *roomServices) SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
+	fileName, err := r.storageServices.UploadFile("uploads", fileHeader)
+	if err != nil {
+		return "", err
+	}
+
+	fileUrl := helper.NormalizeImagePath(fileName, r.backendUrl, r.uploadsPath)
+	return fileUrl, nil
+}
+
 // TakeChatHistory implements [core.RoomServices].
 func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error) {
 	_, err := r.roomRepositories.GetById(ctx, room_id)
@@ -481,6 +517,12 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			decryptedContent = "Failed to load messages..."
 		}
 
+		decryptedCaption, err := helper.Decrypt(msg.Caption)
+		if err != nil {
+			log.Printf("Warning: Gagal dekripsi pesan ID %s: %v", msg.ID, err)
+			decryptedContent = "Failed to load messages..."
+		}
+
 		item := dto.Message{
 			ID:             msg.ID,
 			RoomID:         msg.RoomID,
@@ -489,8 +531,9 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			Content:        decryptedContent,
 			ProfilePicture: msg.ProfilePicture,
 			Type:           msg.Type,
-			TimeStamp:      msg.CreatedAt,
 			IsRead:         msg.IsRead,
+			Caption:        decryptedCaption,
+			TimeStamp:      msg.CreatedAt,
 		}
 
 		if msg.ReplyTo != nil {
@@ -498,12 +541,20 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			if err != nil {
 				replyContent = "Failed to load message..."
 			}
+
+			replyCaption, err := helper.Decrypt(msg.ReplyTo.Caption)
+			if err != nil {
+				replyContent = "Failed to load message..."
+			}
+
 			item.ReplyTo = &dto.Message{
 				ID:             msg.ReplyTo.ID,
 				UserID:         msg.ReplyTo.UserID,
 				Username:       msg.ReplyTo.Username,
 				ProfilePicture: msg.ReplyTo.ProfilePicture,
 				Content:        replyContent,
+				Type:           msg.ReplyTo.Type,
+				Caption:        replyCaption,
 			}
 		}
 
@@ -573,6 +624,146 @@ func (r *roomServices) KickUser(ctx context.Context, room_id string, target_id u
 
 	if err := r.roomRepositories.DeleteUser(ctx, room_id, target_id); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// RemoveMessage implements [core.RoomServices].
+func (r *roomServices) RemoveMessage(ctx context.Context, msgId string) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	existsMsg, err := r.roomRepositories.GetMessageByID(ctx, msgId)
+	if err != nil {
+		return err
+	}
+
+	if userId != existsMsg.UserID {
+		return helper.ErrNotAllowed
+	}
+
+	if existsMsg.Type == "image" {
+		if existsMsg.Content != "" {
+			decryptContent, err := helper.Decrypt(existsMsg.Content)
+			if err != nil {
+				return err
+			}
+
+			if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+				log.Printf("warn: failed to remove file %s: %v", decryptContent, err)
+			}
+		}
+	}
+
+	if err := r.roomRepositories.DeleteMessageById(ctx, msgId); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("message with id: %s not found, %w", msgId, err)
+		}
+		return err
+	}
+
+	msgContent := existsMsg.Username + " Deleted the message"
+	encryptMsg, err := helper.Encrypt(msgContent)
+	if err != nil {
+		return err
+	}
+
+	removeMsg := dto.Message{
+		ID:              dto.GenerateId(),
+		EditedMessageID: existsMsg.ID,
+		RoomID:          existsMsg.RoomID,
+		UserID:          userId,
+		Username:        existsMsg.Username,
+		Type:            "delete-message",
+		Content:         msgContent,
+		TimeStamp:       time.Now(),
+	}
+
+	saveMsg := models.Message{
+		ID:        removeMsg.ID,
+		RoomID:    removeMsg.RoomID,
+		UserID:    removeMsg.UserID,
+		Username:  removeMsg.Username,
+		Type:      removeMsg.Type,
+		Content:   encryptMsg,
+		CreatedAt: removeMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- removeMsg
+
+	return nil
+}
+
+// RemoveMultipleMessage implements [core.RoomServices].
+func (r *roomServices) RemoveMultipleMessages(ctx context.Context, req dto.MultipleMsgDeleteReq) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	existsMsg, err := r.roomRepositories.GetMultipleMessagesByIDs(ctx, req.MessageIDs)
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range existsMsg {
+		if userId != msg.UserID {
+			return helper.ErrNotAllowed
+		}
+
+		if msg.Type == "image" {
+			if msg.Content != "" {
+				decryptContent, err := helper.Decrypt(msg.Content)
+				if err != nil {
+					return err
+				}
+
+				if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+					log.Printf("warn: failed to remove file %s: %v", decryptContent, err)
+				}
+			}
+		}
+
+		if err := r.roomRepositories.DeleteMessageById(ctx, msg.ID); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("message with id: %s not found, %w", msg.ID, err)
+			}
+			return err
+		}
+
+		msgContent := msg.Username + " Deleted the message"
+		encryptMsg, err := helper.Encrypt(msgContent)
+		if err != nil {
+			return err
+		}
+
+		removeMsg := dto.Message{
+			ID:              dto.GenerateId(),
+			EditedMessageID: msg.ID,
+			RoomID:          msg.RoomID,
+			UserID:          userId,
+			Username:        msg.Username,
+			Type:            "delete-message",
+			Content:         msgContent,
+			TimeStamp:       time.Now(),
+		}
+
+		saveMsg := models.Message{
+			ID:        removeMsg.ID,
+			RoomID:    removeMsg.RoomID,
+			UserID:    removeMsg.UserID,
+			Username:  removeMsg.Username,
+			Type:      removeMsg.Type,
+			Content:   encryptMsg,
+			CreatedAt: removeMsg.TimeStamp,
+		}
+
+		r.roomRepositories.SaveMessage(saveMsg)
+		r.hub.Broadcast <- removeMsg
 	}
 
 	return nil
@@ -809,6 +1000,75 @@ func (r *roomServices) UpdateLastReadMessages(ctx context.Context, room_id strin
 	return nil
 }
 
+// UpdateMessage implements [core.RoomServices].
+func (r *roomServices) UpdateMessage(ctx context.Context, msgId string, req *dto.MessageUpdateRequest) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	existsMsg, err := r.roomRepositories.GetMessageByID(ctx, msgId)
+	if err != nil {
+		return err
+	}
+
+	if userId != existsMsg.UserID {
+		return helper.ErrNotAllowed
+	}
+
+	if req.Content != "" {
+		encryptContent, err := helper.Encrypt(req.Content)
+		if err != nil {
+			return err
+		}
+		existsMsg.Content = encryptContent
+	}
+
+	if req.Caption != "" {
+		encryptCaption, err := helper.Encrypt(req.Content)
+		if err != nil {
+			return err
+		}
+		existsMsg.Caption = encryptCaption
+	}
+
+	if err := r.roomRepositories.UpdateMessageById(ctx, msgId, existsMsg); err != nil {
+		return err
+	}
+
+	msgContent := existsMsg.Username + " Edited message"
+	encryptMsg, err := helper.Encrypt(msgContent)
+	if err != nil {
+		return err
+	}
+
+	updateMsg := dto.Message{
+		ID:              dto.GenerateId(),
+		EditedMessageID: existsMsg.ID,
+		RoomID:          existsMsg.RoomID,
+		UserID:          userId,
+		Username:        existsMsg.Username,
+		Type:            "update-message",
+		Content:         msgContent,
+		TimeStamp:       time.Now(),
+	}
+
+	saveMsg := models.Message{
+		ID:        updateMsg.ID,
+		RoomID:    updateMsg.RoomID,
+		UserID:    updateMsg.UserID,
+		Username:  updateMsg.Username,
+		Type:      updateMsg.Type,
+		Content:   encryptMsg,
+		CreatedAt: updateMsg.TimeStamp,
+	}
+
+	r.roomRepositories.SaveMessage(saveMsg)
+	r.hub.Broadcast <- updateMsg
+
+	return nil
+}
+
 // LeaveRoom implements [core.RoomServices].
 func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 	userId, ok := ctx.Value("user_id").(uint)
@@ -880,7 +1140,7 @@ func (r *roomServices) FindMutualRooms(ctx context.Context, target_id uint) ([]d
 	for _, room := range rooms {
 		var picture string
 		if room.Picture != nil {
-			picture = fmt.Sprintf("%s%s%s", r.backendUrl, r.roomsPath, *room.Picture)
+			picture = helper.NormalizeImagePath(*room.Picture, r.backendUrl, r.roomsPath)
 		}
 
 		roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
@@ -1024,6 +1284,7 @@ func (r *roomServices) SaveMessage(msg dto.Message) error {
 		Content:        msg.Content,
 		Type:           msg.Type,
 		ReplyToID:      replyToID,
+		Caption:        msg.Caption,
 		CreatedAt:      time.Now(),
 	}
 

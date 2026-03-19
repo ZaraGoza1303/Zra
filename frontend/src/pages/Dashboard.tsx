@@ -4,16 +4,17 @@ import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
     Settings, Home, Users, Bell, X,
     User,
-    Grid2x2
+    Grid2x2,
+    Sticker
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useDashboardStore } from '../store/dashboardStore';
-import { apiCall, getUserImageUrl } from '../services/api';
+import { apiCall, getRoomImageUrl, getUserImageUrl } from '../services/api';
 import ChatRoom from '../components/ChatRoom';
 import ContactsPanel from '../components/contacts/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
-import type { Room } from '../types/chat';
+import type { LastMessage, Room } from '../types/chat';
 import { BACKEND_URL } from '../config';
 import { useToastStore } from '../store/toastStore';
 import type { UnreadNotif } from '../types/contacts';
@@ -319,13 +320,13 @@ export default function Dashboard() {
 
     const getRoomDisplayInfo = (room: Room): { name: string; picture: string | null } => {
         if (room.type !== 'private') {
-            return { name: room.name, picture: room.picture };
+            return { name: room.name, picture: getRoomImageUrl(room.picture) };
         }
         // Untuk private room, cari member yang bukan kita
         const otherMember = room.members?.find(m => m.user_id !== user?.id);
         return {
             name: otherMember?.username || 'Direct Message',
-            picture: otherMember?.user_profile_picture || null,  // sudah full URL dari BE
+            picture: getUserImageUrl(otherMember?.user_profile_picture),  // gunakan helper untuk profile pic user
         };
     };
 
@@ -415,6 +416,20 @@ export default function Dashboard() {
         { key: 'contacts', icon: <Users size={20} />, label: 'Contacts' },
         { key: 'settings', icon: <Settings size={20} />, label: 'Settings' },
     ];
+
+    const formatLastMessage = (msg?: LastMessage) => {
+        if (!msg) return null;
+        if (msg.type === 'sticker') {
+            return (
+                <span className="flex items-center gap-1">
+                    <span>{msg.username}:</span>
+                    <Sticker size={12} className="text-blue-400 shrink-0" />
+                    <span>Sticker</span>
+                </span>
+            );
+        }
+        return `${msg.username}: ${msg.content}`;
+    };
 
     return (
         <div className="flex w-full h-screen bg-[#0d1117] text-[#e6edf3] overflow-hidden">
@@ -608,11 +623,13 @@ export default function Dashboard() {
                                                 </span>
                                             </div>
                                             <div className="flex items-center justify-between mt-0.5">
-                                                <span className="text-xs text-[#8b949e] truncate flex items-center gap-1">
-                                                    {room.last_message?.content
-                                                        ? `${room.last_message.username}: ${room.last_message.content}`
-                                                        : (room.type === 'private' ? 'No messages yet' : 'Tap to join chat')
-                                                    }
+                                                <span className="text-xs text-[#8b949e] flex items-center gap-1 min-w-0">
+                                                    <span className="truncate">
+                                                        {room.last_message
+                                                            ? formatLastMessage(room.last_message)
+                                                            : (room.type === 'private' ? 'No messages yet' : 'Tap to join chat')
+                                                        }
+                                                    </span>
                                                 </span>
                                             </div>
                                         </div>

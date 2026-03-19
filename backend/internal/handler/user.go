@@ -6,10 +6,6 @@ import (
 	"chatapp/internal/helper"
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -17,11 +13,15 @@ import (
 )
 
 type userHandler struct {
-	UserServices core.UserServices
+	UserServices   core.UserServices
+	storageService core.StorageService
 }
 
-func NewUser(router fiber.Router, service core.UserServices, middleware fiber.Handler) {
-	handler := userHandler{UserServices: service}
+func NewUser(router fiber.Router, service core.UserServices, storageService core.StorageService, middleware fiber.Handler) {
+	handler := userHandler{
+		UserServices:   service,
+		storageService: storageService,
+	}
 
 	route := router.Group("/api")
 	route.Get("/user", middleware, handler.FindAll)
@@ -210,26 +210,30 @@ func (h *userHandler) Update(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse("User tidak ditemukan"))
 	}
 
-	var newProfilePicture string
 	image, err := c.FormFile("profile_picture")
 
 	if err == nil {
-		newProfilePicture = fmt.Sprintf("%d_%s", time.Now().Unix(), image.Filename)
-		if err := c.SaveFile(image, "./public/users/"+newProfilePicture); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse("Gagal simpan image baru"))
+		contentType := image.Header.Get("Content-Type")
+		if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/webp" {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Only images are allowed (jpg/png/webp)"))
 		}
 
 		if oldUser.ProfilePicture != "" {
-			oldFileName := filepath.Base(oldUser.ProfilePicture)
-			_ = os.Remove("./public/users/" + oldFileName)
+			_ = h.storageService.RemoveFile("users", oldUser.ProfilePicture)
 		}
-		user.ProfilePicture = &newProfilePicture
+
+		fileName, err := h.storageService.UploadFile("users", image)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse("Gagal simpan image baru"))
+		}
+
+		user.ProfilePicture = &fileName
 	}
 
 	validateErr := helper.Validate(user)
 	if validateErr != nil {
-		if err == nil {
-			_ = os.Remove("./public/users/" + *user.ProfilePicture)
+		if err == nil && user.ProfilePicture != nil {
+			_ = h.storageService.RemoveFile("users", *user.ProfilePicture)
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
 	}

@@ -41,6 +41,7 @@ func main() {
 				os.Getenv("FRONTEND_URL"),
 				os.Getenv("FRONTEND_JOIN_URL"),
 				os.Getenv("BACKEND_URL"),
+				os.Getenv("SUPABASE_URL"),
 				"http://localhost:8000",
 				"http://localhost:5173",
 				"http://localhost:3000",
@@ -64,8 +65,6 @@ func main() {
 		AllowCredentials: true,
 	}))
 	app.Static("/public", "./public")
-	app.Static("/public/rooms", "./public/rooms")
-	app.Static("/public/users", "./public/users")
 
 	jwtWare := jwtWare.New(jwtWare.Config{
 		SigningKey: jwtWare.SigningKey{Key: []byte(os.Getenv("JWT_KEY"))},
@@ -96,26 +95,27 @@ func main() {
 	hub := dto.NewHub()
 	go hub.Run()
 
-	localStorage := services.NewLocalStorage()
+	storageService := services.NewSupabaseStorage()
 
 	userRepository := repositories.NewUser(db)
 	userService := services.NewUser(userRepository, hub)
 
 	authRepository := repositories.NewAuth(db, *rdb)
-	authService := services.NewAuth(authRepository, userRepository, userService)
+	authService := services.NewAuth(authRepository, userRepository, userService, storageService)
 
 	roomRepository := repositories.NewRoom(db)
-	roomService := services.NewRoomServices(hub, roomRepository, userRepository)
+	roomService := services.NewRoomServices(hub, roomRepository, userRepository, storageService)
 	cachedRoomServices := services_cached.NewCachedRoomServices(roomService, rdb)
 
 	handler.NewAuth(app, authService, userService, jwtWare)
-	handler.NewUser(app, userService, jwtWare)
-	handler.NewRoom(app, roomService, cachedRoomServices, localStorage, jwtWare)
+	handler.NewUser(app, userService, storageService, jwtWare)
+	handler.NewRoom(app, roomService, cachedRoomServices, storageService, jwtWare)
 	handler.NewWebSocket(app, hub, roomService, cachedRoomServices, userService, middleware.WebsocketMiddleware(rdb))
 
 	go cron.RefreshTokenJob(userService)
+	go cron.ResetTokenJob(userService)
 	go cron.NotificationJob(userService)
-	
+
 	fmt.Printf("Server Berjalan Cuy")
 	log.Fatal(app.Listen(":8000"))
 }

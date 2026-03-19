@@ -16,6 +16,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/markbates/goth"
 	"github.com/matcornic/hermes/v2"
+	storage_go "github.com/supabase-community/storage-go"
 	"gorm.io/gorm"
 )
 
@@ -29,9 +30,12 @@ type authService struct {
 	publicPath       string
 	roomsPath        string
 	usersPath        string
+	storageClient    storage_go.Client
 }
 
-func NewAuth(repo core.AuthRepositories, userRepositories core.UserRepositories, userService core.UserServices) core.AuthServices {
+func NewAuth(repo core.AuthRepositories, userRepositories core.UserRepositories, userService core.UserServices, storageServices core.StorageService) core.AuthServices {
+	storageClient := storageServices.GetStorageClient()
+
 	return &authService{AuthRepositories: repo,
 		UserRepositories: userRepositories,
 		UserServices:     userService,
@@ -41,6 +45,7 @@ func NewAuth(repo core.AuthRepositories, userRepositories core.UserRepositories,
 		publicPath:       os.Getenv("PUBLIC_PATH"),
 		roomsPath:        os.Getenv("ROOMS_PATH"),
 		usersPath:        os.Getenv("USERS_PATH"),
+		storageClient:    *storageClient,
 	}
 }
 
@@ -70,19 +75,19 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 
 	err = s.AuthRepositories.Register(ctx, &newUser)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, helper.ErrEmailAlreadyUsed
 		}
 		return nil, err
 	}
 
-	logoUrl := fmt.Sprintf("%s%s%s", s.backendUrl, s.publicPath, "mas_amba.jpg")
+	logoUrl := s.storageClient.GetPublicUrl("email", "mas_amba.jpg")
 
 	h := hermes.Hermes{
 		Product: hermes.Product{
 			Name: "Wowo Sawit",
 			Link: "",
-			Logo: logoUrl,
+			Logo: logoUrl.SignedURL,
 		},
 	}
 
@@ -213,6 +218,11 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 func (s *authService) LoginProvider(ctx context.Context, req goth.User, rememberMe bool) (*dto.LoginProviderResponse, error) {
 	existUser, err := s.UserServices.FindByEmailAndProvider(ctx, req.Email, req.Provider)
 	if err != nil {
+		_, errEmail := s.UserServices.FindByEmail(ctx, req.Email)
+		if errEmail == nil {
+			return nil, fmt.Errorf("email sudah terdaftar dengan metode login lain")
+		}
+
 		newUser := models.User{
 			ProfilePicture: &req.AvatarURL,
 			Email:          req.Email,
@@ -331,14 +341,15 @@ func (s *authService) ForgotPassword(ctx context.Context, req dto.ForgotPassword
 		return "", err
 	}
 
-	logoUrl := fmt.Sprintf("%s%s%s", s.backendUrl, s.publicPath, "mas_amba.jpg")
+	logoUrl := s.storageClient.GetPublicUrl("email", "mas_amba.jpg")
+
 	verifyResetLink := fmt.Sprintf("%s/api/auth/verify-reset?token=%s", s.backendUrl, token)
 
 	h := hermes.Hermes{
 		Product: hermes.Product{
 			Name: "Wowo Sawit",
 			Link: "",
-			Logo: logoUrl,
+			Logo: logoUrl.SignedURL,
 		},
 	}
 

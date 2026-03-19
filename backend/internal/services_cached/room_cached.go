@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"mime/multipart"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -63,6 +64,11 @@ func (r *cachedRoomServices) IsMember(room_id string, user_id uint) (bool, error
 	return false, nil
 }
 
+// FindAllStickers implements [core.RoomServices].
+func (r *cachedRoomServices) FindAllStickers(ctx context.Context, filter string, category string) ([]dto.StickerResponse, error) {
+	panic("unimplemented")
+}
+
 // GetAllRoomMembers implements [core.RoomServices].
 func (r *cachedRoomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error) {
 	cacheKey := "room:members:" + room_id
@@ -95,6 +101,11 @@ func (r *cachedRoomServices) MakePrivateRoom(ctx context.Context, user_id uint, 
 	return "", nil
 }
 
+// SendImage implements [core.RoomServices].
+func (r *cachedRoomServices) SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
+	panic("unimplemented")
+}
+
 // TakeChatHistory implements [core.RoomServices].
 func (r *cachedRoomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error) {
 	return nil, nil
@@ -103,6 +114,16 @@ func (r *cachedRoomServices) TakeChatHistory(ctx context.Context, room_id string
 // KickUser implements [core.RoomServices].
 func (r *cachedRoomServices) KickUser(ctx context.Context, room_id string, target_id uint) error {
 	return nil
+}
+
+// RemoveMessage implements [core.RoomServices].
+func (r *cachedRoomServices) RemoveMessage(ctx context.Context, msgId string) error {
+	panic("unimplemented")
+}
+
+// RemoveMultipleMessages implements [core.RoomServices].
+func (r *cachedRoomServices) RemoveMultipleMessages(ctx context.Context, req dto.MultipleMsgDeleteReq) error {
+	panic("unimplemented")
 }
 
 // JoinRoom implements [core.RoomServices].
@@ -146,6 +167,11 @@ func (r *cachedRoomServices) MakeAdmin(ctx context.Context, room_id string, targ
 // UpdateLastReadMessages implements [core.RoomServices].
 func (r *cachedRoomServices) UpdateLastReadMessages(ctx context.Context, room_id string) error {
 	return nil
+}
+
+// UpdateMessage implements [core.RoomServices].
+func (r *cachedRoomServices) UpdateMessage(ctx context.Context, msgId string, req *dto.MessageUpdateRequest) error {
+	panic("unimplemented")
 }
 
 // FindMessageByID implements [core.RoomServices].

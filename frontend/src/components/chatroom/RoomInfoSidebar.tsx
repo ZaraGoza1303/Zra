@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { X, User, Users, Pencil, UserPlus, Bell, Star, AlertTriangle, LogOut, Copy } from 'lucide-react';
-import { useAuthStore } from '../../store/authStore';
+import { X, User, Users, Pencil, UserPlus, AlertTriangle, LogOut, Copy } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
-import { FRONTEND_JOIN_URL, getUserImageUrl } from '../../config';
+import { FRONTEND_JOIN_URL, getUserImageUrl, getRoomImageUrl } from '../../config';
 import { useToastStore } from '../../store/toastStore';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ImageCropModal from '../ImageCropModal';
@@ -33,7 +32,6 @@ export default function RoomInfoSidebar({
     handleRoomAction,
     onClose,
     onAddMember,
-    onBack,
     onRefresh,
     roomType,
     onlineUserIds
@@ -141,7 +139,7 @@ export default function RoomInfoSidebar({
                                             <div key={room.id} className="flex items-center gap-2.5">
                                                 <div className="w-8 h-8 rounded-lg bg-[#1c2128] border border-white/5 overflow-hidden shrink-0 flex items-center justify-center">
                                                     {room.picture ? (
-                                                        <img src={room.picture} alt={room.name} className="w-full h-full object-cover" />
+                                                        <img src={getRoomImageUrl(room.picture)} alt={room.name} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <Users size={14} className="text-[#8b949e]" />
                                                     )}
@@ -165,7 +163,7 @@ export default function RoomInfoSidebar({
                         <div className="relative w-[104px] h-[104px] group/avatar mb-4">
                             <div className="w-full h-full rounded-full bg-[#2a3441] flex items-center justify-center overflow-hidden shadow-xl border border-white/5">
                                 {roomDetails?.picture || roomPicture ? (
-                                    <img src={roomDetails?.picture || roomPicture} alt={roomName} className="w-full h-full object-cover" />
+                                    <img src={getRoomImageUrl(roomDetails?.picture || roomPicture)} alt={roomName} className="w-full h-full object-cover" />
                                 ) : (
                                     <Users size={40} className="text-[#8b949e]" />
                                 )}

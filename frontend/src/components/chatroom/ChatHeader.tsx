@@ -1,6 +1,7 @@
 // No need for React import 
 import { ArrowLeft, User, Users, Video, Phone, MoreHorizontal } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
+import { getRoomImageUrl } from '../../config';
 
 interface ChatHeaderProps {
     roomId: string;
@@ -44,7 +45,7 @@ export default function ChatHeader({
                     onClick={onOpenInfoModal}
                 >
                     {roomDetails?.picture || roomPicture ? (
-                        <img src={roomDetails?.picture || roomPicture} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
+                        <img src={getRoomImageUrl(roomDetails?.picture || roomPicture)} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
                     ) : (
                         <div className="w-10 h-10 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
                             {isPrivate ? <User size={18} /> : <Users size={18} />}
