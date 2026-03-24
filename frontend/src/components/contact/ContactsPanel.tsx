@@ -192,7 +192,7 @@ export default function ContactsPanel({
     if (!isVisible) return null;
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-[#0d1117] overflow-hidden animate-fade-in relative">
+        <div className="flex-1 flex flex-col h-full bg-[#0b0e11] overflow-hidden animate-fade-in relative">
             {selectedUser && (
                 <UserDetailDrawer
                     user={selectedUser}

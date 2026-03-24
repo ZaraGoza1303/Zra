@@ -21,6 +21,22 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const isPendingRoom = roomId.startsWith('pending:');
     const messageInputRef = useRef<MessageInputHandle>(null);
     const resolvedRoomId = useRef<string>('');
+    
+    // Refs for stable dependencies in useEffect
+    const userRef = useRef(user);
+    const tokenRef = useRef(token);
+    const privatePartnerInfoRef = useRef(privatePartnerInfo);
+    const isPrivateRef = useRef(isPrivate);
+    
+    // Keep refs updated
+    userRef.current = user;
+    tokenRef.current = token;
+    privatePartnerInfoRef.current = privatePartnerInfo;
+    isPrivateRef.current = isPrivate;
+    
+    // Ref to prevent concurrent initialization
+    const isInitializing = useRef(false);
+    
     const {
         messages, setMessages,
         input, setInput,
@@ -557,8 +573,12 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     }, [messages]);
 
     useEffect(() => {
-        console.log('[DEBUG-USEFFECT-MAIN] Triggered! roomId:', roomId, 'isPendingRoom:', isPendingRoom, 'user:', !!user, 'token:', !!token);
-        if (!roomId || !user || !token) {
+        // Use refs for stable values
+        const currentUser = userRef.current;
+        const currentToken = tokenRef.current;
+        
+        console.log('[DEBUG-USEFFECT-MAIN] Triggered! roomId:', roomId, 'isPendingRoom:', isPendingRoom, 'user:', !!currentUser, 'token:', !!currentToken);
+        if (!roomId || !currentUser || !currentToken) {
             console.log('[DEBUG-USEFFECT-MAIN] Early return - missing roomId/user/token');
             return;
         }
@@ -567,13 +587,14 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             console.log('[DEBUG-USEFFECT] Pending room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
             
             // Set partner info immediately from props so header shows it
-            if (privatePartnerInfo) {
-                console.log('[DEBUG-USEFFECT] Setting privatePartner:', privatePartnerInfo);
+            const partnerInfo = privatePartnerInfoRef.current;
+            if (partnerInfo) {
+                console.log('[DEBUG-USEFFECT] Setting privatePartner:', partnerInfo);
                 setPrivatePartner({
-                    user_id: privatePartnerInfo.user_id,
-                    username: privatePartnerInfo.username,
-                    user_profile_picture: privatePartnerInfo.user_profile_picture,
-                    user_bio: privatePartnerInfo.user_bio,
+                    user_id: partnerInfo.user_id,
+                    username: partnerInfo.username,
+                    user_profile_picture: partnerInfo.user_profile_picture,
+                    user_bio: partnerInfo.user_bio,
                 });
             }
 
@@ -624,18 +645,39 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         // Real Room Initialization
         // Only reset if this is NOT the room we just resolved (prevents message disappearance)
         console.log('[DEBUG-USEFFECT] Real room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
+        
+        // Guard: prevent concurrent initialization
+        if (isInitializing.current) {
+            console.log('[DEBUG-USEFFECT] Already initializing, skipping');
+            return;
+        }
+        
         if (resolvedRoomId.current !== roomId) {
+            // Mark as initializing
+            isInitializing.current = true;
             console.log('[DEBUG-USEFFECT] Room changed, will fetch history and connect WS');
+            
             setIsKicked(false);
             resetChatState();
-            fetchChatHistory();
-            connectWs();
-            resolvedRoomId.current = roomId;
+            
+            // Sequential execution: fetch history first, then connect WS
+            (async () => {
+                try {
+                    await fetchChatHistory();
+                    connectWs();
+                    resolvedRoomId.current = roomId;
+                    console.log('[DEBUG-USEFFECT] Room initialization complete');
+                } catch (error) {
+                    console.error('[DEBUG-USEFFECT] Room initialization failed:', error);
+                } finally {
+                    isInitializing.current = false;
+                }
+            })();
         } else {
             console.log('[DEBUG-USEFFECT] Room SAME, skipping fetch');
         }
 
-        if (isPrivate) {
+        if (isPrivateRef.current) {
             fetchRoomMembers();
             fetchPartnerInfo();
         }
@@ -643,6 +685,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         return () => {
             // Cleanup: Only close the WS if we are actually moving to a DIFFERENT room
             // and NOT if we are in the middle of resolving one.
+            isInitializing.current = false;
+            resolvedRoomId.current = '';
+            
             if (ws.current) {
                 const wsRoomId = (ws.current as any).roomId;
                 if (wsRoomId !== resolvedRoomId.current) {
@@ -651,7 +696,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 }
             }
         };
-    }, [roomId, isPendingRoom, user, token, resetChatState, privatePartnerInfo, setPrivatePartner, isPrivate]);
+    }, [roomId, isPendingRoom]); // Using refs for stable values - only trigger on roomId/isPendingRoom change
 
 
     const fetchCounts = async () => {
@@ -876,7 +921,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     };
 
     return (
-        <div className="flex h-full w-full bg-[#0d1117] overflow-hidden">
+        <div className="flex h-full w-full bg-[#0b0e11] overflow-hidden">
             {/* Main Chat Area */}
             <div className="flex flex-col flex-1 min-w-0">
                 <ChatHeader
@@ -904,7 +949,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 />
 
                 {isKicked ? (
-                    <div className="px-5 py-4 border-t border-white/5 bg-[#0d1117] flex items-center justify-center gap-3">
+                    <div className="px-5 py-4 border-t border-white/5 bg-[#0b0e11] flex items-center justify-center gap-3">
                         <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
                             <span>You've been removed from this room.</span>
                         </div>

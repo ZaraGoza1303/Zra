@@ -115,14 +115,14 @@ export default function RoomInfoSidebar({
                             </div>
 
                             {privatePartner.user_bio && (
-                                <div className="w-full mt-4 bg-[#0d1117] p-4 rounded-xl border border-white/5">
+                                <div className="w-full mt-4 bg-[#0b0e11] p-4 rounded-xl border border-white/5">
                                     <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-2">Bio</p>
                                     <p className="text-[14px] text-[#cdd9f0] leading-relaxed">{privatePartner.user_bio}</p>
                                 </div>
                             )}
 
                             {privatePartner.created_at && (
-                                <div className="w-full mt-3 bg-[#0d1117] p-4 rounded-xl border border-white/5">
+                                <div className="w-full mt-3 bg-[#0b0e11] p-4 rounded-xl border border-white/5">
                                     <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-2">Joined</p>
                                     <p className="text-[14px] text-[#cdd9f0]">
                                         {new Date(privatePartner.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -131,7 +131,7 @@ export default function RoomInfoSidebar({
                             )}
 
                             {mutualRooms.length > 0 && (
-                                <div className="w-full mt-3 bg-[#0d1117] p-4 rounded-xl border border-white/5">
+                                <div className="w-full mt-3 bg-[#0b0e11] p-4 rounded-xl border border-white/5">
                                     <p className="text-[11px] font-bold text-[#8b949e] tracking-widest uppercase mb-3">
                                         {mutualRooms.length} Mutual Room{mutualRooms.length > 1 ? 's' : ''}
                                     </p>
@@ -203,7 +203,7 @@ export default function RoomInfoSidebar({
                                     autoFocus
                                     value={editName}
                                     onChange={e => setEditName(e.target.value)}
-                                    className="bg-[#0d1117] border border-blue-500/50 rounded-lg px-3 py-1.5 text-[#e6edf3] text-[15px] font-bold outline-none"
+                                    className="bg-[#0b0e11] border border-blue-500/50 rounded-lg px-3 py-1.5 text-[#e6edf3] text-[15px] font-bold outline-none"
                                     onKeyDown={e => {
                                         if (e.key === 'Enter') withRefresh(() => handleUpdateRoom('name', editName));
                                         if (e.key === 'Escape') setEditingName(false);
@@ -258,7 +258,7 @@ export default function RoomInfoSidebar({
                                     value={editDesc}
                                     onChange={e => setEditDesc(e.target.value)}
                                     rows={3}
-                                    className="bg-[#0d1117] border border-blue-500/50 rounded-lg px-3 py-2 text-[#e6edf3] text-[14px] outline-none resize-none font-[inherit]"
+                                    className="bg-[#0b0e11] border border-blue-500/50 rounded-lg px-3 py-2 text-[#e6edf3] text-[14px] outline-none resize-none font-[inherit]"
                                 />
                                 <div className="flex gap-2">
                                     <button
@@ -396,7 +396,7 @@ export default function RoomInfoSidebar({
                     <div className="flex flex-col p-6 border-b border-[#21262d] shrink-0">
                         <h3 className="text-[11px] font-bold text-[#8b949e] tracking-[0.1em] uppercase mb-4">Room Link</h3>
                         <div className="flex items-center gap-2">
-                            <div className="flex-1 px-3 py-2.5 bg-[#0d1117] border border-white/10 rounded-xl text-[13px] text-[#8b949e] truncate">
+                            <div className="flex-1 px-3 py-2.5 bg-[#0b0e11] border border-white/10 rounded-xl text-[13px] text-[#8b949e] truncate">
                                 {roomDetails?.room_link ? `${FRONTEND_JOIN_URL}/${roomDetails.room_link}` : '-'}
                             </div>
                             <button

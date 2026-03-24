@@ -36,7 +36,7 @@ export default function NavSidebar({
     ];
 
     return (
-        <div className="flex flex-col items-center py-5 px-2 gap-2 w-16 min-w-[64px] bg-[#0d1117] border-r border-white/5 z-10">
+        <div className="flex flex-col items-center py-5 px-2 gap-2 w-16 min-w-[64px] bg-[#0b0e11] border-r border-white/5 z-10">
             <div
                 onClick={() => onNavChange('home')}
                 className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30 cursor-pointer hover:bg-blue-700 transition-colors"

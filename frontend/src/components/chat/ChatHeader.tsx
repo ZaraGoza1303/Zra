@@ -30,7 +30,7 @@ export default function ChatHeader({
 
     return (
 
-        <div className="flex items-center justify-between px-5 py-3.5 bg-[#0d1117] border-b border-white/5 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-[#0b0e11] border-b border-white/5 shrink-0">
             <div className="flex items-center gap-3">
                 {onBack && (
                     <button

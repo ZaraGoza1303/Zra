@@ -41,4 +41,7 @@ export interface ContactsPanelProps {
     onlineUserIds?: Set<number>;
 }
 
-export type UnreadNotif = { type: string; count: number };
+export interface UnreadNotif {
+    friend_requests: number;
+    friend_accepted: number;
+}

@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
+import { useThemeStore } from './store/themeStore';
 import { refreshToken as apiRefreshToken } from './services/api';
 
 import Login from './pages/Login';
@@ -117,6 +118,11 @@ function App() {
       }
     };
   }, [token, user, scheduleNextRefresh]);
+
+  // Apply theme on app mount
+  useEffect(() => {
+    useThemeStore.getState().applyTheme();
+  }, []);
 
   return (
     <Router>

@@ -90,6 +90,8 @@ export interface User {
     bio: string;
     profile_picture?: string;
     refresh_token?: string;
+    provider?: string;
+    created_at?: string;
 }
 
 export interface ProfileModalProps {

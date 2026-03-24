@@ -249,7 +249,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                             </div>
 
                             {/* Preview area */}
-                            <div className="relative bg-[#0d1117] flex items-center justify-center" style={{ minHeight: 200, maxHeight: 380 }}>
+                            <div className="relative bg-[#0b0e11] flex items-center justify-center" style={{ minHeight: 200, maxHeight: 380 }}>
                                 <img
                                     src={previewUrl}
                                     alt="preview"
@@ -290,7 +290,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                     onChange={e => setCaption(e.target.value)}
                                     onKeyDown={handleCaptionKeyDown}
                                     disabled={uploadingImage}
-                                    className="flex-1 px-4 py-2.5 bg-[#0d1117] border border-white/10 rounded-xl text-sm
+                                    className="flex-1 px-4 py-2.5 bg-[#0b0e11] border border-white/10 rounded-xl text-sm
                                         text-[#e6edf3] placeholder-[#8b949e] outline-none
                                         focus:border-blue-500/50 transition-colors disabled:opacity-40"
                                 />
@@ -308,7 +308,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                     </div>
                 )}
 
-                <div className="px-5 py-4 bg-[#0d1117] shrink-0">
+                <div className="px-5 py-4 bg-[#0b0e11] shrink-0">
 
                     {/* Reply preview */}
                     {replyTo && (
@@ -405,7 +405,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                         {activeTab === 'sticker' && (
                                             <div>
                                                 <div className="px-3 pt-3 pb-1">
-                                                    <div className="flex items-center gap-2 px-3 py-2 bg-[#0d1117] border border-white/10 rounded-xl focus-within:border-blue-500/50 transition-colors">
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-[#0b0e11] border border-white/10 rounded-xl focus-within:border-blue-500/50 transition-colors">
                                                         <Search size={14} className="text-[#8b949e] shrink-0" />
                                                         <input
                                                             ref={searchRef}
@@ -464,8 +464,8 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                                                         <img src={sticker.url} alt={sticker.name} className="w-full h-full object-contain" />
                                                                     </button>
                                                                     <div className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 z-50 opacity-0 group-hover/sticker:opacity-100 transition-opacity duration-150">
-                                                                        <div className="w-2 h-2 bg-[#0d1117] border-l border-t border-white/10 rotate-45 mx-auto -mb-1" />
-                                                                        <div className="px-2 py-1 bg-[#0d1117] border border-white/10 rounded-lg text-[10px] text-[#e6edf3] whitespace-nowrap shadow-lg">
+                                                                        <div className="w-2 h-2 bg-[#0b0e11] border-l border-t border-white/10 rotate-45 mx-auto -mb-1" />
+                                                                        <div className="px-2 py-1 bg-[#0b0e11] border border-white/10 rounded-lg text-[10px] text-[#e6edf3] whitespace-nowrap shadow-lg">
                                                                             {sticker.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ')}
                                                                         </div>
                                                                     </div>
