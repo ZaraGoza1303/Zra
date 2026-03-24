@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Phone, PhoneOff, Video } from 'lucide-react';
 
 interface IncomingCallPopupProps {
@@ -10,8 +10,6 @@ interface IncomingCallPopupProps {
 }
 
 export default function IncomingCallPopup({ callerName, callerPicture, withVideo, onAccept, onReject }: IncomingCallPopupProps) {
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-
     useEffect(() => {
         let ctx: AudioContext | null = null;
         let stopped = false;

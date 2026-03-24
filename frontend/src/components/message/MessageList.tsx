@@ -5,6 +5,9 @@ import { getUserImageUrl, apiCall } from '../../services/api';
 import { User, Pencil, Trash2, Check, X as XIcon } from 'lucide-react';
 import type { Message } from '../../types/chat';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import ReplyPreview from './ReplyPreview';
+import Lightbox from './Lightbox';
+import { getDateLabel, formatMsgTime } from '../../utils/dateUtils';
 
 interface MessageListProps {
     messagesEndRef: React.RefObject<HTMLDivElement | null>;
@@ -97,21 +100,6 @@ export default function MessageList({
         });
     };
 
-    const getDateLabel = (timestamp: string) => {
-        const d = new Date(timestamp);
-        const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        if (d.toDateString() === today.toDateString()) return 'TODAY';
-        if (d.toDateString() === yesterday.toDateString()) return 'YESTERDAY';
-        return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase();
-    };
-
-    const formatMsgTime = (timestamp: string) => {
-        const d = new Date(timestamp);
-        return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    };
-
     // ─── Edit ─────────────────────────────────────────────────────────────────
     const startEdit = (msg: Message) => {
         setEditingId(msg.id);
@@ -133,6 +121,7 @@ export default function MessageList({
         try {
             const formData = new FormData();
             if (msg.type === 'image') {
+                formData.append('content', msg.content);
                 formData.append('caption', editCaption);
             } else {
                 formData.append('content', editContent.trim());
@@ -259,28 +248,6 @@ export default function MessageList({
                         )}
                     </div>
                 )}
-            </div>
-        );
-    };
-
-    const ReplyPreview = ({ replyTo, isMe }: { replyTo: Message['reply_to']; isMe: boolean }) => {
-        if (!replyTo) return null;
-        return (
-            <div className={`flex items-stretch gap-2 mb-2 rounded-md overflow-hidden text-xs
-                ${isMe ? 'bg-blue-950/40' : 'bg-white/[0.07]'}`}>
-                <div className="w-[3px] bg-blue-400 shrink-0" />
-                <div className="px-3 py-2 min-w-0">
-                    <span className="text-blue-400 font-semibold block mb-0.5 pb-1">{replyTo.username}</span>
-                    {replyTo.type === 'sticker' ? (
-                        <img src={replyTo.content} alt="sticker" className="w-10 h-10 object-contain" />
-                    ) : replyTo.type === 'image' ? (
-                        <img src={replyTo.content} alt="image" className="w-16 h-12 object-cover rounded-sm" />
-                    ) : (
-                        <p className={`truncate italic ${isMe ? 'text-[#cdd9f0]/60' : 'text-[#8b949e]'}`}>
-                            {replyTo.content}
-                        </p>
-                    )}
-                </div>
             </div>
         );
     };
@@ -625,17 +592,7 @@ export default function MessageList({
 
             {/* Lightbox */}
             {lightboxUrl && (
-                <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center"
-                    onClick={() => setLightboxUrl(null)}>
-                    <button onClick={() => setLightboxUrl(null)}
-                        className="absolute top-4 right-4 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-all">
-                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                        </svg>
-                    </button>
-                    <img src={lightboxUrl} alt="preview" onClick={e => e.stopPropagation()}
-                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl" />
-                </div>
+                <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
             )}
         </div>
     );

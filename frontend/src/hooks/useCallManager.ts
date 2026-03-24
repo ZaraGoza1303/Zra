@@ -15,10 +15,9 @@ export interface CallInfo {
 
 interface UseCallManagerProps {
     sendSignal: (type: string, payload: object, toId: number) => void;
-    currentUserId?: number;
 }
 
-export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProps) {
+export function useCallManager({ sendSignal }: UseCallManagerProps) {
     const [callState, setCallState] = useState<CallState>('idle');
     const [callInfo, setCallInfo] = useState<CallInfo | null>(null);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -50,7 +49,6 @@ export function useCallManager({ sendSignal, currentUserId }: UseCallManagerProp
         endCall,
         toggleMute: webRTCToggleMute,
         toggleVideo,
-        localStreamRef,
     } = useWebRTC({
         onRemoteStream: (stream) => {
             const hasLiveAudio = stream.getAudioTracks().some(t => !t.muted && t.readyState === 'live');

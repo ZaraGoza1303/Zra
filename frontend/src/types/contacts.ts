@@ -34,6 +34,8 @@ export interface ContactsPanelProps {
     onOpenDM: (roomId: string, targetName: string, targetPicture?: string, targetUserId?: number) => void;
     friendRequestNotif?: number;
     friendAcceptedNotif?: number;
+    setFriendRequestNotif?: (count: number | ((prev: number) => number)) => void;
+    setFriendAcceptedNotif?: (count: number | ((prev: number) => number)) => void;
     onRequestTabOpen?: () => void;
     onFriendsTabOpen?: () => void;
     onlineUserIds?: Set<number>;

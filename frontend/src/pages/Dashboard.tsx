@@ -10,8 +10,8 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useDashboardStore } from '../store/dashboardStore';
 import { apiCall, getRoomImageUrl, getUserImageUrl } from '../services/api';
-import ChatRoom from '../components/ChatRoom';
-import ContactsPanel from '../components/contacts/ContactsPanel';
+import ChatRoom from '../components/chat/ChatRoom';
+import ContactsPanel from '../components/contact/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
 import { useSearchParams } from 'react-router-dom';
 import type { LastMessage, Room } from '../types/chat';
@@ -82,10 +82,7 @@ export default function Dashboard() {
 
         ws.onopen = () => {
             console.log('Global WS connected');
-            // Kasih delay biar backend Hub sempet register user ini ke GlobalClients map 
-            setTimeout(() => {
-                fetchOnlineUsers();
-            }, 500);
+            fetchOnlineUsers();
         };
 
         ws.onmessage = (event) => {
@@ -158,6 +155,10 @@ export default function Dashboard() {
                         console.log('State updated. Current online IDs:', Array.from(next));
                         return next;
                     });
+                }
+
+                if (msg.type === 'added-to-room') {
+                    fetchRooms();
                 }
 
             } catch (e) {
@@ -313,8 +314,8 @@ export default function Dashboard() {
         }
     };
 
-    const handleOpenDM = (roomId: string, targetName: string, targetPicture?: string) => {
-        setDmRoom({ id: roomId, name: targetName, picture: targetPicture });
+    const handleOpenDM = (roomId: string, targetName: string, targetPicture?: string, partnerId?: number) => {
+        setDmRoom({ id: roomId, name: targetName, picture: targetPicture, partnerId });
         setActiveNav('chats'); // switch ke tab chats
     };
 
@@ -418,7 +419,7 @@ export default function Dashboard() {
     ];
 
     const formatLastMessage = (msg?: LastMessage) => {
-        if (!msg) return null;
+        if (!msg || !msg.content) return null;
         if (msg.type === 'sticker') {
             return (
                 <span className="flex items-center gap-1">
@@ -519,14 +520,8 @@ export default function Dashboard() {
                 onOpenDM={handleOpenDM}
                 friendRequestNotif={friendRequestNotif}
                 friendAcceptedNotif={friendAcceptedNotif}
-                onRequestTabOpen={() => {
-                    setFriendRequestNotif(0);
-                    apiCall('/user/read-notifications', { method: 'PUT' }).catch(console.error);
-                }}
-                onFriendsTabOpen={() => {
-                    setFriendAcceptedNotif(0);
-                    apiCall('/user/read-notifications', { method: 'PUT' }).catch(console.error);
-                }}
+                setFriendRequestNotif={setFriendRequestNotif}
+                setFriendAcceptedNotif={setFriendAcceptedNotif}
                 onlineUserIds={onlineUserIds}
             />
 
@@ -625,9 +620,9 @@ export default function Dashboard() {
                                             <div className="flex items-center justify-between mt-0.5">
                                                 <span className="text-xs text-[#8b949e] flex items-center gap-1 min-w-0">
                                                     <span className="truncate">
-                                                        {room.last_message
+                                                        {room.last_message && formatLastMessage(room.last_message)
                                                             ? formatLastMessage(room.last_message)
-                                                            : (room.type === 'private' ? 'No messages yet' : 'Tap to join chat')
+                                                            : 'No messages yet'
                                                         }
                                                     </span>
                                                 </span>
@@ -653,55 +648,63 @@ export default function Dashboard() {
             )}
 
             {/* CHAT AREA */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117]">
-                {selectedRoom || dmRoom ? (
-                    <ChatRoom
-                        key={dmRoom ? `dm-${dmRoom.id}` : `room-${selectedRoom!.id}`}
-                        roomId={dmRoom ? dmRoom.id : selectedRoom!.id}
-                        roomName={dmRoom ? dmRoom.name : getRoomDisplayInfo(selectedRoom!).name}
-                        roomPicture={dmRoom
-                            ? (dmRoom.picture ? getUserImageUrl(dmRoom.picture) : undefined)
-                            : (getRoomDisplayInfo(selectedRoom!).picture || undefined)
-                        }
-                        roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
-                        onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
-                        onNewMessage={(msgRoomId, message) => {
-                            const { selectedRoom, dmRoom, rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
-                            const isActiveRoom = selectedRoom?.id === msgRoomId || dmRoom?.id === msgRoomId;
+            {activeNav !== 'contacts' && activeNav !== 'settings' && (
+                <div className="flex-1 flex flex-col min-w-0 bg-[#0d1117]">
+                    {selectedRoom || dmRoom ? (
+                        <ChatRoom
+                            key={dmRoom ? `dm-${dmRoom.id}` : `room-${selectedRoom!.id}`}
+                            roomId={dmRoom ? dmRoom.id : selectedRoom!.id}
+                            roomName={dmRoom ? dmRoom.name : getRoomDisplayInfo(selectedRoom!).name}
+                            roomPicture={dmRoom
+                                ? (dmRoom.picture ? getUserImageUrl(dmRoom.picture) : undefined)
+                                : (getRoomDisplayInfo(selectedRoom!).picture || undefined)
+                            }
+                            roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
+                            onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
+                            onNewMessage={(msgRoomId, message) => {
+                                const { selectedRoom, dmRoom, rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
+                                const isActiveRoom = selectedRoom?.id === msgRoomId || dmRoom?.id === msgRoomId;
 
-                            const updater = (r: Room) => r.id === msgRoomId
-                                ? { ...r, last_message: message, unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1 }
-                                : r;
+                                const updater = (r: Room) => r.id === msgRoomId
+                                    ? { ...r, last_message: message, unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1 }
+                                    : r;
 
-                            setRooms(sortByLatest(rooms.map(updater)));
-                            setAllRooms(sortByLatest(allRooms.map(updater)));
-                        }}
-                        onRoomResolved={(resolvedRoomId) => {
-                            const { dmRoom } = useDashboardStore.getState();
-                            setDmRoom(dmRoom ? { ...dmRoom, id: resolvedRoomId } : null);
-                        }}
-                        onlineUserIds={onlineUserIds}
-                    />
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-[#8b949e] text-center gap-4">
-                        <div className="w-24 h-24 rounded-full bg-white/3 border border-white/5 flex items-center justify-center">
-                            <MessageSquare size={40} className="opacity-20" />
+                                setRooms(sortByLatest(rooms.map(updater)));
+                                setAllRooms(sortByLatest(allRooms.map(updater)));
+                            }}
+                            onRoomResolved={(resolvedRoomId) => {
+                                fetchRooms();
+                                const { dmRoom } = useDashboardStore.getState();
+                                setDmRoom(dmRoom ? { ...dmRoom, id: resolvedRoomId } : null);
+                            }}
+                            onlineUserIds={onlineUserIds}
+                            privatePartnerInfo={dmRoom && dmRoom.partnerId ? {
+                                user_id: dmRoom.partnerId,
+                                username: dmRoom.name,
+                                user_profile_picture: dmRoom.picture || undefined,
+                            } : undefined}
+                        />
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-[#8b949e] text-center gap-4">
+                            <div className="w-24 h-24 rounded-full bg-white/3 border border-white/5 flex items-center justify-center">
+                                <MessageSquare size={40} className="opacity-20" />
+                            </div>
+                            <div>
+                                <h2 className="text-[#e6edf3] font-semibold text-xl mb-1">Select a Conversation</h2>
+                                <p className="text-sm max-w-xs leading-relaxed">
+                                    Pick a room from the sidebar to start messaging, or create a new one.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsModalOpen(true)}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/30"
+                            >
+                                <Plus size={16} /> New Room
+                            </button>
                         </div>
-                        <div>
-                            <h2 className="text-[#e6edf3] font-semibold text-xl mb-1">Select a Conversation</h2>
-                            <p className="text-sm max-w-xs leading-relaxed">
-                                Pick a room from the sidebar to start messaging, or create a new one.
-                            </p>
-                        </div>
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/30"
-                        >
-                            <Plus size={16} /> New Room
-                        </button>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
 
             {/* CREATE ROOM MODAL */}
             {isModalOpen && (

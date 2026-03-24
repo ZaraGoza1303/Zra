@@ -108,14 +108,15 @@ func main() {
 	userRepository := repositories.NewUser(db)
 	userService := services.NewUser(userRepository, hub)
 
-	authRepository := repositories.NewAuth(db, *rdb)
+	authRepository := repositories.NewAuth(db)
 	authService := services.NewAuth(authRepository, userRepository, userService, storageService)
+	cachedAuthService := services_cached.NewCachedAuthServices(authService, authRepository, rdb)
 
 	roomRepository := repositories.NewRoom(db)
 	roomService := services.NewRoomServices(hub, roomRepository, userRepository, storageService)
 	cachedRoomServices := services_cached.NewCachedRoomServices(roomService, rdb)
 
-	handler.NewAuth(app, authService, userService, jwtWare)
+	handler.NewAuth(app, cachedAuthService, userService, jwtWare)
 	handler.NewUser(app, userService, storageService, jwtWare)
 	handler.NewRoom(app, roomService, cachedRoomServices, storageService, jwtWare)
 	handler.NewWebSocket(app, hub, roomService, cachedRoomServices, userService, middleware.WebsocketMiddleware(rdb))

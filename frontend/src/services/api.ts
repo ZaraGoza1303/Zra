@@ -1,5 +1,6 @@
-// src/services/api.ts (updated with interceptor pattern)
-import { API_BASE_URL, getRoomImageUrl, getUserImageUrl } from "../config";
+// src/services/api.ts
+import { API_BASE_URL } from "../config";
+import { getRoomImageUrl, getUserImageUrl } from "../utils/imageUtils";
 
 // Re-export helper functions untuk kemudahan
 export { getRoomImageUrl, getUserImageUrl };

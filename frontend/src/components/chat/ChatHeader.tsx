@@ -1,7 +1,7 @@
 // No need for React import 
 import { ArrowLeft, User, Users, Video, Phone, MoreHorizontal } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
-import { getRoomImageUrl } from '../../config';
+import { getRoomImageUrl } from '../../utils/imageUtils';
 
 interface ChatHeaderProps {
     roomId: string;

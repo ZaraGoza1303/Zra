@@ -1,18 +1,18 @@
 // src/components/ChatRoom.tsx
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAuthStore } from '../store/authStore';
-import { useChatStore } from '../store/chatStore';
-import { apiCall } from '../services/api';
-import { BACKEND_URL } from '../config';
-import ChatHeader from './chatroom/ChatHeader';
-import MessageList from './chatroom/MessageList';
-import MessageInput, { type MessageInputHandle } from './chatroom/MessageInput';
-import RoomInfoSidebar from './chatroom/RoomInfoSidebar';
-import PreviewPictureModal from './chatroom/PreviewPictureModal';
-import MembersModal from './chatroom/MembersModal';
-import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } from '../types/chat';
-import { useDashboardStore } from '../store/dashboardStore';
-import { useToastStore } from '../store/toastStore';
+import { useAuthStore } from '../../store/authStore';
+import { useChatStore } from '../../store/chatStore';
+import { apiCall } from '../../services/api';
+import { BACKEND_URL } from '../../config';
+import ChatHeader from './ChatHeader';
+import MessageList from '../message/MessageList';
+import MessageInput, { type MessageInputHandle } from '../message/MessageInput';
+import RoomInfoSidebar from './RoomInfoSidebar';
+import PreviewPictureModal from '../ui/PreviewPictureModal';
+import MembersModal from './MembersModal';
+import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } from '../../types/chat';
+import { useDashboardStore } from '../../store/dashboardStore';
+import { useToastStore } from '../../store/toastStore';
 
 export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds, privatePartnerInfo }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
@@ -95,6 +95,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
     // AFTER
     const fetchChatHistory = async (lastTimestamp?: string) => {
+        console.log('[DEBUG-FETCH-HISTORY] Called with lastTimestamp:', lastTimestamp, 'roomId:', roomId);
         if (lastTimestamp) {
             setLoadingMore(true);
         } else {
@@ -104,12 +105,15 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             const url = lastTimestamp
                 ? `/room/${roomId}/history?limit=20&last_timestamp=${encodeURIComponent(lastTimestamp)}`
                 : `/room/${roomId}/history?limit=20`;
+            console.log('[DEBUG-FETCH-HISTORY] Fetching URL:', url);
 
             const resp = await apiCall<{ data: Message[] }>(url, { method: 'GET' });
+            console.log('[DEBUG-FETCH-HISTORY] Response:', resp);
             const newMessages = (resp.data || []).map((m: Message) => ({
                 ...m,
                 status: m.user_id === user?.id ? (m.is_read ? 'read' as const : 'sent' as const) : undefined,
             }));
+            console.log('[DEBUG-FETCH-HISTORY] newMessages count:', newMessages.length);
 
             if (lastTimestamp) {
                 setMessages(prev => {
@@ -123,7 +127,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
             setHasMore(newMessages.length === 20);
         } catch (e) {
-            console.error("Failed to fetch chat history", e);
+            console.error('[DEBUG-FETCH-HISTORY] Failed to fetch chat history', e);
         } finally {
             setFetchingHistory(false);
             setLoadingMore(false);
@@ -184,11 +188,38 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             if (creatingDM) return;
             setCreatingDM(true);
             const targetId = roomId.replace('pending:', '');
+            console.log('[DEBUG-STEP1] isPendingRoom:', isPendingRoom, 'targetId:', targetId);
             try {
-                const res = await apiCall<{ data: string }>(`/room/${targetId}/private`, { method: 'POST' });
-                const newRoomId = res.data;
-                resolvedRoomId.current = newRoomId;
+                // 1. Create/Get DM room
+                console.log('[DEBUG-STEP2] Creating/Getting DM room...');
+                const res = await apiCall<{ data: any }>(`/room/${targetId}/private`, { method: 'POST' });
+                console.log('[DEBUG-STEP3] Room creation response:', res);
+                
+                // Handle both array (existing room) and string (new room) response
+                let newRoomId: string;
+                if (Array.isArray(res.data)) {
+                    newRoomId = res.data[0]?.id;  // Room exists - use existing
+                    console.log('[DEBUG-STEP4] Room exists, using id:', newRoomId);
+                } else {
+                    newRoomId = res.data;  // New room - use new ID
+                    console.log('[DEBUG-STEP4] New room created, id:', newRoomId);
+                }
 
+                if (!newRoomId) {
+                    throw new Error('Failed to get room ID');
+                }
+
+                // 2. Send first message via HTTP (not WS) to ensure it's saved in DB
+                const timestamp = new Date().toISOString();
+                console.log('[DEBUG-STEP5] Sending message via HTTP...');
+                await apiCall(`/room/${newRoomId}/message`, {
+                    method: 'POST',
+                    body: JSON.stringify({ content: messageContent, local_id: localId }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                console.log('[DEBUG-STEP6] Message sent successfully');
+
+                // 3. Create optimistic message for immediate UI update
                 const optimisticMsg: Message = {
                     id: '',
                     room_id: newRoomId,
@@ -196,27 +227,28 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     content: messageContent,
                     username: user?.username || '',
                     user_id: user?.id,
-                    time_stamp: new Date().toISOString(),
+                    time_stamp: timestamp,
                     type: 'chat',
-                    status: 'pending',
+                    status: 'sent',
                     reply_to: replyTo ?? undefined,
                     reply_to_id: replyTo?.id || '',
                 };
-                setMessages(prev => [...prev, optimisticMsg]);
+                setMessages([optimisticMsg]);
                 setInput('');
+                console.log('[DEBUG-STEP7] Optimistic message set');
 
+                // 4. Trigger room resolved - ChatRoom will remount and fetchChatHistory will find the message
+                console.log('[DEBUG-STEP8] Calling onNewMessage and onRoomResolved');
+                onNewMessage?.(newRoomId, {
+                    content: messageContent,
+                    username: user?.username || '',
+                    sent_at: timestamp,
+                });
                 onRoomResolved?.(newRoomId);
-                const newWs = connectWs(newRoomId);
-                newWs.onopen = () => {
-                    newWs.send(JSON.stringify({ content: messageContent, local_id: localId, reply_to_id: replyTo?.id || '' }));
-                    onNewMessage?.(newRoomId, {
-                        content: messageContent,
-                        username: user?.username || '',
-                        sent_at: optimisticMsg.time_stamp!,
-                    });
-                    setReplyTo(null);
-                };
+                setReplyTo(null);
+                console.log('[DEBUG-STEP9] Done with onNewMessage and onRoomResolved');
             } catch (err) {
+                console.error('[DEBUG-ERROR] Failed to create DM room:', err);
                 showToast('Failed to create DM room', 'error');
             } finally {
                 setCreatingDM(false);
@@ -525,16 +557,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     }, [messages]);
 
     useEffect(() => {
-        if (!roomId || !user || !token) return;
+        console.log('[DEBUG-USEFFECT-MAIN] Triggered! roomId:', roomId, 'isPendingRoom:', isPendingRoom, 'user:', !!user, 'token:', !!token);
+        if (!roomId || !user || !token) {
+            console.log('[DEBUG-USEFFECT-MAIN] Early return - missing roomId/user/token');
+            return;
+        }
 
         if (isPendingRoom) {
-            if (resolvedRoomId.current !== roomId) {
-                resetChatState();
-                resolvedRoomId.current = roomId;
-            }
-
+            console.log('[DEBUG-USEFFECT] Pending room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
+            
             // Set partner info immediately from props so header shows it
             if (privatePartnerInfo) {
+                console.log('[DEBUG-USEFFECT] Setting privatePartner:', privatePartnerInfo);
                 setPrivatePartner({
                     user_id: privatePartnerInfo.user_id,
                     username: privatePartnerInfo.username,
@@ -542,17 +576,63 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     user_bio: privatePartnerInfo.user_bio,
                 });
             }
+
+            // Skip if already resolved to this pending room
+            if (resolvedRoomId.current === roomId) {
+                console.log('[DEBUG-USEFFECT] Already resolving this pending room, skipping');
+                return;
+            }
+
+            // Try to resolve the room ID immediately
+            const targetId = roomId.replace('pending:', '');
+            console.log('[DEBUG-USEFFECT] Resolving pending room, targetId:', targetId);
+            
+            apiCall<{ data: any }>(`/room/${targetId}/private`, { method: 'POST' })
+                .then(res => {
+                    console.log('[DEBUG-USEFFECT] Room resolution response:', res);
+                    
+                    // Handle both array (existing room) and string (new room) response
+                    let realRoomId: string | undefined;
+                    if (Array.isArray(res.data)) {
+                        realRoomId = res.data[0]?.id;  // Room exists - use existing
+                        console.log('[DEBUG-USEFFECT] Room exists, id:', realRoomId);
+                    } else {
+                        realRoomId = res.data;  // New room - use new ID
+                        console.log('[DEBUG-USEFFECT] New room created, id:', realRoomId);
+                    }
+                    
+                    if (realRoomId) {
+                        console.log('[DEBUG-USEFFECT] Resolving to room:', realRoomId);
+                        resetChatState();
+                        resolvedRoomId.current = realRoomId;
+                        onRoomResolved?.(realRoomId);
+                    } else {
+                        console.log('[DEBUG-USEFFECT] No room ID returned, waiting for first message');
+                        resetChatState();
+                        resolvedRoomId.current = roomId;
+                    }
+                })
+                .catch(err => {
+                    console.error('[DEBUG-USEFFECT] Failed to resolve room:', err);
+                    resetChatState();
+                    resolvedRoomId.current = roomId;
+                });
+
             return;
         }
 
         // Real Room Initialization
         // Only reset if this is NOT the room we just resolved (prevents message disappearance)
+        console.log('[DEBUG-USEFFECT] Real room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
         if (resolvedRoomId.current !== roomId) {
+            console.log('[DEBUG-USEFFECT] Room changed, will fetch history and connect WS');
             setIsKicked(false);
             resetChatState();
             fetchChatHistory();
             connectWs();
             resolvedRoomId.current = roomId;
+        } else {
+            console.log('[DEBUG-USEFFECT] Room SAME, skipping fetch');
         }
 
         if (isPrivate) {

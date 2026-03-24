@@ -8,7 +8,7 @@ interface DashboardState {
     allRooms: Room[];
     rooms: Room[];
     selectedRoom: Room | null;
-    dmRoom: { id: string; name: string; picture?: string | null } | null;
+    dmRoom: { id: string; name: string; picture?: string | null; partnerId?: number } | null;
     searchTerm: string;
     activeNav: NavItem;
     isModalOpen: boolean;
@@ -16,7 +16,7 @@ interface DashboardState {
     setAllRooms: (rooms: Room[]) => void;
     setRooms: (rooms: Room[]) => void;
     setSelectedRoom: (room: Room | null) => void;
-    setDmRoom: (dmRoom: { id: string; name: string; picture?: string | null } | null) => void;
+    setDmRoom: (dmRoom: { id: string; name: string; picture?: string | null; partnerId?: number } | null) => void;
     setSearchTerm: (term: string) => void;
     setActiveNav: (nav: NavItem) => void;
     setIsModalOpen: (isOpen: boolean) => void;

@@ -31,7 +31,7 @@ func (r *roomRepositories) GetAll(ctx context.Context, filter string, user_id ui
 		Joins("INNER JOIN room_members ON room_members.room_id = rooms.id").
 		Joins("LEFT JOIN messages ON messages.room_id = rooms.id").
 		Group("rooms.id").
-		Order("MAX(messages.created_at) DESC").
+		Order("COALESCE(MAX(messages.created_at), rooms.created_at) DESC").
 		Where("room_members.user_id = ?", user_id)
 
 	if filter != "" {

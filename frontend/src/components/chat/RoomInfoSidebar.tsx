@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { X, User, Users, Pencil, UserPlus, AlertTriangle, LogOut, Copy } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
-import { FRONTEND_JOIN_URL, getUserImageUrl, getRoomImageUrl } from '../../config';
+import { FRONTEND_JOIN_URL } from '../../config';
+import { getUserImageUrl, getRoomImageUrl } from '../../utils/imageUtils';
 import { useToastStore } from '../../store/toastStore';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ImageCropModal from '../ImageCropModal';

@@ -111,7 +111,6 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
 
         const handleStickerClick = (url: string) => {
             onSendSticker(url);
-            handleClosePopup();
         };
 
         // ─── Popup logic ──────────────────────────────────────────────────────────

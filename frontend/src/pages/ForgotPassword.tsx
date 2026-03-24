@@ -21,14 +21,12 @@ export default function ForgotPassword() {
         setError('');
 
         try {
-            // Ambil response dari API
             const response = await apiCall('/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email }),
             }) as { data: string };
 
-            // Simpan pesan sukses dari backend (msg di Go)
             setServerMessage(response.data || 'Check your email for reset instructions!');
             setSuccess(true);
         } catch (err: any) {
