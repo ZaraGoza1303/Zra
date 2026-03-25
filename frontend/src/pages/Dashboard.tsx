@@ -73,13 +73,13 @@ export default function Dashboard() {
     const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleCallSignalRef = useRef<((msg: any) => void) | null>(null);
     const isDashboardMounted = useRef(true);
-    
+
     // Refs for values used in WebSocket handlers to prevent re-creation
     const userRef = useRef(user);
     const activeNavRef = useRef(activeNav);
     const setRoomsRef = useRef(setRooms);
     const setAllRoomsRef = useRef(setAllRooms);
-    
+
     // Keep refs updated
     userRef.current = user;
     activeNavRef.current = activeNav;
@@ -134,40 +134,54 @@ export default function Dashboard() {
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
-                if (msg.type === 'chat') {
+                console.log('[GLOBAL-WS-RECEIVE] Type:', msg.type, 'RoomID:', msg.room_id, 'ID:', msg.id, 'UserID:', msg.user_id);
+
+                if (msg.type === 'chat' || msg.type === 'sticker' || msg.type === 'image') {
                     const { rooms, allRooms } = useDashboardStore.getState();
                     const setAllRooms = setAllRoomsRef.current;
                     const setRooms = setRoomsRef.current;
                     const activeNav = activeNavRef.current;
 
-                    const isSentByMe = msg.username === userRef.current?.username;
+                    const isSentByMe = msg.user_id === userRef.current?.id;
                     const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === msg.room_id ||
                         useDashboardStore.getState().dmRoom?.id === msg.room_id;
+
+                    const notificationMsg = {
+                        id: msg.id || `notif-${Date.now()}`,
+                        room_id: msg.room_id,
+                        user_id: msg.user_id,
+                        username: msg.username,
+                        profile_picture: msg.profile_picture,
+                        content: msg.content || 'New message',
+                        type: msg.type,
+                        time_stamp: msg.time_stamp || new Date().toISOString(),
+                        sent_at: msg.time_stamp || new Date().toISOString(),
+                    };
 
                     if (!isActiveRoom && !isSentByMe) {
                         setAllRooms(allRooms.map(r =>
                             r.id === msg.room_id
-                                ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: msg }
+                                ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
                                 : r
                         ));
                     } else {
                         setAllRooms(allRooms.map(r =>
                             r.id === msg.room_id
-                                ? { ...r, last_message: msg }
+                                ? { ...r, last_message: notificationMsg }
                                 : r
                         ));
                     }
 
-                    if (activeNav === 'home' || (activeNav === 'rooms' && msg.room_type === 'group') || (activeNav === 'chats' && msg.room_type === 'private')) {
+                    if (activeNav === 'home' || (activeNav === 'rooms') || (activeNav === 'chats')) {
                         setRooms(sortByLatest(rooms.map(r =>
-                            r.id === msg.room_id ? { ...r, last_message: msg } : r
+                            r.id === msg.room_id ? { ...r, last_message: notificationMsg } : r
                         )));
                     }
                 } else if (msg.type === 'call_signal' && handleCallSignalRef.current) {
                     handleCallSignalRef.current(msg);
-                } else if (msg.type === 'user_online') {
+                } else if (msg.type === 'user-online') {
                     setOnlineUserIds(prev => new Set([...prev, msg.user_id]));
-                } else if (msg.type === 'user_offline') {
+                } else if (msg.type === 'user-offline') {
                     setOnlineUserIds(prev => {
                         const next = new Set(prev);
                         next.delete(msg.user_id);
@@ -330,14 +344,21 @@ export default function Dashboard() {
                 globalWs.current.onclose = null;
                 globalWs.current.close();
             }
-            await apiCall('/auth/logout', { method: 'POST' });
+            await apiCall('/auth/logout', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: user?.id,
+                    refresh_token: user?.refresh_token
+                }),
+                headers: { 'Content-Type': 'application/json' }
+            });
         } catch (err) {
             console.error('Logout error:', err);
         } finally {
             logoutState();
             navigate('/login');
         }
-    }, [logoutState, navigate]);
+    }, [logoutState, navigate, user]);
 
     const handleCreateRoom = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -438,24 +459,24 @@ export default function Dashboard() {
     ];
 
     return (
-        <div className="flex w-full h-screen bg-[#0b0e11] text-[#e6edf3] overflow-hidden">
+        <div className="flex w-full h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] overflow-hidden">
 
-            {/* REFINED SIDEBAR - Color restored to black #0b0e11 */}
-            <div className={`flex flex-col py-6 px-3 gap-8 ${activeNav === 'settings' ? 'w-64 min-w-[256px]' : 'w-[72px] min-w-[72px] items-center'} bg-[#0b0e11] border-r border-white/5 z-10 transition-all duration-300`}>
+            {/* REFINED SIDEBAR */}
+            <div className={`flex flex-col py-6 px-3 gap-8 ${activeNav === 'settings' ? 'w-64 min-w-[256px]' : 'w-[72px] min-w-[72px] items-center'} bg-[var(--bg-primary)] border-r border-[var(--border-color)] z-10 transition-all duration-300`}>
                 {/* Logo & Brand */}
                 <div
                     onClick={() => setActiveNav('home')}
                     className={`flex items-center gap-3 mb-2 cursor-pointer group ${activeNav !== 'settings' ? 'justify-center' : 'px-2'}`}
                 >
-                    <div className="w-10 h-10 rounded-xl bg-[#2563eb] flex items-center justify-center shadow-lg shadow-[#2563eb]/20 group-hover:scale-105 transition-transform shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-[var(--accent-color)] flex items-center justify-center shadow-lg shadow-[var(--accent-color)]/20 group-hover:scale-105 transition-transform shrink-0">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
                             <path d="M13,2 L3,14 L12,14 L11,22 L21,10 L12,10 L13,2 Z" />
                         </svg>
                     </div>
                     {activeNav === 'settings' && (
                         <div className="animate-fade-in whitespace-nowrap overflow-hidden">
-                            <h1 className="text-sm font-bold tracking-tight text-white leading-none">Midnight</h1>
-                            <p className="text-[10px] font-bold text-[#3b82f6] tracking-widest uppercase">Cobalt Messenger</p>
+                            <h1 className="text-sm font-bold tracking-tight text-[var(--text-primary)] leading-none">Midnight</h1>
+                            <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase">Cobalt Messenger</p>
                         </div>
                     )}
                 </div>
@@ -468,23 +489,23 @@ export default function Dashboard() {
                                 onClick={() => setActiveNav(item.key)}
                                 className={`flex items-center gap-3 rounded-xl transition-all duration-200 group
                                     ${activeNav === item.key
-                                        ? 'bg-[#1c2635] text-white'
-                                        : 'text-[#94a3b8] hover:bg-white/5 hover:text-white'
+                                        ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                                     } ${activeNav === 'settings' ? 'px-4 py-3' : 'p-3 justify-center'}`}
                                 title={item.label}
                             >
-                                <span className={`transition-colors shrink-0 ${activeNav === item.key ? 'text-[#3b82f6]' : 'group-hover:text-[#3b82f6]'}`}>
+                                <span className={`transition-colors shrink-0 ${activeNav === item.key ? 'text-[var(--accent-color)]' : 'group-hover:text-[var(--accent-color)]'}`}>
                                     {item.icon}
                                 </span>
                                 {activeNav === 'settings' && <span className="text-sm font-semibold flex-1 animate-fade-in whitespace-nowrap overflow-hidden">{item.label}</span>}
 
                                 {item.key === 'contacts' && contactsNotif > 0 && (
-                                    <span className={`min-w-[18px] h-[18px] px-1 rounded-full bg-[#3b82f6] text-white text-[10px] font-bold flex items-center justify-center leading-none ${activeNav !== 'settings' ? 'absolute top-1.5 right-1.5 border-2 border-[#0b0e11]' : ''}`}>
+                                    <span className={`min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent-color)] text-[var(--text-primary)] text-[10px] font-bold flex items-center justify-center leading-none ${activeNav !== 'settings' ? 'absolute top-1.5 right-1.5 border-2 border-[var(--bg-primary)]' : ''}`}>
                                         {contactsNotif > 9 ? '9+' : contactsNotif}
                                     </span>
                                 )}
                                 {item.key === 'home' && unreadHomeOnly > 0 && activeNav !== 'home' && (
-                                    <span className={`min-w-[18px] h-[18px] px-1 rounded-full bg-[#3b82f6] text-white text-[10px] font-bold flex items-center justify-center leading-none ${activeNav !== 'settings' ? 'absolute top-1.5 right-1.5 border-2 border-[#0b0e11]' : ''}`}>
+                                    <span className={`min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent-color)] text-[var(--text-primary)] text-[10px] font-bold flex items-center justify-center leading-none ${activeNav !== 'settings' ? 'absolute top-1.5 right-1.5 border-2 border-[var(--bg-primary)]' : ''}`}>
                                         {unreadAll > 99 ? '99+' : unreadAll}
                                     </span>
                                 )}
@@ -492,7 +513,7 @@ export default function Dashboard() {
 
                             {/* Settings Sub-items with Grid Accordion Animation */}
                             {item.key === 'settings' && (
-                                <div 
+                                <div
                                     style={{
                                         display: 'grid',
                                         gridTemplateRows: activeNav === 'settings' ? '1fr' : '0fr',
@@ -503,21 +524,20 @@ export default function Dashboard() {
                                     <div className="overflow-hidden">
                                         <div className="relative mt-1 pt-2">
                                             {/* Vertical connector line */}
-                                            <div className="absolute left-1 top-4 bottom-4 w-[2px] bg-[#3b82f6]/30 rounded-full" />
-                                            
+                                            <div className="absolute left-1 top-4 bottom-4 w-[2px] bg-[var(--accent-color)]/30 rounded-full" />
+
                                             <div className="flex flex-col gap-1">
                                                 {settingsSubItems.map(sub => (
                                                     <div key={sub.key} className="relative flex items-center">
                                                         {/* Horizontal connector - only from vertical to right */}
-                                                        <div className="absolute left-1 w-2 h-[2px] bg-[#3b82f6]/50 rounded-r-full" />
-                                                        
+                                                        <div className="absolute left-1 w-2 h-[2px] bg-[var(--accent-color)]/50 rounded-r-full" />
+
                                                         <button
                                                             onClick={() => setActiveSettingsTab(sub.key)}
-                                                            className={`text-left pl-5 py-2 text-sm font-medium transition-colors capitalize whitespace-nowrap overflow-hidden ${
-                                                                activeSettingsTab === sub.key 
-                                                                    ? 'text-white' 
-                                                                    : 'text-[#94a3b8] hover:text-white'
-                                                            }`}
+                                                            className={`text-left pl-5 py-2 text-sm font-medium transition-colors capitalize whitespace-nowrap overflow-hidden ${activeSettingsTab === sub.key
+                                                                    ? 'text-[var(--text-primary)]'
+                                                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                                                }`}
                                                         >
                                                             {sub.label}
                                                         </button>
@@ -533,10 +553,10 @@ export default function Dashboard() {
                 </nav>
 
                 {/* Simple Bottom Logout */}
-                <div className={`p-2 border-t border-white/5 flex ${activeNav === 'settings' ? 'justify-start' : 'justify-center'}`}>
+                <div className={`p-2 border-t border-[var(--border-color)] flex ${activeNav === 'settings' ? 'justify-start' : 'justify-center'}`}>
                     <button
                         onClick={handleLogout}
-                        className={`flex items-center gap-3 text-[#94a3b8] hover:text-red-400 transition-colors group ${activeNav === 'settings' ? 'px-2 py-2' : ''}`}
+                        className={`flex items-center gap-3 text-[var(--text-secondary)] hover:text-red-400 transition-colors group ${activeNav === 'settings' ? 'px-2 py-2' : ''}`}
                         title="Logout"
                     >
                         <LogOut size={20} className="shrink-0" />
@@ -557,44 +577,44 @@ export default function Dashboard() {
 
             {/* SETTINGS VIEW */}
             {activeNav === 'settings' && (
-                <div className="flex-1 overflow-hidden bg-[#0b0e11]">
+                <div className="flex-1 overflow-hidden bg-[var(--bg-primary)]">
                     {activeSettingsTab === 'profile' && <SettingsView />}
                     {activeSettingsTab === 'appearance' && <ThemeSettings />}
                     {activeSettingsTab === 'account' && (
-                        <div className="flex-1 overflow-y-auto bg-[#0b0e11] text-[#f1f5f9] p-10">
-                            <h1 className="text-[#3b82f6] font-bold text-lg">Account Settings</h1>
-                            <p className="text-[#94a3b8] mt-2">Account settings coming soon...</p>
+                        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] p-10">
+                            <h1 className="text-[var(--accent-color, [var(--accent-color)])] font-bold text-lg">Account Settings</h1>
+                            <p className="text-[var(--text-secondary)] mt-2">Account settings coming soon...</p>
                         </div>
                     )}
                     {activeSettingsTab === 'privacy' && (
-                        <div className="flex-1 overflow-y-auto bg-[#0b0e11] text-[#f1f5f9] p-10">
-                            <h1 className="text-[#3b82f6] font-bold text-lg">Privacy & Safety</h1>
-                            <p className="text-[#94a3b8] mt-2">Privacy settings coming soon...</p>
+                        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] p-10">
+                            <h1 className="text-[var(--accent-color, [var(--accent-color)])] font-bold text-lg">Privacy & Safety</h1>
+                            <p className="text-[var(--text-secondary)] mt-2">Privacy settings coming soon...</p>
                         </div>
                     )}
                     {activeSettingsTab === 'notifications' && (
-                        <div className="flex-1 overflow-y-auto bg-[#0b0e11] text-[#f1f5f9] p-10">
-                            <h1 className="text-[#3b82f6] font-bold text-lg">Notifications</h1>
-                            <p className="text-[#94a3b8] mt-2">Notification settings coming soon...</p>
+                        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] p-10">
+                            <h1 className="text-[var(--accent-color, [var(--accent-color)])] font-bold text-lg">Notifications</h1>
+                            <p className="text-[var(--text-secondary)] mt-2">Notification settings coming soon...</p>
                         </div>
                     )}
                 </div>
             )}
 
-            {/* CHAT AREA - Color adjusted to #0b0e11 */}
+            {/* CHAT AREA */}
             {activeNav !== 'contacts' && activeNav !== 'settings' && (
-                <div className="flex-1 flex flex-col min-w-0 bg-[#0b0e11]">
+                <div className="flex-1 flex flex-col min-w-0 bg-[var(--bg-primary)]">
                     <div className="flex h-full overflow-hidden">
-                        {/* ROOM LIST PANEL - Color adjusted to #0b0e11 */}
-                        <div className="flex flex-col w-[300px] min-w-[260px] bg-[#0b0e11] border-r border-white/5">
+                        {/* ROOM LIST PANEL */}
+                        <div className="flex flex-col w-[300px] min-w-[260px] bg-[var(--bg-primary)] border-r border-[var(--border-color)]">
                             {/* Panel Header */}
                             <div className="flex items-center justify-between px-5 pt-6 pb-4">
-                                <h1 className="text-xl font-bold text-[#e6edf3]">
+                                <h1 className="text-xl font-bold text-[var(--text-primary)]">
                                     {activeNav === 'home' ? 'Home' : activeNav === 'rooms' ? 'Groups' : 'Messages'}
                                 </h1>
                                 <div className="flex gap-1">
                                     <button
-                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                                         title="Notifications"
                                     >
                                         <Bell size={16} />
@@ -602,7 +622,7 @@ export default function Dashboard() {
                                     {activeNav === 'rooms' && (
                                         <button
                                             onClick={() => setIsModalOpen(true)}
-                                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-600/30"
+                                            className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--accent-color)] text-white hover:opacity-90 transition-colors shadow-md shadow-[var(--accent-color)]/30"
                                             title="New Group"
                                         >
                                             <Plus size={16} />
@@ -613,26 +633,26 @@ export default function Dashboard() {
 
                             {/* Search */}
                             <div className="px-4 pb-3">
-                                <div className="flex items-center gap-2 px-3 py-2 bg-[#0b0e11] rounded-xl border border-white/5">
-                                    <Search size={14} className="text-[#8b949e] shrink-0" />
+                                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-color)]">
+                                    <Search size={14} className="text-[var(--text-muted)] shrink-0" />
                                     <input
                                         type="text"
                                         placeholder="Search conversations..."
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
-                                        className="bg-transparent border-none text-sm text-[#e6edf3] placeholder-[#8b949e] outline-none w-full"
+                                        className="bg-transparent border-none text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none w-full"
                                     />
                                 </div>
                             </div>
 
                             {/* Room List */}
-                            <div className="flex-1 overflow-y-auto px-2 text-[#e6edf3]">
+                            <div className="flex-1 overflow-y-auto px-2 text-[var(--text-primary)]">
                                 {isLoadingRooms ? (
                                     <div className="flex items-center justify-center h-40">
-                                        <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
+                                        <div className="animate-spin w-6 h-6 border-2 border-[var(--accent-color)] border-t-transparent rounded-full" />
                                     </div>
                                 ) : rooms.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center h-40 text-[#8b949e] text-sm gap-2">
+                                    <div className="flex flex-col items-center justify-center h-40 text-[var(--text-muted)] text-sm gap-2">
                                         <MessageSquare size={28} className="opacity-30" />
                                         {activeNav === "home" ? <span>No groups found. Create one!</span> : <span>No chats found. Start a conversation!</span>}
                                     </div>
@@ -645,8 +665,8 @@ export default function Dashboard() {
                                                 onClick={() => setSelectedRoom(room)}
                                                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-left mb-0.5
                                                     ${selectedRoom?.id === room.id
-                                                        ? 'bg-blue-600/15 border border-blue-600/20'
-                                                        : 'hover:bg-white/4 border border-transparent'
+                                                        ? 'bg-[var(--accent-color)]/15 border border-[var(--accent-color)]/20'
+                                                        : 'hover:bg-[var(--border-light)] border border-transparent'
                                                     }`}
                                             >
                                                 <div className="relative shrink-0">
@@ -657,34 +677,34 @@ export default function Dashboard() {
                                                             className="w-12 h-12 rounded-full object-cover"
                                                         />
                                                     ) : (
-                                                        <div className="w-12 h-12 rounded-full bg-[#0b0e11] border border-white/10 flex items-center justify-center text-[#8b949e]">
+                                                        <div className="w-12 h-12 rounded-full bg-[var(--bg-primary)] border border-[var(--border-light)] flex items-center justify-center text-[var(--text-muted)]">
                                                             {room.type === 'private' ? <UserIcon size={20} /> : <Users size={20} />}
                                                         </div>
                                                     )}
 
                                                     {room.unread_message && room.unread_message > 0 ? (
-                                                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-[#111318]">
+                                                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent-color)] text-[var(--text-primary)] text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-primary)]">
                                                             {room.unread_message > 99 ? '99+' : room.unread_message}
                                                         </span>
                                                     ) : room.type === 'private' && room.members?.some(m => m.user_id !== user?.id && onlineUserIds.has(m.user_id)) ? (
-                                                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#111318]" />
+                                                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--bg-primary)]" />
                                                     ) : null}
                                                 </div>
 
                                                 <div className="flex-1 overflow-hidden">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <span className="font-medium text-sm text-[#e6edf3] truncate">
+                                                        <span className="font-medium text-sm text-[var(--text-primary)] truncate">
                                                             {display.name}
                                                         </span>
-                                                        <span className="text-[10px] text-[#8b949e] shrink-0">
+                                                        <span className="text-[10px] text-[var(--text-muted)] shrink-0">
                                                             {formatTime(room.last_message?.sent_at || room.updated_at || '')}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between mt-0.5">
-                                                        <span className="text-xs text-[#8b949e] truncate max-w-[150px]">
+                                                        <span className="text-xs text-[var(--text-muted)] truncate max-w-[150px]">
                                                             {room.last_message ? (
                                                                 <>
-                                                                    <span className="font-semibold text-[#007bff]">{room.last_message.username}: </span>
+                                                                    <span className="font-semibold text-[var(--accent-color)]">{room.last_message.username}: </span>
                                                                     {room.last_message.content}
                                                                 </>
                                                             ) : (
@@ -714,15 +734,25 @@ export default function Dashboard() {
                                     roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
                                     onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
                                     onNewMessage={(msgRoomId: string, message: LastMessage) => {
-                                        const { selectedRoom: selR, dmRoom: dmR, rooms: rs, setRooms: setRs, allRooms: allRs, setAllRooms: setAllRs } = useDashboardStore.getState();
-                                        const isActiveRoom = selR?.id === msgRoomId || dmR?.id === msgRoomId;
+                                        const { allRooms, setAllRooms, rooms, setRooms } = useDashboardStore.getState();
+                                        const notificationMsg = {
+                                            id: `notif-${Date.now()}`,
+                                            room_id: msgRoomId,
+                                            user_id: user?.id,
+                                            username: message.username,
+                                            profile_picture: user?.profile_picture,
+                                            content: message.content || 'New message',
+                                            type: message.type || 'chat',
+                                            time_stamp: message.sent_at,
+                                            sent_at: message.sent_at,
+                                        };
 
-                                        const updater = (r: Room) => r.id === msgRoomId
-                                            ? { ...r, last_message: message, unread_message: isActiveRoom ? 0 : (r.unread_message ?? 0) + 1 }
-                                            : r;
-
-                                        setRs(sortByLatest(rs.map(updater)));
-                                        setAllRs(sortByLatest(allRs.map(updater)));
+                                        setAllRooms(allRooms.map(r =>
+                                            r.id === msgRoomId ? { ...r, last_message: notificationMsg } : r
+                                        ));
+                                        setRooms(rooms.map(r =>
+                                            r.id === msgRoomId ? { ...r, last_message: notificationMsg } : r
+                                        ));
                                     }}
                                     onRoomResolved={(resolvedRoomId: string) => {
                                         fetchRooms();
@@ -758,20 +788,20 @@ export default function Dashboard() {
                                     }}
                                 />
                             ) : (
-                                <main className="flex-1 flex flex-col bg-[#0b0e11] relative overflow-hidden items-center justify-center text-[#8b949e] text-center gap-4 relative">
-                                    <div className="absolute inset-0 bg-[#2563eb]/5 blur-[60px]" />
-                                    <div className="w-20 h-20 rounded-3xl bg-[#1c2635] flex items-center justify-center border border-white/5 relative z-10 shadow-2xl">
-                                        <MessageSquare size={36} className="text-[#3b82f6]" />
+                                <main className="flex-1 flex flex-col bg-[var(--bg-primary)] relative overflow-hidden items-center justify-center text-[var(--text-muted)] text-center gap-4 relative">
+                                    <div className="absolute inset-0 bg-[var(--accent-color)]/5 blur-[60px]" />
+                                    <div className="w-20 h-20 rounded-3xl bg-[var(--bg-tertiary)] flex items-center justify-center border border-[var(--border-color)] relative z-10 shadow-2xl">
+                                        <MessageSquare size={36} className="text-[var(--accent-color)]" />
                                     </div>
                                     <div>
-                                        <h2 className="text-[#e6edf3] font-semibold text-xl mb-1">Select a Conversation</h2>
+                                        <h2 className="text-[var(--text-primary)] font-semibold text-xl mb-1">Select a Conversation</h2>
                                         <p className="text-sm max-w-xs leading-relaxed">
                                             Pick a group from the sidebar to start messaging, or create a new one.
                                         </p>
                                     </div>
                                     <button
                                         onClick={() => setIsModalOpen(true)}
-                                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-blue-600/30 relative z-10"
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-[var(--accent-color)] hover:opacity-90 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-[var(--accent-color)]/30 relative z-10"
                                     >
                                         <Plus size={16} /> New Group
                                     </button>
@@ -812,52 +842,52 @@ export default function Dashboard() {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-                    <div className="relative w-full max-w-md bg-[#0b0e11] border border-white/5 rounded-3xl p-8 shadow-2xl">
+                    <div className="relative w-full max-w-md bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-3xl p-8 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-white">Create New Group</h2>
-                            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/5 rounded-full text-[#8b949e] transition-colors">
+                            <h2 className="text-2xl font-bold text-[var(--text-primary)]">Create New Group</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full text-[var(--text-muted)] transition-colors">
                                 <X size={24} />
                             </button>
                         </div>
 
                         <form onSubmit={handleCreateRoom} className="space-y-6">
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-[#8b949e] ml-1">Group Name</label>
+                                <label className="text-sm font-medium text-[var(--text-muted)] ml-1">Group Name</label>
                                 <input
                                     type="text"
                                     value={newRoomName}
                                     onChange={(e) => setNewRoomName(e.target.value)}
-                                    className="w-full bg-[#1c2635] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#2563eb]/40 outline-none transition-all placeholder:text-[#334155]"
+                                    className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[var(--accent-color)]/40 outline-none transition-all placeholder:text-[var(--text-muted)]"
                                     placeholder="e.g. Design Team"
                                     required
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-[#8b949e] ml-1">Group Description</label>
+                                <label className="text-sm font-medium text-[var(--text-muted)] ml-1">Group Description</label>
                                 <textarea
                                     value={newRoomDescription}
                                     onChange={(e) => setNewRoomDescription(e.target.value)}
-                                    className="w-full bg-[#1c2635] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#2563eb]/40 outline-none transition-all resize-none h-28 placeholder:text-[#334155]"
+                                    className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[var(--accent-color)]/40 outline-none transition-all resize-none h-28 placeholder:text-[var(--text-muted)]"
                                     placeholder="What's this group about?"
                                     required
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-[#8b949e] ml-1">Group Image (Optional)</label>
+                                <label className="text-sm font-medium text-[var(--text-muted)] ml-1">Group Image (Optional)</label>
                                 <div className="flex gap-4 items-center">
                                     <button
                                         type="button"
                                         onClick={() => fileInputRef.current?.click()}
-                                        className="flex-1 flex items-center justify-center gap-3 bg-[#1c2635] hover:bg-[#252f3f] text-[#8b949e] border border-transparent rounded-2xl p-4 transition-all"
+                                        className="flex-1 flex items-center justify-center gap-3 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-transparent rounded-2xl p-4 transition-all"
                                     >
                                         <ImageIcon size={20} />
                                         <span className="text-sm">Choose Image</span>
                                     </button>
                                     {newRoomImage && (
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm text-white truncate max-w-[100px]">{newRoomImage.name}</span>
+                                            <span className="text-sm text-[var(--text-primary)] truncate max-w-[100px]">{newRoomImage.name}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => setNewRoomImage(null)}
@@ -882,7 +912,7 @@ export default function Dashboard() {
                             <button
                                 type="submit"
                                 disabled={creating || !newRoomName || !newRoomDescription}
-                                className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/10"
+                                className="w-full bg-[var(--accent-color)] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-4 rounded-2xl transition-all shadow-lg shadow-[var(--accent-color)]/10"
                             >
                                 {creating ? 'Creating Group...' : 'Create Group'}
                             </button>

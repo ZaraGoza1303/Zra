@@ -1,6 +1,6 @@
 // src/store/chatStore.ts
 import { create } from 'zustand';
-import type { Message, RoomMember, RoomResponse, UserProfile } from '../types/chat';
+import type { Message, RoomMember, RoomResponse, UserProfile, SocialLink } from '../types/chat';
 
 interface ChatState {
     messages: Message[];
@@ -22,7 +22,7 @@ interface ChatState {
     actionLoading: boolean;
     addingMember: boolean;
     activeMembers: number[];
-    setActiveMembers: (ids: number[]) => void;
+    typingUsers: Record<string, Record<number, string>>;
 
     // Edit states
     editingName: boolean;
@@ -39,6 +39,7 @@ interface ChatState {
         user_id: number;
         is_verified?: boolean;
         created_at?: string;
+        social_links?: SocialLink[];
     } | null;
 
     setMessages: (messages: Message[] | ((prev: Message[]) => Message[])) => void;
@@ -59,6 +60,8 @@ interface ChatState {
     setAddingMember: (isAdding: boolean) => void;
     setShowUsersModal: (show: boolean) => void;
     setShowInfoModal: (show: boolean) => void;
+    setActiveMembers: (ids: number[]) => void;
+    setTyping: (roomId: string, userId: number, username: string, isTyping: boolean) => void;
 
     // Edit setters
     setEditingName: (val: boolean) => void;
@@ -75,6 +78,7 @@ interface ChatState {
         user_id: number;
         is_verified?: boolean;
         created_at?: string;
+        social_links?: SocialLink[];
     } | null) => void;
 
     mutualRooms: { id: string; name: string; picture?: string }[];
@@ -103,9 +107,8 @@ export const useChatStore = create<ChatState>((set) => ({
     actionLoading: false,
     addingMember: false,
     activeMembers: [],
-    setActiveMembers: (ids: number[]) => set({ activeMembers: ids }),
     mutualRooms: [],
-    setMutualRooms: (mutualRooms) => set({ mutualRooms }),
+    typingUsers: {},
 
     editingName: false,
     editingDesc: false,
@@ -136,6 +139,25 @@ export const useChatStore = create<ChatState>((set) => ({
     setAddingMember: (addingMember) => set({ addingMember }),
     setShowUsersModal: (showUsersModal) => set({ showUsersModal }),
     setShowInfoModal: (showInfoModal) => set({ showInfoModal }),
+    setActiveMembers: (ids: number[]) => set({ activeMembers: ids }),
+    setMutualRooms: (mutualRooms) => set({ mutualRooms }),
+    setTyping: (roomId, userId, username, isTyping) => set((state) => {
+        const roomTyping = { ...(state.typingUsers[roomId] || {}) };
+
+        if (isTyping) {
+            roomTyping[userId] = username;
+        } else {
+            delete roomTyping[userId];
+        }
+
+        return {
+            typingUsers: {
+                ...state.typingUsers,
+                [roomId]: roomTyping
+            }
+        };
+    }),
+
 
     setEditingName: (editingName) => set({ editingName }),
     setEditingDesc: (editingDesc) => set({ editingDesc }),

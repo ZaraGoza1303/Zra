@@ -359,6 +359,59 @@ func (u *userServices) FindUnreadNotifCount(ctx context.Context) ([]dto.UnreadNo
 	return response, nil
 }
 
+// FindSocialLinks implements [core.UserServices].
+func (u *userServices) FindSocialLinks(ctx context.Context) ([]dto.SocialLinkResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	links, err := u.UserRepositories.GetLinks(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.SocialLinkResponse
+	for _, link := range links {
+		var linkType string
+		if link.Type != nil {
+			linkType = string(*link.Type)
+		}
+
+		response = append(response, dto.SocialLinkResponse{
+			ID:   link.ID,
+			Type: linkType,
+			Url:  link.Url,
+		})
+	}
+
+	return response, nil
+}
+
+// FindSocialLinksById implements [core.UserServices].
+func (u *userServices) FindSocialLinksById(ctx context.Context, userId uint) ([]dto.SocialLinkResponse, error) {
+	links, err := u.UserRepositories.GetLinks(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.SocialLinkResponse
+	for _, link := range links {
+		var linkType string
+		if link.Type != nil {
+			linkType = string(*link.Type)
+		}
+
+		response = append(response, dto.SocialLinkResponse{
+			ID:   link.ID,
+			Type: linkType,
+			Url:  link.Url,
+		})
+	}
+
+	return response, nil
+}
+
 // MakeFriendRequest implements [core.UserServices].
 func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) error {
 	userId, ok := ctx.Value("user_id").(uint)
@@ -433,6 +486,44 @@ func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) er
 	}
 
 	u.hub.Signal <- requestMsg
+
+	return nil
+}
+
+// CreateSocialLinks implements [core.UserServices].
+func (u *userServices) CreateSocialLinks(ctx context.Context, req *dto.CreateSocialLinksRequest) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	social, err := u.UserRepositories.GetSocialLinkByUserId(ctx, userId)
+	if err != nil {
+		return err
+	}
+
+	if social == nil {
+		socialRequest := models.SocialLink{
+			UserID: userId,
+		}
+		if err := u.UserRepositories.InsertSocialLink(ctx, &socialRequest); err != nil {
+			return err
+		}
+	}
+
+	var links []models.Link
+	for _, link := range req.Link {
+		platform := models.Platform(link.Type)
+		links = append(links, models.Link{
+			SocialLinkID: social.ID,
+			Type:         &platform,
+			Url:          link.Url,
+		})
+	}
+
+	if err := u.UserRepositories.InsertLink(ctx, links); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -562,6 +653,35 @@ func (u *userServices) UpdatePassResetToken(ctx context.Context, id uint, req dt
 	return nil
 }
 
+// UpdateSocialLinks implements [core.UserServices].
+func (u *userServices) UpdateSocialLink(ctx context.Context, linkId uint, req *dto.UpdateSocialLinkRequest) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	owned, err := u.UserRepositories.IsLinkOwnedByUser(ctx, userId, linkId)
+	if err != nil {
+		return err
+	}
+
+	if !owned {
+		return helper.ErrNotAllowed
+	}
+
+	platform := models.Platform(req.Type)
+	links := models.Link{
+		Type: &platform,
+		Url:  req.Url,
+	}
+
+	if err := u.UserRepositories.UpdateSocialLink(ctx, linkId, &links); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // UpdateReadNotifications implements [core.UserServices].
 func (u *userServices) UpdateReadNotifications(ctx context.Context) error {
 	userId, ok := ctx.Value("user_id").(uint)
@@ -584,6 +704,29 @@ func (u *userServices) Delete(ctx context.Context, id uint) error {
 
 	err = u.UserRepositories.Delete(ctx, id)
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RemoveSocialLink implements [core.UserServices].
+func (u *userServices) RemoveSocialLink(ctx context.Context, linkId uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	owned, err := u.UserRepositories.IsLinkOwnedByUser(ctx, userId, linkId)
+	if err != nil {
+		return err
+	}
+
+	if !owned {
+		return helper.ErrNotAllowed
+	}
+
+	if err := u.UserRepositories.DeleteSocialLink(ctx, linkId); err != nil {
 		return err
 	}
 

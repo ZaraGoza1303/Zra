@@ -36,10 +36,10 @@ export default function NavSidebar({
     ];
 
     return (
-        <div className="flex flex-col items-center py-5 px-2 gap-2 w-16 min-w-[64px] bg-[#0b0e11] border-r border-white/5 z-10">
+        <div className="flex flex-col items-center py-5 px-2 gap-2 w-16 min-w-[64px] bg-[var(--bg-primary)] border-r border-[var(--border-color)] z-10">
             <div
                 onClick={() => onNavChange('home')}
-                className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30 cursor-pointer hover:bg-blue-700 transition-colors"
+                className="w-9 h-9 rounded-xl bg-[var(--accent-color)] flex items-center justify-center mb-3 shadow-lg shadow-blue-600/30 cursor-pointer hover:brightness-110 transition-colors"
             >
                 <MessageSquare size={18} className="text-white" />
             </div>
@@ -55,8 +55,8 @@ export default function NavSidebar({
                         title={item.label}
                         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 relative group
                             ${activeNav === item.key
-                                ? 'bg-blue-600/20 text-blue-400'
-                                : 'text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3]'
+                                ? 'bg-[var(--accent-color)]/20 text-blue-400'
+                                : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                             }`}
                     >
                         <div className="relative">
@@ -105,7 +105,7 @@ export default function NavSidebar({
                         }}
                     />
                 ) : (
-                    <div className="w-full h-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
+                    <div className="w-full h-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] flex items-center justify-center text-[var(--text-muted)]">
                         <User size={18} />
                     </div>
                 )}

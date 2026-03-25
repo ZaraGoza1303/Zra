@@ -24,27 +24,27 @@ func InitDB() (*gorm.DB, error) {
 		os.Getenv("DB_NAME_SUPABASE"), os.Getenv("DB_SSL_MODE_SUPABASE"), os.Getenv("DB_TIMEZONE_SUPABASE"))
 
 	newLogger := logger.New(
-	log.New(os.Stdout, "\r\n", log.LstdFlags), 
-	logger.Config{
-		SlowThreshold:              time.Second,   
-		LogLevel:                   logger.Warn, 
-		Colorful:                  true,        
-	},
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold: time.Second,
+			LogLevel:      logger.Warn,
+			Colorful:      true,
+		},
 	)
 
 	db, err := gorm.Open(postgres.New(postgres.Config{
-		DSN: dsn,
+		DSN:                  dsn,
 		PreferSimpleProtocol: true,
 	}), &gorm.Config{
 		TranslateError: true,
-		Logger: newLogger,
+		Logger:         newLogger,
 	})
 
 	if err != nil {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.User{}, &models.Friend{},&models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{}, &models.Sticker{})
+	db.AutoMigrate(&models.User{}, &models.Friend{}, &models.PasswordReset{}, &models.UserToken{}, &models.Room{}, &models.RoomMember{}, &models.Message{}, &models.Notification{}, &models.Sticker{}, &models.SocialLink{}, &models.Link{})
 
 	return db, nil
 }

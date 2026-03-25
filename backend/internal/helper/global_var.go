@@ -15,4 +15,5 @@ var (
 	ErrRefreshTokenNotValid = errors.New("Refresh token not valid")
 	ErrNotVerified          = errors.New("Email not verified")
 	ErrUnauthorized         = errors.New("Unauthorized")
+	ErrUsernameAlreadyUsed  = errors.New("Username already taken")
 )

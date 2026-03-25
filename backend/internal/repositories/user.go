@@ -17,7 +17,6 @@ type userRepositories struct {
 	DB *gorm.DB
 }
 
-
 func NewUser(db *gorm.DB) core.UserRepositories {
 	return &userRepositories{DB: db}
 }
@@ -123,6 +122,41 @@ func (u *userRepositories) GetFriendship(ctx context.Context, user_id uint, targ
 	return alreadyFriend > 0, nil
 }
 
+// GetSocialLinkByUserId implements [core.UserRepositories].
+func (u *userRepositories) GetSocialLinkByUserId(ctx context.Context, userId uint) (*models.SocialLink, error) {
+	var social models.SocialLink
+
+	result := u.DB.WithContext(ctx).
+		Where("user_id = ?", userId).
+		First(&social)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &social, nil
+}
+
+// GetSocialLinks implements [core.UserRepositories].
+func (u *userRepositories) GetLinks(ctx context.Context, userId uint) ([]models.Link, error) {
+	var links []models.Link
+
+	result := u.DB.WithContext(ctx).
+		Joins("JOIN social_links ON social_links.id = links.social_link_id").
+		Where("social_links.user_id = ?", userId).
+		Find(&links)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return links, nil
+}
+
 // GetUnreadNotifCount implements [core.UserRepositories].
 func (u *userRepositories) GetUnreadNotifCount(ctx context.Context, user_id uint) ([]dto.UnreadNotifResponse, error) {
 	var unread []dto.UnreadNotifResponse
@@ -218,6 +252,26 @@ func (u *userRepositories) InsertNotification(ctx context.Context, req *models.N
 	return nil
 }
 
+// InsertSocialLinks implements [core.UserRepositories].
+func (u *userRepositories) InsertSocialLink(ctx context.Context, req *models.SocialLink) error {
+	result := u.DB.WithContext(ctx).Create(req)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// InsertLink implements [core.UserRepositories].
+func (u *userRepositories) InsertLink(ctx context.Context, req []models.Link) error {
+	result := u.DB.WithContext(ctx).Create(req)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
 // UpdateFriendRequest implements [core.UserRepositories].
 func (u *userRepositories) UpdateFriendRequest(ctx context.Context, req *models.Friend) error {
 	result := u.DB.WithContext(ctx).
@@ -262,6 +316,19 @@ func (u *userRepositories) UpdateNotifRead(ctx context.Context, user_id uint) er
 		Model(&models.Notification{}).
 		Where("user_id = ?", user_id).
 		Update("is_read", true)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// UpdateSocialLinks implements [core.UserRepositories].
+func (u *userRepositories) UpdateSocialLink(ctx context.Context, linkId uint, req *models.Link) error {
+	result := u.DB.WithContext(ctx).
+		Where("id = ?", linkId).
+		Updates(req)
 
 	if result.Error != nil {
 		return result.Error
@@ -333,7 +400,6 @@ func (u *userRepositories) DeleteExpiredRefreshToken(ctx context.Context) error 
 	return nil
 }
 
-
 // DeleteExpiredResetToken implements [core.UserRepositories].
 func (u *userRepositories) DeleteExpiredResetToken(ctx context.Context) error {
 	result := u.DB.WithContext(ctx).Where("expired_at < NOW()").Delete(&models.PasswordReset{})
@@ -352,6 +418,36 @@ func (u *userRepositories) DeleteReadedNotifications(ctx context.Context) error 
 	}
 
 	return nil
+}
+
+// DeleteSocialLinks implements [core.UserRepositories].
+func (u *userRepositories) DeleteSocialLink(ctx context.Context, linkId uint) error {
+	result := u.DB.WithContext(ctx).
+		Where("id = ?", linkId).
+		Delete(&models.Link{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
+
+// IsLinkOwnedByUser implements [core.UserRepositories].
+func (u *userRepositories) IsLinkOwnedByUser(ctx context.Context, userId uint, linkId uint) (bool, error) {
+	var count int64
+
+	result := u.DB.WithContext(ctx).
+		Model(&models.Link{}).
+		Joins("JOIN social_links ON social_links.id = links.social_link_id").
+		Where("links.id = ? AND social_links.user_id = ?", linkId, userId).
+		Count(&count)
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return count > 0, nil
 }
 
 func (u *userRepositories) VerifyEmail(ctx context.Context, id uint, req *models.User) error {

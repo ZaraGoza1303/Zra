@@ -15,6 +15,8 @@ interface Sticker {
 }
 
 interface MessageInputProps {
+    roomId: string;
+    socket: WebSocket | null;
     sendMessage: (e: React.FormEvent) => void;
     onSendSticker: (stickerUrl: string) => void;
     onSendImage: (imageUrl: string, caption?: string) => void;
@@ -27,11 +29,11 @@ export interface MessageInputHandle {
 type PopupTab = 'emoji' | 'sticker';
 
 const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
-    ({ sendMessage, onSendSticker, onSendImage }, ref) => {
+    ({ roomId, socket, sendMessage, onSendSticker, onSendImage }, ref) => {
         const { input, setInput, replyTo, setReplyTo } = useChatStore();
         const { token } = useAuthStore();
 
-        // ─── Popup kanan (···) ────────────────────────────────────────────────────
+        // ─── Popup kanan ────────────────────────────────────────────────────
         const [showPopup, setShowPopup] = useState(false);
         const [activeTab, setActiveTab] = useState<PopupTab>('emoji');
         const popupRef = useRef<HTMLDivElement>(null);
@@ -65,6 +67,46 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                 if (previewUrl) URL.revokeObjectURL(previewUrl);
             };
         }, [previewUrl]);
+
+        // ─── Typing Indicator Logic ───────────────────────────────────────────────
+        const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+        const isTypingRef = useRef(false);
+
+        const sendTypingStatus = (isTyping: boolean) => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) return;
+
+            socket.send(JSON.stringify({
+                type: 'typing',
+                room_id: roomId,
+                content: isTyping ? 'true' : 'false'
+            }));
+            isTypingRef.current = isTyping;
+        };
+
+        const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            const value = e.target.value;
+            setInput(value);
+
+            if (!isTypingRef.current && value.trim().length > 0) {
+                sendTypingStatus(true);
+            }
+
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            typingTimeoutRef.current = setTimeout(() => {
+                if (isTypingRef.current) {
+                    sendTypingStatus(false);
+                }
+            }, 2000);
+        };
+
+        const handleFormSubmit = (e: React.FormEvent) => {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            sendTypingStatus(false);
+            sendMessage(e);
+        };
 
         // ─── Sticker logic ────────────────────────────────────────────────────────
 
@@ -230,26 +272,26 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                         onClick={handleCancelPreview}
                     >
                         <div
-                            className="w-full max-w-md bg-[#1c2128] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                            className="w-full max-w-md bg-[var(--bg-tertiary)] border border-[var(--border-light)] rounded-2xl shadow-2xl overflow-hidden"
                             onClick={e => e.stopPropagation()}
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                                <div className="flex items-center gap-2 text-sm font-medium text-[#e6edf3]">
-                                    <Image size={15} className="text-blue-400" />
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-light)]">
+                                <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+                                    <Image size={15} className="text-[var(--accent-color)]" />
                                     Send Image
                                 </div>
                                 <button
                                     onClick={handleCancelPreview}
                                     disabled={uploadingImage}
-                                    className="text-[#8b949e] hover:text-[#e6edf3] transition-colors disabled:opacity-40"
+                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-40"
                                 >
                                     <X size={16} />
                                 </button>
                             </div>
 
                             {/* Preview area */}
-                            <div className="relative bg-[#0b0e11] flex items-center justify-center" style={{ minHeight: 200, maxHeight: 380 }}>
+                            <div className="relative bg-[var(--bg-primary)] flex items-center justify-center" style={{ minHeight: 200, maxHeight: 380 }}>
                                 <img
                                     src={previewUrl}
                                     alt="preview"
@@ -257,7 +299,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                 />
                                 {uploadingImage && (
                                     <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2">
-                                        <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                        <div className="w-8 h-8 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                                         <span className="text-xs text-white/70">Uploading...</span>
                                     </div>
                                 )}
@@ -265,16 +307,16 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
 
                             {/* Reply preview di dalam modal kalau ada */}
                             {replyTo && (
-                                <div className="flex items-stretch gap-0 mx-4 mt-3 rounded-md overflow-hidden text-xs bg-white/[0.07]">
-                                    <div className="w-[3px] bg-blue-400 shrink-0" />
+                                <div className="flex items-stretch gap-0 mx-4 mt-3 rounded-md overflow-hidden text-xs bg-[var(--bg-tertiary)]">
+                                    <div className="w-[3px] bg-[var(--accent-color)] shrink-0" />
                                     <div className="px-3 py-2 min-w-0">
-                                        <span className="text-blue-400 font-semibold block mb-0.5">{replyTo.username}</span>
+                                        <span className="text-[var(--accent-color)] font-semibold block mb-0.5">{replyTo.username}</span>
                                         {replyTo.type === 'image' ? (
                                             <img src={replyTo.content} alt="image" className="w-16 h-12 object-cover rounded-md" />
                                         ) : replyTo.type === 'sticker' ? (
                                             <img src={replyTo.content} alt="sticker" className="w-10 h-10 object-contain" />
                                         ) : (
-                                            <p className="truncate italic text-[#8b949e]">{replyTo.content}</p>
+                                            <p className="truncate italic text-[var(--text-muted)]">{replyTo.content}</p>
                                         )}
                                     </div>
                                 </div>
@@ -290,16 +332,16 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                     onChange={e => setCaption(e.target.value)}
                                     onKeyDown={handleCaptionKeyDown}
                                     disabled={uploadingImage}
-                                    className="flex-1 px-4 py-2.5 bg-[#0b0e11] border border-white/10 rounded-xl text-sm
-                                        text-[#e6edf3] placeholder-[#8b949e] outline-none
-                                        focus:border-blue-500/50 transition-colors disabled:opacity-40"
+                                    className="flex-1 px-4 py-2.5 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-sm
+                                        text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none
+                                        focus:border-[var(--accent-color)]/50 transition-colors disabled:opacity-40"
                                 />
                                 <button
                                     onClick={handleSendImage}
                                     disabled={uploadingImage}
-                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-600
-                                        hover:bg-blue-700 text-white disabled:opacity-40 disabled:cursor-not-allowed
-                                        hover:scale-105 transition-all shadow-lg shadow-blue-600/30 shrink-0"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--accent-color)]
+                                        hover:bg-[var(--accent-hover)] text-white disabled:opacity-40 disabled:cursor-not-allowed
+                                        hover:scale-105 transition-all shadow-lg shadow-[var(--accent-color)]/30 shrink-0"
                                 >
                                     <Send size={16} className="translate-x-[1px]" />
                                 </button>
@@ -308,15 +350,15 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                     </div>
                 )}
 
-                <div className="px-5 py-4 bg-[#0b0e11] shrink-0">
+                <div className="px-5 py-4 bg-[var(--bg-primary)] shrink-0">
 
                     {/* Reply preview */}
                     {replyTo && (
-                        <div className="flex items-center justify-between px-4 py-2 mb-2 bg-white/5 border border-white/10 rounded-xl text-xs text-[#8b949e]">
+                        <div className="flex items-center justify-between px-4 py-2 mb-2 bg-[var(--border-color)] border border-[var(--border-light)] rounded-xl text-xs text-[var(--text-muted)]">
                             <div className="flex items-center gap-2">
-                                <div className="w-0.5 h-8 bg-blue-400 rounded-full shrink-0" />
+                                <div className="w-0.5 h-8 bg-[var(--accent-color)] rounded-full shrink-0" />
                                 <div>
-                                    <span className="text-blue-400 font-medium block">{replyTo.username}</span>
+                                    <span className="text-[var(--accent-color)] font-medium block">{replyTo.username}</span>
                                     {replyTo.type === 'sticker' ? (
                                         <img src={replyTo.content} alt="sticker" className="w-10 h-15 object-contain" />
                                     ) : replyTo.type === 'image' ? (
@@ -326,13 +368,13 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                     )}
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setReplyTo(null)} className="hover:text-[#e6edf3] ml-2">
+                            <button type="button" onClick={() => setReplyTo(null)} className="hover:text-[var(--text-primary)] ml-2">
                                 <X size={14} />
                             </button>
                         </div>
                     )}
 
-                    <form onSubmit={sendMessage} className="flex items-center gap-3">
+                    <form onSubmit={handleFormSubmit} className="flex items-center gap-3">
 
                         {/* ── Tombol + (Image Upload) ── */}
                         <div className="shrink-0">
@@ -346,22 +388,22 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1c2128] border border-white/10
-                                    text-[#8b949e] hover:text-[#e6edf3] hover:border-white/20 transition-all"
+                                className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--bg-tertiary)] border border-[var(--border-light)]
+                                    text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-light)] transition-all"
                             >
                                 <ImagePlus size={18} />
                             </button>
                         </div>
 
                         {/* ── Input area ── */}
-                        <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-[#1c2128] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-colors">
+                        <div className="flex-1 flex items-center gap-2 px-4 py-3 bg-[var(--bg-tertiary)] border border-[var(--border-light)] rounded-2xl focus-within:border-[var(--accent-color)]/50 transition-colors">
                             <input
                                 ref={inputRef}
                                 type="text"
                                 placeholder="Type a message..."
                                 value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                className="flex-1 bg-transparent border-none text-[15px] text-[#e6edf3] placeholder-[#8b949e] outline-none"
+                                onChange={handleInputChange}
+                                className="flex-1 bg-transparent border-none text-[15px] text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none"
                             />
 
                             {/* ── Tombol ··· ── */}
@@ -369,19 +411,19 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                 <button
                                     type="button"
                                     onClick={handleTogglePopup}
-                                    className={`transition-colors shrink-0 ${showPopup ? 'text-blue-400' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}
+                                    className={`transition-colors shrink-0 ${showPopup ? 'text-[var(--accent-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                                 >
                                     <MoreHorizontal size={20} />
                                 </button>
 
                                 {showPopup && (
-                                    <div className="absolute bottom-10 right-0 z-50 w-[352px] bg-[#1c2128] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-                                        <div className="flex items-center border-b border-white/10">
+                                    <div className="absolute bottom-10 right-0 z-50 w-[352px] bg-[var(--bg-tertiary)] border border-[var(--border-light)] rounded-2xl shadow-2xl overflow-hidden">
+                                        <div className="flex items-center border-b border-[var(--border-light)]">
                                             <button
                                                 type="button"
                                                 onClick={() => handleTabChange('emoji')}
                                                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-all
-                                                    ${activeTab === 'emoji' ? 'text-blue-400 border-b-2 border-blue-500' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}
+                                                    ${activeTab === 'emoji' ? 'text-[var(--accent-color)] border-b-2 border-[var(--accent-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                                             >
                                                 <Smile size={14} /> Emoji
                                             </button>
@@ -389,11 +431,11 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                                 type="button"
                                                 onClick={() => handleTabChange('sticker')}
                                                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-all
-                                                    ${activeTab === 'sticker' ? 'text-blue-400 border-b-2 border-blue-500' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}
+                                                    ${activeTab === 'sticker' ? 'text-[var(--accent-color)] border-b-2 border-[var(--accent-color)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                                             >
                                                 <Sticker size={14} /> Sticker
                                             </button>
-                                            <button type="button" onClick={handleClosePopup} className="px-3 text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                                            <button type="button" onClick={handleClosePopup} className="px-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                                                 <X size={14} />
                                             </button>
                                         </div>
@@ -405,18 +447,18 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                         {activeTab === 'sticker' && (
                                             <div>
                                                 <div className="px-3 pt-3 pb-1">
-                                                    <div className="flex items-center gap-2 px-3 py-2 bg-[#0b0e11] border border-white/10 rounded-xl focus-within:border-blue-500/50 transition-colors">
-                                                        <Search size={14} className="text-[#8b949e] shrink-0" />
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl focus-within:border-[var(--accent-color)]/50 transition-colors">
+                                                        <Search size={14} className="text-[var(--text-muted)] shrink-0" />
                                                         <input
                                                             ref={searchRef}
                                                             type="text"
                                                             placeholder="Search stickers..."
                                                             value={stickerSearch}
                                                             onChange={(e) => setStickerSearch(e.target.value)}
-                                                            className="flex-1 bg-transparent text-xs text-[#e6edf3] placeholder-[#8b949e] outline-none"
+                                                            className="flex-1 bg-transparent text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none"
                                                         />
                                                         {stickerSearch && (
-                                                            <button type="button" onClick={() => setStickerSearch('')} className="text-[#8b949e] hover:text-[#e6edf3]">
+                                                            <button type="button" onClick={() => setStickerSearch('')} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">
                                                                 <X size={12} />
                                                             </button>
                                                         )}
@@ -431,7 +473,7 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                                                 type="button"
                                                                 onClick={() => setSelectedCategory(cat)}
                                                                 className={`px-3 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-all
-                                                                    ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-white/5 text-[#8b949e] hover:bg-white/10 hover:text-[#e6edf3]'}`}
+                                                                    ${selectedCategory === cat ? 'bg-[var(--accent-color)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:bg-[var(--border-light)] hover:text-[var(--text-primary)]'}`}
                                                             >
                                                                 {cat === '' ? 'All' : cat}
                                                             </button>
@@ -442,13 +484,13 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                                 <div className="p-3 h-52 overflow-y-auto">
                                                     {loadingStickers ? (
                                                         <div className="flex items-center justify-center h-full gap-2">
-                                                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                                                            <span className="text-xs text-[#8b949e]">Loading...</span>
+                                                            <div className="w-4 h-4 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
+                                                            <span className="text-xs text-[var(--text-muted)]">Loading...</span>
                                                         </div>
                                                     ) : stickers.length === 0 ? (
                                                         <div className="flex flex-col items-center justify-center h-full gap-1">
                                                             <span className="text-2xl">🔍</span>
-                                                            <span className="text-xs text-[#8b949e]">
+                                                            <span className="text-xs text-[var(--text-muted)]">
                                                                 {stickerSearch ? `No results for "${stickerSearch}"` : 'No stickers available'}
                                                             </span>
                                                         </div>
@@ -459,13 +501,13 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleStickerClick(sticker.url)}
-                                                                        className="aspect-square w-full rounded-xl overflow-hidden hover:bg-white/10 p-1 transition-all hover:scale-110"
+                                                                        className="aspect-square w-full rounded-xl overflow-hidden hover:bg-[var(--bg-tertiary)] p-1 transition-all hover:scale-110"
                                                                     >
                                                                         <img src={sticker.url} alt={sticker.name} className="w-full h-full object-contain" />
                                                                     </button>
                                                                     <div className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 z-50 opacity-0 group-hover/sticker:opacity-100 transition-opacity duration-150">
-                                                                        <div className="w-2 h-2 bg-[#0b0e11] border-l border-t border-white/10 rotate-45 mx-auto -mb-1" />
-                                                                        <div className="px-2 py-1 bg-[#0b0e11] border border-white/10 rounded-lg text-[10px] text-[#e6edf3] whitespace-nowrap shadow-lg">
+                                                                        <div className="w-2 h-2 bg-[var(--bg-primary)] border-l border-t border-[var(--border-light)] rotate-45 mx-auto -mb-1" />
+                                                                        <div className="px-2 py-1 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-lg text-[10px] text-[var(--text-primary)] whitespace-nowrap shadow-lg">
                                                                             {sticker.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ')}
                                                                         </div>
                                                                     </div>
@@ -485,9 +527,9 @@ const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(
                         <button
                             type="submit"
                             disabled={!input.trim()}
-                            className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-600 text-white
-                                hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105
-                                transition-all shadow-lg shadow-blue-600/30 shrink-0"
+                            className="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--accent-color)] text-white
+                                hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105
+                                transition-all shadow-lg shadow-[var(--accent-color)]/30 shrink-0"
                         >
                             <Send size={18} className="translate-x-[1px]" />
                         </button>

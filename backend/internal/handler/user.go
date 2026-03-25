@@ -25,18 +25,22 @@ func NewUser(router fiber.Router, service core.UserServices, storageService core
 	route := router.Group("/api")
 	route.Get("/user", middleware, handler.FindAll)
 	route.Get("/user/online", middleware, handler.FindOnlineUsers)
+	route.Get("/user/social-links", middleware, handler.FindSocialLinks)
 	route.Get("/user/list-friend", middleware, handler.FindListFriend)
 	route.Get("/user/list-friend-requests", middleware, handler.FindListFriendRequest)
 	route.Get("/user/unread-notifications", middleware, handler.FindUnreadNotifCount)
 	route.Get("/user/:id", middleware, handler.FindById)
-	route.Get("/user/:username", middleware, handler.FindByUsername)
+	route.Get("/user/social-links/:id", middleware, handler.FindSocialLinksById)
 	route.Post("/user/make-friend-requests/:target_id", middleware, handler.MakeFriendRequest)
-	route.Put("/user/read-notifications", middleware, handler.ReadNotifications)
-	route.Put("/user/:id", middleware, handler.Update)
-	route.Put("/user/accept-friend-requests/:target_id", middleware, handler.UpdateFriendRequest)
+	route.Post("/user/social-links", middleware, handler.CreateSocialLinks)
 	route.Put("/user/change-password", middleware, handler.ChangePassword)
+	route.Put("/user/read-notifications", middleware, handler.ReadNotifications)
+	route.Put("/user", middleware, handler.Update)
+	route.Put("/user/accept-friend-requests/:target_id", middleware, handler.UpdateFriendRequest)
+	route.Put("/user/social-link/:link_id", middleware, handler.UpdateSocialLink)
 	route.Delete("/user/reject-friend-requests/:target_id", middleware, handler.RejectFriendRequest)
 	route.Delete("/user/unfriend/:target_id", middleware, handler.Unfriend)
+	route.Delete("/user/social-link/:link_id", middleware, handler.RemoveSocialLink)
 }
 
 func (h *userHandler) FindAll(c *fiber.Ctx) error {
@@ -165,6 +169,62 @@ func (h *userHandler) MakeFriendRequest(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Friend Request Created", nil))
 }
 
+func (h *userHandler) CreateSocialLinks(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	var socialReq dto.CreateSocialLinksRequest
+	if err := c.BodyParser(&socialReq); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	validateErr := helper.Validate(socialReq)
+	if validateErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
+	}
+
+	if err := h.UserServices.CreateSocialLinks(ctx, &socialReq); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Social Links Created", nil))
+}
+
+func (h *userHandler) FindSocialLinks(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	links, err := h.UserServices.FindSocialLinks(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Social Links Found", links))
+}
+
+func (h *userHandler) FindSocialLinksById(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId, err := helper.GetParams(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	links, err := h.UserServices.FindSocialLinksById(ctx, userId)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Social Links Found", links))
+}
+
 func (h *userHandler) UpdateFriendRequest(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
@@ -182,6 +242,38 @@ func (h *userHandler) UpdateFriendRequest(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Friend Request Updated", nil))
+}
+
+func (h *userHandler) UpdateSocialLink(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	linkId, err := helper.GetParams(c.Params("link_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	var socialReq dto.UpdateSocialLinkRequest
+	if err := c.BodyParser(&socialReq); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	validateErr := helper.Validate(socialReq)
+	if validateErr != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponseWithData("Validation Failed", validateErr))
+	}
+
+	if err := h.UserServices.UpdateSocialLink(ctx, linkId, &socialReq); err != nil {
+		if errors.Is(err, helper.ErrNotAllowed) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Social Links Updated", nil))
 }
 
 func (h *userHandler) Update(c *fiber.Ctx) error {
@@ -339,4 +431,26 @@ func (h *userHandler) Unfriend(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Unfriend Succesfully", nil))
+}
+
+func (h *userHandler) RemoveSocialLink(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	linkId, err := helper.GetParams(c.Params("link_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.RemoveSocialLink(ctx, linkId); err != nil {
+		if errors.Is(err, helper.ErrNotAllowed) {
+			return c.Status(fiber.StatusForbidden).JSON(dto.SendErrorResponse(err.Error()))
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Remove Link Successfully", nil))
 }

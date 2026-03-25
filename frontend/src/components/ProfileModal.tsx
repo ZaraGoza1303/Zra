@@ -208,7 +208,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     onToggle: () => void;
   }) => (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">
+      <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
         {label}
       </label>
       <div className="relative">
@@ -217,12 +217,12 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           value={value}
           onChange={(e) => onChange(e.target.value)}
           required
-          className="w-full px-4 py-3 pr-10 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] text-sm focus:outline-none focus:border-blue-500/60 transition-colors"
+          className="w-full px-4 py-3 pr-10 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-[var(--accent-color)]/60 transition-colors"
         />
         <button
           type="button"
           onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
           {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
@@ -240,16 +240,16 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-[620px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+          className="w-full max-w-[620px] bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Modal Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
-            <h2 className="text-base font-semibold text-[#e6edf3]">
+          <div className="flex items-center justify-between px-6 py-5 border-b border-[var(--border-color)]">
+            <h2 className="text-base font-semibold text-[var(--text-primary)]">
               Edit Profile
             </h2>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
             >
               <X size={18} />
             </button>
@@ -268,8 +268,8 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
                                 ${
                                   activeTab === tab
-                                    ? "bg-white/10 text-[#e6edf3]"
-                                    : "text-[#8b949e] hover:text-[#e6edf3] hover:bg-white/5"
+                                    ? "bg-white/10 text-[var(--text-primary)]"
+                                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
                                 }`}
               >
                 {tab === "profile" ? (
@@ -308,7 +308,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     className="relative cursor-pointer group"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-blue-500/50 transition-colors">
+                    <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-[var(--border-light)] group-hover:border-[var(--accent-color)]/50 transition-colors">
                       {previewUrl ? (
                         <img
                           src={previewUrl}
@@ -322,11 +322,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                       )}
                     </div>
                     {/* Camera Overlay */}
-                    <div className="absolute bottom-0.5 right-0.5 w-7 h-7 rounded-full bg-[#1c2128] border-2 border-[#161b22] flex items-center justify-center text-[#8b949e] group-hover:text-blue-400 group-hover:bg-blue-600/20 transition-all">
+                    <div className="absolute bottom-0.5 right-0.5 w-7 h-7 rounded-full bg-[var(--bg-tertiary)] border-2 border-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-muted)] group-hover:text-[var(--accent-color)] group-hover:bg-[var(--accent-color)]/20 transition-all">
                       <Camera size={13} />
                     </div>
                   </div>
-                  <p className="text-[11px] text-[#8b949e]">
+                  <p className="text-[11px] text-[var(--text-muted)]">
                     Click icon to change photo
                   </p>
                   <input
@@ -340,7 +340,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
                 {/* Username - Read Only */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">
+                  <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
                     Username
                   </label>
                   <div className="relative">
@@ -348,17 +348,17 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                       type="text"
                       value={username}
                       disabled
-                      className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#8b949e] text-sm cursor-not-allowed opacity-60"
+                      className="w-full px-4 py-3 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-muted)] text-sm cursor-not-allowed opacity-60"
                     />
                   </div>
-                  <p className="text-[11px] text-[#8b949e]">
+                  <p className="text-[11px] text-[var(--text-muted)]">
                     Username cannot be changed
                   </p>
                 </div>
 
                 {/* Display Name */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">
+                  <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
                     Display Name
                   </label>
                   <input
@@ -366,26 +366,26 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] text-sm focus:outline-none focus:border-blue-500/60 transition-colors"
+                    className="w-full px-4 py-3 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-[var(--accent-color)]/60 transition-colors"
                   />
                 </div>
 
                 {/* Email (read-only) */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">
+                  <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
                     Email Address
                   </label>
                   <input
                     type="email"
                     value={user?.email || ""}
                     disabled
-                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#8b949e] text-sm cursor-not-allowed opacity-60"
+                    className="w-full px-4 py-3 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-muted)] text-sm cursor-not-allowed opacity-60"
                   />
                 </div>
 
                 {/* Bio */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">
+                  <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">
                     Bio
                   </label>
                   <textarea
@@ -393,7 +393,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     onChange={(e) => setBio(e.target.value)}
                     rows={3}
                     placeholder="Tell something about yourself..."
-                    className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] text-sm focus:outline-none focus:border-blue-500/60 transition-colors resize-none font-[inherit] placeholder-[#8b949e]"
+                    className="w-full px-4 py-3 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-primary)] text-sm focus:outline-none focus:border-[var(--accent-color)]/60 transition-colors resize-none font-[inherit] placeholder-[var(--text-muted)]"
                   />
                 </div>
 
@@ -402,7 +402,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[var(--text-muted)] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 border border-[var(--border-light)] transition-colors"
                   >
                     Cancel
                   </button>
@@ -414,7 +414,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                         bio === (user?.bio || "") &&
                         !profilePicture)
                     }
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[#1c2128] hover:bg-[#252d37] border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)] border border-[var(--border-light)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {loading ? "Saving..." : "Save Changes"}
                   </button>
@@ -454,7 +454,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                    className="flex-1 py-3 rounded-xl text-sm font-medium text-[var(--text-muted)] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 border border-[var(--border-light)] transition-colors"
                   >
                     Cancel
                   </button>
@@ -466,7 +466,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                       !newPassword ||
                       !confirmPassword
                     }
-                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-600/20"
+                    className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[var(--accent-color)] hover:bg-[var(--accent-color)]/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-[var(--accent-color)]/20"
                   >
                     <Lock size={14} className="inline mr-1.5" />
                     {loading ? "Changing..." : "Change Password"}

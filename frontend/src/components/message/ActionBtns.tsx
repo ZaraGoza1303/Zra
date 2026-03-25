@@ -40,7 +40,7 @@ export default function ActionBtns({
         <div className={`absolute -top-3 flex items-center gap-1 transition-opacity z-10 opacity-0 group-hover:opacity-100
             ${isMe ? 'right-2' : 'left-2'}`}>
             <button onClick={() => onReply(msg)}
-                className="p-1 rounded-full bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                className="p-1 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                 <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" />
                 </svg>
@@ -50,7 +50,7 @@ export default function ActionBtns({
                 <div className="relative" ref={dropdownRef}>
                     <button
                         onClick={() => setShowDropdown(prev => !prev)}
-                        className="p-1 rounded-full bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+                        className="p-1 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
                             <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
@@ -58,29 +58,29 @@ export default function ActionBtns({
                     </button>
 
                     {showDropdown && (
-                        <div className={`absolute top-6 z-30 w-32 bg-[#1c2128] border border-white/10 rounded-xl shadow-xl overflow-hidden
+                        <div className={`absolute top-6 z-30 w-32 bg-[var(--bg-tertiary)] border border-[var(--border-light)] rounded-xl shadow-xl overflow-hidden
                             ${isMe ? 'right-0' : 'left-0'}`}>
                             {msg.type !== 'sticker' && (
                                 <button
                                     onClick={() => { onEdit(msg); setShowDropdown(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#e6edf3] hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                 >
-                                    <Pencil size={12} className="text-blue-400" />
+                                    <Pencil size={12} className="text-[var(--accent-color)]" />
                                     Edit
                                 </button>
                             )}
                             <button
                                 onClick={() => { onSelect(msg.id!, isMe); setShowDropdown(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#e6edf3] hover:bg-white/5 transition-colors"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                             >
-                                <svg viewBox="0 0 24 24" className="w-3 h-3 text-[#8b949e]" fill="none" stroke="currentColor" strokeWidth="2">
+                                <svg viewBox="0 0 24 24" className="w-3 h-3 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="2">
                                     <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 12l2 2 4-4" />
                                 </svg>
                                 Select
                             </button>
                             <button
                                 onClick={() => { onDelete(msg.id!); setShowDropdown(false); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-white/5 transition-colors"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-[var(--bg-tertiary)] transition-colors"
                             >
                                 <Trash2 size={12} />
                                 Delete

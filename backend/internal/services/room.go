@@ -123,11 +123,12 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 				decryptedContent = "Failed to load messages..."
 			}
 
-			item.LastMessage = dto.LastMessageInfo{
+			lastMsg := dto.LastMessageInfo{
 				Content:  decryptedContent,
 				Username: msg.Username,
 				SentAt:   msg.CreatedAt,
 			}
+			item.LastMessage = &lastMsg
 		}
 
 		response = append(response, item)

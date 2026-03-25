@@ -48,6 +48,7 @@ export default function Login() {
 
           apiCall<{ data: User }>(`/user/${userId}`, { method: "GET" })
             .then((res) => {
+              console.log("Profile API response:", res);
               if (res.data) {
                 loginState(accessToken, {
                   ...res.data,

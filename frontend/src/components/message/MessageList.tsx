@@ -198,7 +198,7 @@ export default function MessageList({
                 ${isMe ? 'right-2' : 'left-2'}`}>
                 {/* Reply */}
                 <button onClick={() => onReply(msg)}
-                    className="p-1 rounded-full bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                    className="p-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-light)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                     <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="9 14 4 9 9 4" /><path d="M20 20v-7a4 4 0 0 0-4-4H4" />
                     </svg>
@@ -209,7 +209,7 @@ export default function MessageList({
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setShowDropdown(prev => !prev)}
-                            className="p-1 rounded-full bg-[#1c2128] border border-white/10 text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+                            className="p-1 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-light)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                         >
                             <svg viewBox="0 0 24 24" className="w-3 h-3" fill="currentColor">
                                 <circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" />
@@ -217,29 +217,29 @@ export default function MessageList({
                         </button>
 
                         {showDropdown && (
-                            <div className={`absolute top-6 z-30 w-32 bg-[#1c2128] border border-white/10 rounded-xl shadow-xl overflow-hidden
+                            <div className={`absolute top-6 z-30 w-32 bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-xl shadow-xl overflow-hidden
                                 ${isMe ? 'right-0' : 'left-0'}`}>
                                 {msg.type !== 'sticker' && (
                                     <button
                                         onClick={() => { startEdit(msg); setShowDropdown(false); }}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#e6edf3] hover:bg-white/5 transition-colors"
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                     >
-                                        <Pencil size={12} className="text-blue-400" />
+                                        <Pencil size={12} className="text-[var(--accent-color)]" />
                                         Edit
                                     </button>
                                 )}
                                 <button
                                     onClick={() => { enterSelectMode(msg.id); setShowDropdown(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[#e6edf3] hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                 >
-                                    <svg viewBox="0 0 24 24" className="w-3 h-3 text-[#8b949e]" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <svg viewBox="0 0 24 24" className="w-3 h-3 text-[var(--text-muted)]" fill="none" stroke="currentColor" strokeWidth="2">
                                         <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 12l2 2 4-4" />
                                     </svg>
                                     Select
                                 </button>
                                 <button
                                     onClick={() => { confirmDelete(msg.id); setShowDropdown(false); }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-white/5 transition-colors"
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-[var(--bg-tertiary)] transition-colors"
                                 >
                                     <Trash2 size={12} />
                                     Delete
@@ -269,7 +269,7 @@ export default function MessageList({
                     lastDateLabel = label;
                     elements.push(
                         <div key={`sep-${idx}`} className="flex items-center justify-center my-3">
-                            <span className="px-4 py-1 text-[10px] font-semibold tracking-widest text-[#8b949e] bg-[#161b22] rounded-full border border-white/5">
+                            <span className="px-4 py-1 text-[10px] font-semibold tracking-widest text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded-full border border-[var(--border-color)]">
                                 {label}
                             </span>
                         </div>
@@ -280,7 +280,7 @@ export default function MessageList({
             if (isSystem) {
                 elements.push(
                     <div key={msg.id || idx} className="flex justify-center my-1">
-                        <span className="px-4 py-1.5 rounded-full text-xs text-[#8b949e] bg-white/5">
+                        <span className="px-4 py-1.5 rounded-full text-xs text-[var(--text-muted)] bg-[var(--bg-tertiary)]">
                             {msg.content}
                         </span>
                     </div>
@@ -320,7 +320,7 @@ export default function MessageList({
                             {msg.profile_picture ? (
                                 <img src={getUserImageUrl(msg.profile_picture)} alt={msg.username} className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full bg-[#30363d] flex items-center justify-center text-[#8b949e]">
+                                <div className="w-full h-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)]">
                                     <User size={18} strokeWidth={2} />
                                 </div>
                             )}
@@ -329,14 +329,14 @@ export default function MessageList({
 
                     <div className={`flex flex-col max-w-[65%] ${isMe ? 'items-end' : 'items-start'}`}>
                         {!isMe && !isPrivate && (
-                            <span className="text-xs text-[#8b949e] font-medium mb-1 ml-1">{msg.username}</span>
+                            <span className="text-xs text-[var(--text-muted)] font-medium mb-1 ml-1">{msg.username}</span>
                         )}
 
                         {/* ── STICKER ── */}
                         {isSticker && (
                             msg.reply_to ? (
                                 <div className={`relative flex flex-col gap-3 items-center group px-4 pt-2.5 pb-2.5 rounded-2xl
-                                    ${isMe ? 'bg-[#1d3a6e] rounded-br-sm' : 'bg-[#1c2128] rounded-bl-sm border border-white/5'}`}>
+                                    ${isMe ? 'bg-[var(--accent-color)] rounded-br-sm' : 'bg-[var(--message-received)] rounded-bl-sm border border-[var(--border-color)]'}`}>
                                     <ActionBtns msg={msg} isMe={isMe} />
                                     <ReplyPreview replyTo={msg.reply_to} isMe={isMe} />
                                     <img src={msg.content} alt="sticker" className="w-40 h-40 object-contain drop-shadow-lg" />
@@ -355,7 +355,7 @@ export default function MessageList({
                                 <ActionBtns msg={msg} isMe={isMe} />
                                 <div className={`overflow-hidden
                                     ${isMe ? 'rounded-2xl rounded-br-sm' : 'rounded-2xl rounded-bl-sm'}
-                                    ${isMe ? 'bg-[#1d3a6e]' : 'bg-[#1c2128] border border-white/5'}`}>
+                                    ${isMe ? 'bg-[var(--accent-color)]' : 'bg-[var(--message-received)] border border-[var(--border-color)]'}`}>
 
                                     {msg.reply_to && (
                                         <div className="px-2 pt-2">
@@ -393,13 +393,13 @@ export default function MessageList({
                                                     if (e.key === 'Escape') cancelEdit();
                                                 }}
                                                 placeholder="Edit caption..."
-                                                className="flex-1 bg-transparent text-sm text-[#e6edf3] placeholder-[#8b949e] outline-none border-b border-blue-500/50"
+                                                className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none border-b border-[var(--accent-color)]/50"
                                             />
                                             <button onClick={() => submitEdit(msg)} disabled={actionLoading}
-                                                className="text-blue-400 hover:text-blue-300 disabled:opacity-40 shrink-0">
+                                                className="text-[var(--accent-color)] hover:text-blue-300 disabled:opacity-40 shrink-0">
                                                 <Check size={14} />
                                             </button>
-                                            <button onClick={cancelEdit} className="text-[#8b949e] hover:text-[#e6edf3] shrink-0">
+                                            <button onClick={cancelEdit} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0">
                                                 <XIcon size={14} />
                                             </button>
                                         </div>
@@ -411,13 +411,13 @@ export default function MessageList({
                                             const displayCaption = isLong && !isExpanded ? msg.caption.slice(0, 300) + '...' : msg.caption;
                                             return (
                                                 <div className="px-3 py-2">
-                                                    <p className={`text-sm leading-relaxed break-words whitespace-pre-wrap
-                                                    ${isMe ? 'text-[#cdd9f0]' : 'text-[#e6edf3]'}`}>
+                                                    <p className={`leading-relaxed break-words whitespace-pre-wrap message-content
+                                                    ${isMe ? 'text-white' : 'text-[var(--text-primary)]'}`}>
                                                         {displayCaption}
                                                     </p>
                                                     {isLong && (
                                                         <button onClick={() => toggleExpand(captionKey)}
-                                                            className={`text-xs mt-1 font-medium hover:underline ${isMe ? 'text-blue-300' : 'text-blue-400'}`}>
+                                                            className={`text-xs mt-1 font-medium hover:underline ${isMe ? 'text-blue-300' : 'text-[var(--accent-color)]'}`}>
                                                             {isExpanded ? 'Show less' : 'Read more'}
                                                         </button>
                                                     )}
@@ -431,8 +431,8 @@ export default function MessageList({
 
                         {/* ── CHAT (text) ── */}
                         {!isSticker && !isImage && (
-                            <div className={`relative group px-4 pt-2.5 pb-2.5 rounded-2xl text-sm leading-relaxed break-words
-                                ${isMe ? 'bg-[#1d3a6e] text-[#cdd9f0] rounded-br-sm' : 'bg-[#1c2128] text-[#e6edf3] rounded-bl-sm border border-white/5'}`}>
+                            <div className={`relative group px-4 pt-2.5 pb-2.5 rounded-2xl leading-relaxed break-words message-content
+                                ${isMe ? 'bg-[var(--accent-color)] text-white rounded-br-sm' : 'bg-[var(--message-received)] text-[var(--text-primary)] rounded-bl-sm border border-[var(--border-color)]'}`}>
                                 <ActionBtns msg={msg} isMe={isMe} />
                                 <ReplyPreview replyTo={msg.reply_to} isMe={isMe} />
 
@@ -446,13 +446,13 @@ export default function MessageList({
                                                 if (e.key === 'Enter') submitEdit(msg);
                                                 if (e.key === 'Escape') cancelEdit();
                                             }}
-                                            className="flex-1 bg-transparent text-sm text-[#e6edf3] outline-none border-b border-blue-500/50"
+                                            className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none border-b border-[var(--accent-color)]/50"
                                         />
                                         <button onClick={() => submitEdit(msg)} disabled={actionLoading || !editContent.trim()}
-                                            className="text-blue-400 hover:text-blue-300 disabled:opacity-40 shrink-0">
+                                            className="text-[var(--accent-color)] hover:text-blue-300 disabled:opacity-40 shrink-0">
                                             <Check size={14} />
                                         </button>
-                                        <button onClick={cancelEdit} className="text-[#8b949e] hover:text-[#e6edf3] shrink-0">
+                                        <button onClick={cancelEdit} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0">
                                             <XIcon size={14} />
                                         </button>
                                     </div>
@@ -467,7 +467,7 @@ export default function MessageList({
                                                 <div className="mt-1 whitespace-pre-wrap break-all">{displayContent}</div>
                                                 {isLong && (
                                                     <button onClick={() => toggleExpand(msgKey)}
-                                                        className={`text-xs mt-1 font-medium ${isMe ? 'text-blue-300' : 'text-blue-400'} hover:underline`}>
+                                                        className={`text-xs mt-1 font-medium ${isMe ? 'text-blue-300' : 'text-[var(--accent-color)]'} hover:underline`}>
                                                         {isExpanded ? 'Show less' : 'Read more'}
                                                     </button>
                                                 )}
@@ -481,25 +481,25 @@ export default function MessageList({
                         {/* Timestamp & status */}
                         <div className="flex items-center gap-1 mt-1 mx-1">
                             {msg.time_stamp && (
-                                <span className="text-[10px] text-[#8b949e]">{formatMsgTime(msg.time_stamp)}</span>
+                                <span className="text-[10px] text-[var(--text-muted)]">{formatMsgTime(msg.time_stamp)}</span>
                             )}
                             {isMe && msg.status && isPrivate && (
                                 <span className="inline-flex items-center">
                                     {msg.status === 'pending' && (
-                                        <svg className="animate-spin w-2.5 h-2.5 text-[#8b949e]" viewBox="0 0 24 24" fill="none">
+                                        <svg className="animate-spin w-2.5 h-2.5 text-[var(--text-muted)]" viewBox="0 0 24 24" fill="none">
                                             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.3" />
                                             <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
                                         </svg>
                                     )}
                                     {msg.status === 'sent' && (
                                         <svg viewBox="0 0 16 11" className="w-3 h-2.5" fill="none">
-                                            <path d="M1 5.5L5.5 10L15 1" stroke="#8b949e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path d="M1 5.5L5.5 10L15 1" stroke="var(--text-muted)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                         </svg>
                                     )}
                                     {msg.status === 'read' && (
                                         <svg viewBox="0 0 20 11" className="w-4 h-2.5" fill="none">
-                                            <path d="M1 5.5L5.5 10L15 1" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                            <path d="M6 5.5L10.5 10L20 1" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path d="M1 5.5L5.5 10L15 1" stroke="var(--accent-color)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            <path d="M6 5.5L10.5 10L20 1" stroke="var(--accent-color)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                         </svg>
                                     )}
                                     {msg.status === 'failed' && (
@@ -524,16 +524,16 @@ export default function MessageList({
             <div ref={messagesContainerRef} onScroll={onScroll} className={`flex-1 overflow-y-auto px-6 py-4 flex flex-col gap-3 ${selectMode ? "pb-16" : ""}`}>
                 {loadingMore && (
                     <div className="flex justify-center py-2">
-                        <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="w-5 h-5 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                     </div>
                 )}
                 {fetchingHistory ? (
-                    <div className="m-auto flex flex-col items-center gap-3 text-[#8b949e]">
-                        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <div className="m-auto flex flex-col items-center gap-3 text-[var(--text-muted)]">
+                        <div className="w-8 h-8 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                         <span className="text-sm">Loading messages...</span>
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="m-auto text-[#8b949e] text-sm text-center">
+                    <div className="m-auto text-[var(--text-muted)] text-sm text-center">
                         <p>No messages yet.</p>
                         <p className="text-xs mt-1 opacity-70">Start the conversation! 👋</p>
                     </div>
@@ -543,14 +543,14 @@ export default function MessageList({
 
             {/* ── Select mode bottom bar ── */}
             {selectMode && (
-                <div className="absolute bottom-0 left-0 right-0 z-30 px-4 py-3 bg-[#1c2128] border-t border-white/10 flex items-center justify-between">
+                <div className="absolute bottom-0 left-0 right-0 z-30 px-4 py-3 bg-[var(--bg-secondary)] border-t border-[var(--border-light)] flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <button onClick={exitSelectMode} className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                        <button onClick={exitSelectMode} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M18 6L6 18M6 6l12 12" />
                             </svg>
                         </button>
-                        <span className="text-sm text-[#e6edf3] font-medium">
+                        <span className="text-sm text-[var(--text-primary)] font-medium">
                             {selectedIds.size} selected
                         </span>
                     </div>

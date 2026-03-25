@@ -72,10 +72,19 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 		IsVerified:  false,
 	}
 
+	existingUser, _ := s.UserRepositories.GetByEmail(ctx, req.Email)
+	if existingUser != nil {
+		return nil, helper.ErrEmailAlreadyUsed
+	}
+	existingUsername, _ := s.UserRepositories.GetByUsername(ctx, req.Username)
+	if existingUsername != nil {
+		return nil, helper.ErrUsernameAlreadyUsed
+	}
+
 	err = s.AuthRepositories.Register(ctx, &newUser)
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return nil, helper.ErrEmailAlreadyUsed
+			return nil, helper.ErrUsernameAlreadyUsed
 		}
 		return nil, err
 	}
@@ -99,8 +108,7 @@ func (s *authService) Register(ctx context.Context, req dto.UserRegisterRequest)
 			Actions: []hermes.Action{
 				{
 					Instructions: "Silakan masukkan kode OTP di bawah ini untuk memverifikasi akun Anda:",
-					// 2. Gunakan InviteCode agar format OTP terlihat besar dan jelas di Email
-					InviteCode: otpCode,
+					InviteCode:   otpCode,
 				},
 			},
 			Outros: []string{

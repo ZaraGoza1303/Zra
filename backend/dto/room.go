@@ -20,7 +20,7 @@ type RoomResponse struct {
 	Members       []RoomMemberResponse `json:"members"`
 	CreatedAt     time.Time            `json:"created_at"`
 	UpdatedAt     time.Time            `json:"updated_at"`
-	LastMessage   LastMessageInfo      `json:"last_message"`
+	LastMessage   *LastMessageInfo     `json:"last_message"`
 	UnreadMessage int64                `json:"unread_message"`
 }
 
@@ -42,12 +42,12 @@ type LastMessageInfo struct {
 	Content  string    `json:"content"`
 	Username string    `json:"username"`
 	SentAt   time.Time `json:"sent_at"`
-	Type 	string `json:"type"`
+	Type     string    `json:"type"`
 }
 
 type StickerResponse struct {
-	ID uint `json:"id"`
-	Name string `json:"name"`
-	Url string `json:"url"`
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	Url      string `json:"url"`
 	Category string `json:"category"`
 }

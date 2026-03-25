@@ -10,7 +10,7 @@ import MessageInput, { type MessageInputHandle } from '../message/MessageInput';
 import RoomInfoSidebar from './RoomInfoSidebar';
 import PreviewPictureModal from '../ui/PreviewPictureModal';
 import MembersModal from './MembersModal';
-import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile } from '../../types/chat';
+import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile, SocialLink } from '../../types/chat';
 import { useDashboardStore } from '../../store/dashboardStore';
 import { useToastStore } from '../../store/toastStore';
 
@@ -21,22 +21,22 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     const isPendingRoom = roomId.startsWith('pending:');
     const messageInputRef = useRef<MessageInputHandle>(null);
     const resolvedRoomId = useRef<string>('');
-    
+
     // Refs for stable dependencies in useEffect
     const userRef = useRef(user);
     const tokenRef = useRef(token);
     const privatePartnerInfoRef = useRef(privatePartnerInfo);
     const isPrivateRef = useRef(isPrivate);
-    
+
     // Keep refs updated
     userRef.current = user;
     tokenRef.current = token;
     privatePartnerInfoRef.current = privatePartnerInfo;
     isPrivateRef.current = isPrivate;
-    
+
     // Ref to prevent concurrent initialization
     const isInitializing = useRef(false);
-    
+
     const {
         messages, setMessages,
         input, setInput,
@@ -61,7 +61,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setEditLoading,
         resetChatState,
         setActiveMembers,
-        setMutualRooms
+        setMutualRooms,
+        setTyping
     } = useChatStore();
 
     const ws = useRef<WebSocket | null>(null);
@@ -179,6 +180,14 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             const members = resp.data || [];
             const partner = members.find(m => m.user_id !== user?.id);
             if (partner) {
+                let socialLinks: SocialLink[] = [];
+                try {
+                    const socialResp = await apiCall<{ data: SocialLink[] }>(`/user/social-links/${partner.user_id}`, { method: 'GET' });
+                    socialLinks = socialResp.data || [];
+                } catch (socialErr) {
+                    console.log("No social links found for user");
+                }
+                
                 setPrivatePartner({
                     user_id: partner.user_id,
                     username: partner.username,
@@ -186,6 +195,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     user_bio: partner.user_bio,
                     is_verified: partner.is_verified,
                     created_at: partner.created_at,
+                    social_links: socialLinks,
                 });
             }
         } catch (e) {
@@ -210,7 +220,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 console.log('[DEBUG-STEP2] Creating/Getting DM room...');
                 const res = await apiCall<{ data: any }>(`/room/${targetId}/private`, { method: 'POST' });
                 console.log('[DEBUG-STEP3] Room creation response:', res);
-                
+
                 // Handle both array (existing room) and string (new room) response
                 let newRoomId: string;
                 if (Array.isArray(res.data)) {
@@ -440,11 +450,19 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         ws.current.onmessage = (event) => {
             try {
                 const msg: any = JSON.parse(event.data);
+                console.log('[WS-RECEIVE] Room:', actualRoomId, 'Type:', msg.type, 'ID:', msg.id, 'UserID:', msg.user_id);
 
                 if (msg.type === 'chat') {
                     if (msg.user_id !== user?.id) {
+                        console.log('[WS-RECEIVE] Adding chat message to list, current count:', messages.length);
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === msg.id)) {
+                                console.log('[WS-RECEIVE] Duplicate message detected, skipping:', msg.id);
+                                return prev;
+                            }
+                            return [...prev, { ...msg, status: 'sent' }];
+                        });
                         onNewMessage?.(actualRoomId, {
                             content: msg.content,
                             username: msg.username,
@@ -499,7 +517,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 if (msg.type === 'sticker') {
                     if (msg.user_id !== user?.id) {
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === msg.id)) return prev;
+                            return [...prev, { ...msg, status: 'sent' }];
+                        });
                         onNewMessage?.(actualRoomId, {
                             content: '🎭 Sticker',
                             username: msg.username,
@@ -513,7 +534,10 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 if (msg.type === 'image') {
                     if (msg.user_id !== user?.id) {
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === msg.id)) return prev;
+                            return [...prev, { ...msg, status: 'sent' }];
+                        });
                         onNewMessage?.(actualRoomId, {
                             content: '📷 Image',
                             username: msg.username,
@@ -536,9 +560,21 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     return;
                 }
 
+                if (msg.type === 'typing') {
+                    if (msg.user_id !== user?.id) {
+                        const isTyping = msg.content === 'true';
+                        setTyping(actualRoomId, msg.user_id, msg.username, isTyping);
+                    }
+                    return;
+                }
+
                 if (msg.type !== 'chat' && msg.type !== 'readed' && msg.type !== 'sticker'
-                    && msg.type !== 'image' && msg.type !== 'delete-message' && msg.type !== 'update-message') {
-                    setMessages(prev => [...prev, msg]);
+                    && msg.type !== 'image' && msg.type !== 'delete-message' && msg.type !== 'update-message'
+                    && msg.type !== 'typing') {
+                    setMessages(prev => {
+                        if (msg.id && prev.some(m => m.id === msg.id)) return prev;
+                        return [...prev, msg];
+                    });
                 }
 
             } catch (e) {
@@ -576,7 +612,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         // Use refs for stable values
         const currentUser = userRef.current;
         const currentToken = tokenRef.current;
-        
+
         console.log('[DEBUG-USEFFECT-MAIN] Triggered! roomId:', roomId, 'isPendingRoom:', isPendingRoom, 'user:', !!currentUser, 'token:', !!currentToken);
         if (!roomId || !currentUser || !currentToken) {
             console.log('[DEBUG-USEFFECT-MAIN] Early return - missing roomId/user/token');
@@ -585,7 +621,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
         if (isPendingRoom) {
             console.log('[DEBUG-USEFFECT] Pending room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
-            
+
             // Set partner info immediately from props so header shows it
             const partnerInfo = privatePartnerInfoRef.current;
             if (partnerInfo) {
@@ -595,6 +631,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     username: partnerInfo.username,
                     user_profile_picture: partnerInfo.user_profile_picture,
                     user_bio: partnerInfo.user_bio,
+                    social_links: [],
                 });
             }
 
@@ -607,11 +644,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             // Try to resolve the room ID immediately
             const targetId = roomId.replace('pending:', '');
             console.log('[DEBUG-USEFFECT] Resolving pending room, targetId:', targetId);
-            
+
             apiCall<{ data: any }>(`/room/${targetId}/private`, { method: 'POST' })
                 .then(res => {
                     console.log('[DEBUG-USEFFECT] Room resolution response:', res);
-                    
+
                     // Handle both array (existing room) and string (new room) response
                     let realRoomId: string | undefined;
                     if (Array.isArray(res.data)) {
@@ -621,7 +658,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         realRoomId = res.data;  // New room - use new ID
                         console.log('[DEBUG-USEFFECT] New room created, id:', realRoomId);
                     }
-                    
+
                     if (realRoomId) {
                         console.log('[DEBUG-USEFFECT] Resolving to room:', realRoomId);
                         resetChatState();
@@ -642,24 +679,25 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             return;
         }
 
-        // Real Room Initialization
-        // Only reset if this is NOT the room we just resolved (prevents message disappearance)
-        console.log('[DEBUG-USEFFECT] Real room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
-        
+        if (resolvedRoomId.current === roomId) {
+            console.log('[DEBUG-USEFFECT] Room SAME, skipping fetch');
+            return;
+        }
+
         // Guard: prevent concurrent initialization
         if (isInitializing.current) {
             console.log('[DEBUG-USEFFECT] Already initializing, skipping');
             return;
         }
-        
+
         if (resolvedRoomId.current !== roomId) {
             // Mark as initializing
             isInitializing.current = true;
             console.log('[DEBUG-USEFFECT] Room changed, will fetch history and connect WS');
-            
+
             setIsKicked(false);
             resetChatState();
-            
+
             // Sequential execution: fetch history first, then connect WS
             (async () => {
                 try {
@@ -683,17 +721,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
 
         return () => {
-            // Cleanup: Only close the WS if we are actually moving to a DIFFERENT room
-            // and NOT if we are in the middle of resolving one.
             isInitializing.current = false;
-            resolvedRoomId.current = '';
-            
+
             if (ws.current) {
-                const wsRoomId = (ws.current as any).roomId;
-                if (wsRoomId !== resolvedRoomId.current) {
-                    ws.current.close();
-                    ws.current = null;
-                }
+                ws.current.close();
+                ws.current = null;
             }
         };
     }, [roomId, isPendingRoom]); // Using refs for stable values - only trigger on roomId/isPendingRoom change
@@ -840,6 +872,14 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 const members = resp.data || [];
                 const partner = members.find(m => m.user_id !== user?.id);
                 if (partner) {
+                    let socialLinks: SocialLink[] = [];
+                    try {
+                        const socialResp = await apiCall<{ data: SocialLink[] }>(`/user/social-links/${partner.user_id}`, { method: 'GET' });
+                        socialLinks = socialResp.data || [];
+                    } catch (socialErr) {
+                        console.log("No social links found for user");
+                    }
+
                     setPrivatePartner({
                         user_id: partner.user_id,
                         username: partner.username,
@@ -847,6 +887,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         user_bio: partner.user_bio,
                         is_verified: partner.is_verified,
                         created_at: partner.created_at,
+                        social_links: socialLinks,
                     });
 
                     // Fetch mutual rooms
@@ -921,7 +962,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     };
 
     return (
-        <div className="flex h-full w-full bg-[#0b0e11] overflow-hidden">
+        <div className="flex h-full w-full bg-[var(--bg-primary)] overflow-hidden">
             {/* Main Chat Area */}
             <div className="flex flex-col flex-1 min-w-0">
                 <ChatHeader
@@ -949,19 +990,25 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 />
 
                 {isKicked ? (
-                    <div className="px-5 py-4 border-t border-white/5 bg-[#0b0e11] flex items-center justify-center gap-3">
+                    <div className="px-5 py-4 border-t border-[var(--border-color)] bg-[var(--bg-primary)] flex items-center justify-center gap-3">
                         <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
                             <span>You've been removed from this room.</span>
                         </div>
                         <button
                             onClick={onBack}
-                            className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#8b949e] hover:text-[#e6edf3] text-sm transition-colors"
+                            className="px-4 py-2.5 rounded-xl bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm transition-colors"
                         >
                             Go Back
                         </button>
                     </div>
                 ) : (
-                    <MessageInput ref={messageInputRef} sendMessage={sendMessage} onSendSticker={sendSticker} onSendImage={sendImage} />
+                    <MessageInput
+                        roomId={roomId}
+                        socket={ws.current}
+                        sendMessage={sendMessage}
+                        onSendSticker={sendSticker}
+                        onSendImage={sendImage}
+                    />
                 )}
             </div>
 

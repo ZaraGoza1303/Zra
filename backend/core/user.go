@@ -18,12 +18,17 @@ type UserRepositories interface {
 	GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.User, error)
 	GetUnreadNotifCount(ctx context.Context, user_id uint) ([]dto.UnreadNotifResponse, error)
 	GetFriendship(ctx context.Context, user_id uint, target_id uint) (bool, error)
+	GetLinks(ctx context.Context, userId uint) ([]models.Link, error)
+	GetSocialLinkByUserId(ctx context.Context, userId uint) (*models.SocialLink, error)
 	InsertFriendRequest(ctx context.Context, req *models.Friend) error
 	InsertNotification(ctx context.Context, req *models.Notification) error
+	InsertSocialLink(ctx context.Context, req *models.SocialLink) error
+	InsertLink(ctx context.Context, req []models.Link) error
 	Update(ctx context.Context, id uint, req *models.User) error
 	UpdateFriendRequest(ctx context.Context, req *models.Friend) error
 	UpdatePassResetToken(ctx context.Context, reset *models.PasswordReset) error
 	UpdateNotifRead(ctx context.Context, user_id uint) error
+	UpdateSocialLink(ctx context.Context, linkId uint, req *models.Link) error
 	Delete(ctx context.Context, id uint) error
 	DeleteFriendRequest(ctx context.Context, user_id uint, target_id uint) error
 	DeleteFriendship(ctx context.Context, user_id uint, target_id uint) error
@@ -31,7 +36,9 @@ type UserRepositories interface {
 	DeleteExpiredRefreshToken(ctx context.Context) error
 	DeleteExpiredResetToken(ctx context.Context) error
 	DeleteReadedNotifications(ctx context.Context) error
+	DeleteSocialLink(ctx context.Context, linkId uint) error
 
+	IsLinkOwnedByUser(ctx context.Context, userId uint, linkId uint) (bool, error)
 	VerifyEmail(ctx context.Context, id uint, req *models.User) error
 }
 
@@ -45,12 +52,17 @@ type UserServices interface {
 	FindListFriend(ctx context.Context, filter string) ([]dto.UserResponse, error)
 	FindListFriendRequest(ctx context.Context, filter string) ([]dto.UserResponse, error)
 	FindUnreadNotifCount(ctx context.Context) ([]dto.UnreadNotifResponse, error)
+	FindSocialLinks(ctx context.Context) ([]dto.SocialLinkResponse, error)
+	FindSocialLinksById(ctx context.Context, userId uint) ([]dto.SocialLinkResponse, error)
 	MakeFriendRequest(ctx context.Context, target_id uint) error
+	CreateSocialLinks(ctx context.Context, req *dto.CreateSocialLinksRequest) error
 	Update(ctx context.Context, req *dto.UpdateUserRequest) (*models.User, error)
 	UpdateFriendRequest(ctx context.Context, target_id uint) error
 	UpdateReadNotifications(ctx context.Context) error
 	UpdatePassResetToken(ctx context.Context, id uint, req dto.UpdatePassResetTokenRequest) error
+	UpdateSocialLink(ctx context.Context, linkId uint, req *dto.UpdateSocialLinkRequest) error
 	Delete(ctx context.Context, id uint) error
+	RemoveSocialLink(ctx context.Context, linkId uint) error
 	Unfriend(ctx context.Context, target_id uint) error
 	RejectFriendRequest(ctx context.Context, target_id uint) error
 	ChangePassword(ctx context.Context, req dto.ChangePasswordRequest) error

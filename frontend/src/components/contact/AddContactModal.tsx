@@ -75,24 +75,24 @@ export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onD
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
             {/* Modal content */}
-            <div className="relative w-full max-w-lg bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-                    <h2 className="text-xl font-bold text-[#e6edf3]">Add Contact</h2>
-                    <button onClick={onClose} className="p-2 text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+            <div className="relative w-full max-w-lg bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)]">
+                    <h2 className="text-xl font-bold text-[var(--text-primary)]">Add Contact</h2>
+                    <button onClick={onClose} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
                 <div className="p-6">
                     <div className="relative mb-6">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8b949e]" size={18} />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={18} />
                         <input
                             type="text"
                             placeholder="Find someone by username"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             autoFocus
-                            className="w-full pl-12 pr-4 py-3 bg-[#161b22] border border-white/10 rounded-xl text-[#e6edf3] placeholder-[#8b949e] outline-none focus:border-blue-500/50 transition-all"
+                            className="w-full pl-12 pr-4 py-3 bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-[var(--accent-color)]/50 transition-all"
                         />
                         {searching && (
                             <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -115,11 +115,11 @@ export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onD
                                 />
                             ))
                         ) : searchQuery.trim() && !searching ? (
-                            <div className="py-12 text-center text-[#8b949e]">
+                            <div className="py-12 text-center text-[var(--text-muted)]">
                                 <p>No users found matching "{searchQuery}"</p>
                             </div>
                         ) : (
-                            <div className="py-12 text-center text-[#8b949e]">
+                            <div className="py-12 text-center text-[var(--text-muted)]">
                                 <UserPlus size={48} className="mx-auto mb-4 opacity-10" />
                                 <p>Search for people to add them as contacts</p>
                             </div>
@@ -127,10 +127,10 @@ export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onD
                     </div>
                 </div>
 
-                <div className="px-6 py-4 bg-[#161b22] border-t border-white/5 flex justify-end">
+                <div className="px-6 py-4 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] flex justify-end">
                     <button
                         onClick={onClose}
-                        className="px-6 py-2 text-sm font-semibold text-[#e6edf3] hover:bg-white/5 rounded-xl transition-all"
+                        className="px-6 py-2 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] rounded-xl transition-all"
                     >
                         Close
                     </button>

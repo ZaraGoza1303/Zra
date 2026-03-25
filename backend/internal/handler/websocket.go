@@ -216,6 +216,11 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		msg.ProfilePicture = client.ProfilePicture
 		msg.TimeStamp = time.Now()
 
+		if msg.Type == "typing" {
+			h.hub.Broadcast <- msg
+			continue
+		}
+
 		if msg.Type == "" {
 			msg.Type = "chat"
 		}

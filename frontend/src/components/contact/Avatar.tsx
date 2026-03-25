@@ -20,7 +20,7 @@ export default function Avatar({ src, name, size = 40, className = '' }: AvatarP
     ) : (
         <div
             style={{ width: size, height: size }}
-            className={`rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e] shrink-0 ${className}`}
+            className={`rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] flex items-center justify-center text-[var(--text-muted)] shrink-0 ${className}`}
         >
             <UserIcon size={size * 0.45} />
         </div>

@@ -76,6 +76,9 @@ func (h *authHandler) Register(c *fiber.Ctx) error {
 		if errors.Is(err, helper.ErrEmailAlreadyUsed) {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 		}
+		if errors.Is(err, helper.ErrUsernameAlreadyUsed) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 

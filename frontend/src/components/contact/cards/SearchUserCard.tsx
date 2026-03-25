@@ -18,16 +18,16 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onDirectMes
     const isSelf = user.id === currentUserId;
 
     return (
-        <div className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/4 transition-colors group mb-0.5">
+        <div className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-[var(--bg-tertiary)]/40 transition-colors group mb-0.5">
             <div className="shrink-0">
                 <Avatar src={user.profile_picture} name={user.name} size={42} />
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[#e6edf3] truncate">{user.name}</span>
+                    <span className="text-sm font-medium text-[var(--text-primary)] truncate">{user.name}</span>
                     <StatusBadge status={user.friendship_status} />
                 </div>
-                <p className="text-xs text-[#8b949e] truncate">@{user.username}</p>
+                <p className="text-xs text-[var(--text-muted)] truncate">@{user.username}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
                 {/* DM button - aktif kalau bukan diri sendiri */}
@@ -39,12 +39,12 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onDirectMes
                         }}
                         disabled={dmLoading}
                         title="Direct Message"
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-blue-500/15 hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--accent-color)]/15 hover:text-[var(--accent-color)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         {dmLoading ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />}
                     </button>
                 ) : (
-                    <button disabled className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] opacity-30 cursor-not-allowed">
+                    <button disabled className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] opacity-30 cursor-not-allowed">
                         <MessageSquare size={15} />
                     </button>
                 )}
@@ -59,7 +59,7 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onDirectMes
                             <Clock size={15} />
                         </button>
                     ) : (
-                        <button onClick={() => onAdd(user.id)} disabled={isLoading} title="Add Friend" className="w-8 h-8 rounded-lg flex items-center justify-center text-blue-400 hover:bg-blue-500/15 disabled:opacity-50 transition-colors">
+                        <button onClick={() => onAdd(user.id)} disabled={isLoading} title="Add Friend" className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--accent-color)] hover:bg-[var(--accent-color)]/15 disabled:opacity-50 transition-colors">
                             {isLoading ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
                         </button>
                     )

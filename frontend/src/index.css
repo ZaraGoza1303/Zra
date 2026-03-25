@@ -23,20 +23,25 @@
 }
 
 :root {
+  /* Dark Mode - solid colors, no gradient */
+  --bg-primary: #0b0e11;
+  --bg-secondary: #161d28;
+  --bg-tertiary: #1c2635;
   --bg-dark: #0b0e11;
-  --bg-gradient:
-    radial-gradient(ellipse 40% 60% at 20% 40%,
-      rgba(59, 130, 246, 0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 30% 40% at 80% 70%,
-      rgba(30, 58, 138, 0.08) 0%, transparent 55%);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --border-color: rgba(255, 255, 255, 0.05);
+  --border-light: rgba(255, 255, 255, 0.03);
 
   --primary: #3b82f6;
   --primary-hover: #2563eb;
   --primary-light: rgba(59, 130, 246, 0.2);
 
-  --secondary: #1d283a;
+  --secondary: #161d28;
   --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
 
   --glass-bg: rgba(15, 17, 20, 0.7);
   --glass-border: rgba(255, 255, 255, 0.05);
@@ -45,13 +50,42 @@
   --danger: #ef4444;
   --success: #10b981;
 
+  --input-bg: #0b0e11;
+  --input-border: rgba(255, 255, 255, 0.1);
+  --input-focus: rgba(59, 130, 246, 0.3);
+
+  --message-sent: #1d4ed8;
+  --message-sent-text: #dbeafe;
+  --message-received: #1c2635;
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+
   --border-radius-lg: 32px;
   --border-radius-md: 12px;
   --border-radius-sm: 8px;
 
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: var(--text-main);
-  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  text-align: left !important;
 }
 
 body {
@@ -250,12 +284,12 @@ h4 {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* Animations */
@@ -294,4 +328,38 @@ h4 {
   border-radius: 50%;
   object-fit: cover;
   background-color: var(--glass-bg);
+}
+
+/* Font size class for message list */
+.message-content {
+  font-size: var(--font-size-base, 14px);
+}
+
+/* Light Theme - softer colors */
+[data-theme="light"] {
+  --bg-dark: #dde3ec;
+  --bg-gradient: none;
+  --bg-primary: #e4eaf3;
+  --bg-secondary: #cdd4e0;
+  --bg-tertiary: #b8c2d4;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-main: #0f172a;
+  --border-color: rgba(15, 23, 42, 0.12);
+  --border-light: rgba(15, 23, 42, 0.06);
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: rgba(37, 99, 235, 0.15);
+  --glass-bg: rgba(205, 212, 224, 0.85);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --input-bg: #e4eaf3;
+  --input-border: rgba(15, 23, 42, 0.15);
+  --input-focus: rgba(37, 99, 235, 0.3);
+  --message-sent: #2563eb;
+  --message-sent-text: #ffffff;
+  --message-received: #cdd4e0;
+  --scrollbar-thumb: rgba(15, 23, 42, 0.2);
+  --scrollbar-thumb-hover: rgba(15, 23, 42, 0.3);
 }

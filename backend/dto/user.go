@@ -40,3 +40,23 @@ type ChangePasswordRequest struct {
 	NewPassword     string `json:"new_password" validate:"required"`
 	ConfirmPassword string `json:"confirm_password" validate:"required"`
 }
+
+type CreateSocialLinksRequest struct {
+	Link []CreateLinkRequest `json:"link" validate:"required"`
+}
+
+type CreateLinkRequest struct {
+	Type string `json:"type" validate:"required"`
+	Url  string `json:"url" validate:"required"`
+}
+
+type UpdateSocialLinkRequest struct {
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
+type SocialLinkResponse struct {
+	ID   uint   `json:"id"`
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}

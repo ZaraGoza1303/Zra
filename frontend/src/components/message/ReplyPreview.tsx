@@ -19,7 +19,7 @@ export default function ReplyPreview({ replyTo, isMe }: ReplyPreviewProps) {
                 ) : replyTo.type === 'image' ? (
                     <img src={replyTo.content} alt="image" className="w-16 h-12 object-cover rounded-sm" />
                 ) : (
-                    <p className={`truncate italic ${isMe ? 'text-[#cdd9f0]/60' : 'text-[#8b949e]'}`}>
+                    <p className={`truncate italic ${isMe ? 'text-[var(--text-secondary)]/60' : 'text-[var(--text-muted)]'}`}>
                         {replyTo.content}
                     </p>
                 )}

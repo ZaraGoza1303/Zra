@@ -58,13 +58,13 @@ export default function CreateRoomModal({ isOpen, onClose, onCreated }: CreateRo
             >
                 <div
                     onClick={e => e.stopPropagation()}
-                    className="w-full max-w-md bg-[#161b22] border border-white/10 rounded-2xl p-6 shadow-2xl"
+                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-2xl p-6 shadow-2xl"
                 >
                     <div className="flex items-center justify-between mb-5">
-                        <h2 className="text-lg font-semibold text-[#e6edf3]">Create New Room</h2>
+                        <h2 className="text-lg font-semibold text-[var(--text-primary)]">Create New Room</h2>
                         <button
                             onClick={onClose}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                         >
                             <X size={18} />
                         </button>
@@ -72,7 +72,7 @@ export default function CreateRoomModal({ isOpen, onClose, onCreated }: CreateRo
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Room Name *</label>
+                            <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Room Name *</label>
                             <input
                                 type="text"
                                 placeholder="e.g. Gamers Indo"
@@ -80,26 +80,26 @@ export default function CreateRoomModal({ isOpen, onClose, onCreated }: CreateRo
                                 onChange={e => setNewRoomName(e.target.value)}
                                 required
                                 autoFocus
-                                className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] placeholder-[#8b949e] text-sm focus:outline-none focus:border-blue-500/60 transition-colors"
+                                className="w-full px-4 py-3 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] text-sm focus:outline-none focus:border-[var(--accent-color)]/60 transition-colors"
                             />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Description</label>
+                            <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Description</label>
                             <textarea
                                 placeholder="What's this room about?"
                                 value={newRoomDescription}
                                 onChange={e => setNewRoomDescription(e.target.value)}
                                 rows={3}
-                                className="w-full px-4 py-3 bg-[#0d1117] border border-white/10 rounded-xl text-[#e6edf3] placeholder-[#8b949e] text-sm focus:outline-none focus:border-blue-500/60 transition-colors resize-none font-[inherit]"
+                                className="w-full px-4 py-3 bg-[var(--bg-primary)] border border-[var(--border-light)] rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] text-sm focus:outline-none focus:border-[var(--accent-color)]/60 transition-colors resize-none font-[inherit]"
                             />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-medium text-[#8b949e] uppercase tracking-wide">Room Image</label>
+                            <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Room Image</label>
                             <div
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex flex-col items-center justify-center gap-2 py-6 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5 transition-all text-[#8b949e]"
+                                className="flex flex-col items-center justify-center gap-2 py-6 border-2 border-dashed border-[var(--border-light)] rounded-xl cursor-pointer hover:border-[var(--accent-color)]/40 hover:bg-[var(--accent-color)]/5 transition-all text-[var(--text-muted)]"
                             >
                                 {newRoomImage ? (
                                     <>
@@ -128,14 +128,14 @@ export default function CreateRoomModal({ isOpen, onClose, onCreated }: CreateRo
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="flex-1 py-3 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                                className="flex-1 py-3 rounded-xl text-sm font-medium text-[var(--text-muted)] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 border border-[var(--border-light)] transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={creating || !newRoomName.trim() || !newRoomDescription.trim()}
-                                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-blue-600/20"
+                                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-[var(--accent-color)] hover:bg-[var(--accent-color)]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-[var(--accent-color)]/20"
                             >
                                 {creating ? 'Creating...' : 'Create Room'}
                             </button>

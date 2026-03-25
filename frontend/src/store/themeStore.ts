@@ -72,27 +72,13 @@ export const useThemeStore = create<ThemeState>()(
         
         const root = document.documentElement;
         
-        // Apply mode (dark/light)
-        if (mode === 'dark') {
-          root.style.setProperty('--bg-primary', '#0b0e11');
-          root.style.setProperty('--bg-secondary', '#161d28');
-          root.style.setProperty('--bg-tertiary', '#1c2635');
-          root.style.setProperty('--text-primary', '#f1f5f9');
-          root.style.setProperty('--text-secondary', '#94a3b8');
-          root.style.setProperty('--border-color', 'rgba(255, 255, 255, 0.05)');
-        } else {
-          root.style.setProperty('--bg-primary', '#ffffff');
-          root.style.setProperty('--bg-secondary', '#f8fafc');
-          root.style.setProperty('--bg-tertiary', '#f1f5f9');
-          root.style.setProperty('--text-primary', '#1e293b');
-          root.style.setProperty('--text-secondary', '#64748b');
-          root.style.setProperty('--border-color', 'rgba(0, 0, 0, 0.1)');
-        }
-
+        // Apply theme mode via data attribute
+        root.setAttribute('data-theme', mode);
+        
         // Apply accent color
         root.style.setProperty('--accent-color', accentColor);
         root.style.setProperty('--accent-hover', adjustColorBrightness(accentColor, -10));
-
+        
         // Apply font size
         const fontSizes: Record<FontSize, string> = {
           small: '13px',

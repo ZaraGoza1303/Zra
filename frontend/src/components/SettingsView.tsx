@@ -1,36 +1,46 @@
 // src/components/SettingsView.tsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
-    Camera,
     HelpCircle,
     MoreVertical,
-    Globe,
-    Twitter,
     Plus,
     Shield,
     User as UserIcon,
     X,
+    Pencil,
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
-import { apiCall, getUserImageUrl } from "../services/api";
+import { useThemeStore } from "../store/themeStore";
+import { apiCall, getUserImageUrl, getSocialLinks, createSocialLinks, updateSocialLink, deleteSocialLink } from "../services/api";
 import { useToastStore } from "../store/toastStore";
-import ImageCropModal from "./ImageCropModal";
+import AddSocialLinkModal from "./settings/AddSocialLinkModal";
+import EditSocialLinkModal from "./settings/EditSocialLinkModal";
+import EditProfileModal from "./settings/EditProfileModal";
+import type { SocialLink, SocialPlatform } from "../types/chat";
+
+const PLATFORMS: { id: SocialPlatform; name: string; color: string; urlPattern: RegExp }[] = [
+    { id: "youtube", name: "YouTube", color: "#FF0000", urlPattern: /youtube\.com\/@?([^\/]+)/ },
+    { id: "instagram", name: "Instagram", color: "#E4405F", urlPattern: /instagram\.com\/([^\/]+)/ },
+    { id: "github", name: "GitHub", color: "#F0F6FC", urlPattern: /github\.com\/([^\/]+)/ },
+    { id: "reddit", name: "Reddit", color: "#FF4500", urlPattern: /reddit\.com\/u\/([^\/]+)/ },
+];
+
+function extractUsername(url: string, platform: SocialPlatform): string {
+    const platformConfig = PLATFORMS.find(p => p.id === platform);
+    if (!platformConfig) return "";
+    const match = url.match(platformConfig.urlPattern);
+    return match ? match[1] : "";
+}
 
 export default function SettingsView() {
-    const { user, token, loginState } = useAuthStore();
+    const { user } = useAuthStore();
+    const { mode } = useThemeStore();
+    const isDark = mode === 'dark';
     const { showToast } = useToastStore();
 
-    const [name, setName] = useState(user?.name || "");
-    const [bio, setBio] = useState(user?.bio || "");
-    const [profilePicture, setProfilePicture] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string>(
+    const [previewUrl] = useState<string>(
         user?.profile_picture ? getUserImageUrl(user.profile_picture) : ""
     );
-
-    const [loading, setLoading] = useState(false);
-    const [tempFile, setTempFile] = useState<File | null>(null);
-    const [isCropOpen, setIsCropOpen] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Password change state
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -39,70 +49,33 @@ export default function SettingsView() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [passwordLoading, setPasswordLoading] = useState(false);
 
-    // Sync state when user object changes
+    // Social links state
+    const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
+    const [socialLinksLoading, setSocialLinksLoading] = useState(false);
+    const [activeModal, setActiveModal] = useState<{ type: "add" } | { type: "edit"; link: SocialLink } | null>(null);
+
+    // Edit profile modal state
+    const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+
+    // Fetch social links
     useEffect(() => {
-        if (user) {
-            setName(user.name || "");
-            setBio(user.bio || "");
-            setPreviewUrl(
-                user.profile_picture ? getUserImageUrl(user.profile_picture) : ""
-            );
-        }
-    }, [user]);
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (!file.type.startsWith("image/")) {
-                showToast("File must be an image", "error");
-                return;
-            }
-            setTempFile(file);
-            setIsCropOpen(true);
-            e.target.value = "";
-        }
-    };
-
-    const handleCropConfirm = (croppedFile: File) => {
-        setProfilePicture(croppedFile);
-        setPreviewUrl(URL.createObjectURL(croppedFile));
-        setIsCropOpen(false);
-        setTempFile(null);
-    };
-
-    const handleUpdateProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append("name", name);
-            formData.append("bio", bio);
-            if (profilePicture) formData.append("profile_picture", profilePicture);
-
-            const response = await apiCall<{ data: any }>(
-                "/user",
-                {
-                    method: "PUT",
-                    body: formData,
+        const fetchSocialLinks = async () => {
+            setSocialLinksLoading(true);
+            try {
+                const response = await getSocialLinks();
+                if (response?.data) {
+                    setSocialLinks(response.data);
                 }
-            );
-
-            if (user && token) {
-                loginState(token, {
-                    ...user,
-                    name: response.data.name,
-                    bio: response.data.bio,
-                    profile_picture:
-                        response.data.profile_picture || user.profile_picture,
-                });
+            } catch (err) {
+                console.error("Failed to fetch social links:", err);
+            } finally {
+                setSocialLinksLoading(false);
             }
-            showToast("Profile updated successfully!", "success");
-        } catch (err: any) {
-            showToast(err.message || "Failed to update profile", "error");
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
+        fetchSocialLinks();
+        console.log("user:", user);
+        console.log("localStorage user:", localStorage.getItem('user'));
+    }, []);
 
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -140,6 +113,55 @@ export default function SettingsView() {
         }
     };
 
+    // Social links handlers
+    const handleAddSocialLinks = async (links: { type: SocialPlatform; url: string }[]) => {
+        setSocialLinksLoading(true);
+        try {
+            await createSocialLinks(links);
+            const response = await getSocialLinks();
+            if (response?.data) {
+                setSocialLinks(response.data);
+            }
+            showToast("Social links added successfully!", "success");
+            setActiveModal(null);
+        } catch (err: any) {
+            showToast(err.message || "Failed to add social links", "error");
+        } finally {
+            setSocialLinksLoading(false);
+        }
+    };
+
+    const handleUpdateSocialLink = async (linkId: number, data: { type?: string; url?: string }) => {
+        setSocialLinksLoading(true);
+        try {
+            await updateSocialLink(linkId, data);
+            const response = await getSocialLinks();
+            if (response?.data) {
+                setSocialLinks(response.data);
+            }
+            showToast("Social link updated successfully!", "success");
+            setActiveModal(null);
+        } catch (err: any) {
+            showToast(err.message || "Failed to update social link", "error");
+        } finally {
+            setSocialLinksLoading(false);
+        }
+    };
+
+    const handleDeleteSocialLink = async (linkId: number) => {
+        setSocialLinksLoading(true);
+        try {
+            await deleteSocialLink(linkId);
+            setSocialLinks(prev => prev.filter(l => l.id !== linkId));
+            showToast("Social link deleted successfully!", "success");
+            setActiveModal(null);
+        } catch (err: any) {
+            showToast(err.message || "Failed to delete social link", "error");
+        } finally {
+            setSocialLinksLoading(false);
+        }
+    };
+
     // Placeholders for sections not yet implemented in backend
     const statusPlaceholder = "Online";
 
@@ -149,22 +171,54 @@ export default function SettingsView() {
 
     const isGoogleAccount = user?.provider === "google";
 
+    function PlatformIcon({ platform, color, sizeClass = "w-6 h-6" }: { platform: SocialPlatform; color: string; sizeClass?: string }) {
+        switch (platform) {
+            case "youtube":
+                return (
+                    <svg viewBox="0 0 24 24" className={sizeClass} fill={color}>
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                    </svg>
+                );
+            case "instagram":
+                return (
+                    <svg viewBox="0 0 24 24" className={sizeClass} fill={color}>
+                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
+                    </svg>
+                );
+            case "github":
+                return (
+                    <svg viewBox="0 0 24 24" className={sizeClass} fill={color}>
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                    </svg>
+                );
+            case "reddit":
+                return (
+                    <svg viewBox="0 0 24 24" className={sizeClass} fill={color}>
+                        <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.249-1.249zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.196-2.512-.73a.326.326 0 0 0-.232-.095z" />
+                    </svg>
+                );
+            default:
+                return null;
+        }
+    }
+
     return (
-        <div className="flex-1 overflow-y-auto bg-[#0b0e11] text-[#f1f5f9] font-sans h-full">
+        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans h-full">
             {/* Header */}
             <div className="flex items-center justify-between px-10 py-8">
-                <h1 className="text-[#3b82f6] font-bold text-lg">Profile Settings</h1>
-                <div className="flex items-center gap-6 text-[#94a3b8]">
-                    <HelpCircle size={20} className="cursor-pointer hover:text-[#3b82f6] transition-colors" />
-                    <MoreVertical size={20} className="cursor-pointer hover:text-[#3b82f6] transition-colors" />
+                <h1 className="text-[var(--accent-color)] font-bold text-lg">Profile Settings</h1>
+                <div className="flex items-center gap-6 text-[var(--text-secondary)]">
+                    <HelpCircle size={20} className="cursor-pointer hover:text-[var(--accent-color)] transition-colors" />
+                    <MoreVertical size={20} className="cursor-pointer hover:text-[var(--accent-color)] transition-colors" />
                 </div>
             </div>
+
 
             <div className="px-10 pb-12 max-w-[1200px]">
                 {/* Page Title Section */}
                 <div className="mb-10">
                     <h2 className="text-4xl font-bold mb-2">My Public Profile</h2>
-                    <p className="text-[#94a3b8] text-sm">
+                    <p className="text-[var(--text-secondary)] text-sm">
                         Manage how you appear to others in Zra.
                     </p>
                 </div>
@@ -172,216 +226,271 @@ export default function SettingsView() {
                 {/* Grid Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Left Card: Profile Summary */}
-                    <div className="bg-[#161d28] rounded-[32px] p-10 flex flex-col items-center justify-center border border-white/5 shadow-2xl relative overflow-hidden group">
+                    <div className="bg-[var(--bg-secondary)] rounded-[32px] p-10 flex flex-col items-center justify-center border border-[var(--border-color)] shadow-2xl relative overflow-hidden">
                         <div className="relative mb-6">
-                            <div
-                                className="w-32 h-32 rounded-full overflow-hidden border-4 border-white/5 cursor-pointer ring-4 ring-transparent group-hover:ring-[#536dfe]/20 transition-all duration-300"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
+                            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-[var(--border-color)] ring-4 ring-transparent">
                                 {previewUrl ? (
                                     <img src={previewUrl} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full bg-[#1c2635] flex items-center justify-center text-[#3b82f6]">
+                                    <div className="w-full h-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--accent-color)]">
                                         <UserIcon size={48} />
                                     </div>
                                 )}
                             </div>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="absolute bottom-1 right-1 w-10 h-10 rounded-full bg-[#3b82f6] border-4 border-[#161d28] flex items-center justify-center text-white hover:scale-110 transition-transform shadow-lg"
-                            >
-                                <Camera size={16} />
-                            </button>
                         </div>
 
                         <h3 className="text-3xl font-bold mb-1">{user?.name || "Alex Chen"}</h3>
 
-                        <div className="flex gap-3 w-full max-w-[320px]">
-                            <div className="flex-1 bg-[#1c2635] rounded-2xl p-4 border border-white/5">
-                                <p className="text-[10px] text-[#94a3b8] font-bold tracking-widest mb-1 uppercase text-center">Status</p>
+                        <div className="flex gap-3 w-full max-w-[320px] mb-6">
+                            <div className="flex-1 bg-[var(--bg-tertiary)] rounded-2xl p-4 border border-[var(--border-color)]">
+                                <p className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest mb-1 uppercase text-center">Status</p>
                                 <div className="flex items-center justify-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
                                     <span className="text-sm font-semibold">{statusPlaceholder}</span>
                                 </div>
                             </div>
-                            <div className="flex-1 bg-[#1c2635] rounded-2xl p-4 border border-white/5">
-                                <p className="text-[10px] text-[#94a3b8] font-bold tracking-widest mb-1 uppercase text-center">Member Since</p>
+                            <div className="flex-1 bg-[var(--bg-tertiary)] rounded-2xl p-4 border border-[var(--border-color)]">
+                                <p className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest mb-1 uppercase text-center">Member Since</p>
                                 <p className="text-sm font-semibold text-center">{memberSince}</p>
                             </div>
                         </div>
+
+                        <button
+                            onClick={() => setIsEditProfileOpen(true)}
+                            className="px-8 py-3 rounded-2xl text-sm font-bold border border-[var(--border-color)] bg-[var(--bg-primary)] hover:bg-[var(--bg-tertiary)] transition-all"
+                        >
+                            Edit Profile
+                        </button>
                     </div>
 
-                    {/* Right Card: Profile Form */}
-                    <div className="bg-[#161d28] rounded-[32px] p-10 border border-white/5 shadow-2xl">
-                        <form onSubmit={handleUpdateProfile} className="space-y-8">
-                            <div className="space-y-2">
-                                <label className="text-[10px] text-[#94a3b8] font-bold tracking-widest uppercase">Display Name</label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="w-full bg-[#0b0e11] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#3b82f6]/40 outline-none transition-all placeholder:text-[#334155]"
-                                    placeholder="e.g. Alex Chen"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] text-[#94a3b8] font-bold tracking-widest uppercase">Bio</label>
-                                <textarea
-                                    value={bio}
-                                    onChange={(e) => setBio(e.target.value)}
-                                    rows={4}
-                                    className="w-full bg-[#0b0e11] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#3b82f6]/40 outline-none transition-all resize-none placeholder:text-[#334155]"
-                                    placeholder="Tell us about yourself..."
-                                />
-                            </div>
-
-                            <div className="flex justify-end gap-4 pt-4">
-                                <button
-                                    type="button"
-                                    className="px-8 py-3 text-sm font-semibold hover:text-white transition-colors"
-                                    onClick={() => {
-                                        setName(user?.name || "");
-                                        setBio(user?.bio || "");
-                                        setPreviewUrl(user?.profile_picture ? getUserImageUrl(user.profile_picture) : "");
-                                        setProfilePicture(null);
-                                    }}
-                                >
-                                    Discard
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="bg-[#2563eb] hover:bg-[#1d4ed8] px-8 py-3 rounded-2xl text-sm font-bold transition-all shadow-lg shadow-[#2563eb]/20 active:scale-95 disabled:opacity-50"
-                                >
-                                    {loading ? "Saving..." : "Save Changes"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-
-                    {/* Change Password Card */}
-                    <div className="bg-[#161d28] rounded-[32px] p-10 border border-white/5 shadow-2xl">
-                        <div className="flex items-center justify-between mb-8">
-                            <div>
-                                <h3 className="text-[10px] text-[#94a3b8] font-bold tracking-widest uppercase">Password & Security</h3>
-                                <p className="text-[#94a3b8] text-sm mt-2">
-                                    {isGoogleAccount
-                                        ? "Password is managed by your Google account."
-                                        : "Change your password to keep your account secure."}
-                                </p>
-                            </div>
-                            {!isGoogleAccount && (
-                                <button
-                                    onClick={() => setIsPasswordModalOpen(true)}
-                                    className="bg-[#0b0e11] hover:bg-[#1c2635] px-6 py-3 rounded-2xl text-sm font-bold border border-white/5 transition-all"
-                                >
-                                    Change Password
-                                </button>
-                            )}
+                    {/* Right Card: Password & Security */}
+                    <div className="bg-[var(--bg-secondary)] rounded-[32px] p-10 border border-[var(--border-color)] shadow-2xl">
+                        <div className="mb-8">
+                            <h3 className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest uppercase">Password & Security</h3>
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="bg-[#0b0e11] rounded-2xl p-4 flex items-center justify-between border border-transparent hover:border-white/5 transition-all">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-[#1c2635] flex items-center justify-center text-[#3b82f6]">
-                                        <Shield size={20} />
+                        <div className="space-y-5">
+                            {/* Google Account Card */}
+                            {isGoogleAccount ? (
+                                <>
+                                    {/* Google logo + account info */}
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-sm">
+                                            <svg viewBox="0 0 24 24" className="w-6 h-6">
+                                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-[var(--text-primary)]">Google Account</h4>
+                                            <p className="text-xs text-[var(--text-secondary)]">{user?.email || 'Connected via Google'}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h4 className="text-sm font-bold">Password</h4>
-                                        <p className="text-xs text-[#3b82f6]/60 font-medium">
-                                            {isGoogleAccount
-                                                ? `Connected via Google`
-                                                : `Last changed recently`}
+
+                                    <div className="border-t border-[var(--border-color)] pt-4 space-y-2">
+                                        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                                            Your account is connected to Google. Password and security settings are managed by Google.
                                         </p>
+                                        <ul className="text-xs space-y-1.5 mt-2">
+                                            <li className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></span>
+                                                <span className="text-[var(--text-primary)]">Account security managed by Google</span>
+                                            </li>
+                                            <li className="flex items-center gap-2">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></span>
+                                                <span className="text-[var(--text-primary)]">Sign in with Google enabled</span>
+                                            </li>
+                                        </ul>
                                     </div>
-                                </div>
-                            </div>
+
+                                    <a
+                                        href="https://myaccount.google.com"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--bg-primary)] transition-all"
+                                    >
+                                        Manage Google Account
+                                    </a>
+                                </>
+                            ) : (
+                                <>
+                                    {/* Password Card */}
+                                    <div className="bg-[var(--bg-primary)] rounded-2xl p-5 border border-[var(--border-color)]">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--accent-color)] shrink-0">
+                                                    <Shield size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold">Password</h4>
+                                                    <p className="text-xs text-[var(--text-muted)]">Secure your account with a strong password</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setIsPasswordModalOpen(true)}
+                                                className="px-4 py-2 rounded-xl text-xs font-bold border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] transition-all"
+                                            >
+                                                Change
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 2FA Card (Non-functional) */}
+                                    <div className="bg-[var(--bg-primary)] rounded-2xl p-5 border border-[var(--border-color)]">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)] shrink-0">
+                                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold">Two-Factor Authentication</h4>
+                                                    <p className="text-xs text-[var(--text-muted)]">Status: Not enabled</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                className="px-4 py-2 rounded-xl text-xs font-bold border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] transition-all opacity-50 cursor-not-allowed"
+                                                disabled
+                                            >
+                                                Enable
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Theme Card */}
+                    <div className="bg-[var(--bg-secondary)] rounded-[32px] p-10 border border-[var(--border-color)] shadow-2xl">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest uppercase">Theme</h3>
+                        </div>
+
+                        <div className="bg-[var(--bg-primary)] rounded-2xl p-6 border border-[var(--border-color)]">
+                            {(() => {
+                                return (
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isDark ? 'bg-indigo-500/20' : 'bg-yellow-500/20'}`}>
+                                            {isDark ? (
+                                                <svg className="w-7 h-7 text-indigo-400" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-7 h-7 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <h4 className="text-base font-bold">{isDark ? 'Dark Mode' : 'Light Mode'}</h4>
+                                            <p className="text-xs text-[var(--text-muted)]">
+                                                {isDark ? 'Currently using dark theme' : 'Currently using light theme'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 
                     {/* Portfolio & Links Card */}
-                    <div className="bg-[#161d28] rounded-[32px] p-10 border border-white/5 shadow-2xl">
+                    <div className="bg-[var(--bg-secondary)] rounded-[32px] p-10 border border-[var(--border-color)] shadow-2xl">
                         <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-[10px] text-[#94a3b8] font-bold tracking-widest uppercase">Portfolio & Links</h3>
-                            <button className="text-[#3b82f6] flex items-center gap-1 text-xs font-bold hover:opacity-80 transition-opacity">
+                            <h3 className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest uppercase">Portfolio & Links</h3>
+                            <button
+                                onClick={() => setActiveModal({ type: "add" })}
+                                className="text-[var(--accent-color)] flex items-center gap-1 text-xs font-bold hover:opacity-80 transition-opacity"
+                            >
                                 <Plus size={14} /> Add
                             </button>
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="bg-[#0b0e11] rounded-2xl p-4 flex items-center justify-between border border-transparent hover:border-white/5 transition-all group cursor-pointer">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-[#1c2635] flex items-center justify-center text-[#3b82f6]">
-                                        <Globe size={20} />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-bold">Personal Website</h4>
-                                        <p className="text-xs text-[#3b82f6]/60 font-medium">alexpr.site</p>
-                                    </div>
+                        <div className="grid grid-cols-4 gap-4">
+                            {socialLinksLoading ? (
+                                <div className="col-span-4 flex items-center justify-center py-4">
+                                    <div className="w-6 h-6 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                                 </div>
-                            </div>
+                            ) : (
+                                PLATFORMS.map((platform) => {
+                                    const link = socialLinks.find(l => l.type === platform.id);
+                                    const username = link ? extractUsername(link.url, platform.id) : null;
 
-                            <div className="bg-[#0b0e11] rounded-2xl p-4 flex items-center justify-between border border-transparent hover:border-white/5 transition-all group cursor-pointer">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-[#1c2635] flex items-center justify-center text-[#3b82f6]">
-                                        <Twitter size={20} />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-sm font-bold">Twitter</h4>
-                                        <p className="text-xs text-[#3b82f6]/60 font-medium">twitter.com/alexpr</p>
-                                    </div>
-                                </div>
-                            </div>
+                                    let platformColor = platform.color;
+                                    if (platform.id === 'github') {
+                                        platformColor = isDark ? '#F0F6FC' : '#1e293b'; // White in dark mode, slate-800 in light mode
+                                    }
+
+                                    return (
+                                        <div
+                                            key={platform.id}
+                                            className="flex flex-col items-center gap-2"
+                                        >
+                                            <div
+                                                className={`relative w-20 h-20 rounded-full flex items-center justify-center group ${link
+                                                    ? "ring-2 ring-offset-2 ring-offset-[var(--bg-secondary)] cursor-pointer"
+                                                    : "bg-[var(--bg-primary)] border-2 border-dashed border-[var(--text-muted)] opacity-50 hover:opacity-100 transition-opacity"
+                                                    }`}
+                                                style={{
+                                                    backgroundColor: link ? `${platformColor}20` : undefined,
+                                                    borderColor: link ? platformColor : undefined,
+                                                }}
+                                                onClick={() => link && setActiveModal({ type: "edit", link })}
+                                            >
+                                                {link ? (
+                                                    <>
+                                                        <PlatformIcon platform={platform.id} color={platformColor} sizeClass="w-8 h-8" />
+                                                        <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Pencil size={20} className="text-white" />
+                                                        </div>
+                                                    </>
+                                                ) : null}
+                                            </div>
+                                            <span className={`text-xs font-medium truncate max-w-[80px] ${link ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+                                                }`}>
+                                                {username || ""}
+                                            </span>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 
                     {/* Privacy Settings Banner (Footer) */}
-                    <div className="lg:col-span-2 bg-[#161d28] rounded-[32px] p-8 border border-white/5 shadow-2xl flex items-center justify-between">
+                    <div className="lg:col-span-2 bg-[var(--bg-secondary)] rounded-[32px] p-8 border border-[var(--border-color)] shadow-2xl flex items-center justify-between">
                         <div className="flex items-center gap-6">
-                            <div className="w-16 h-16 rounded-2xl bg-[#0b0e11] flex items-center justify-center text-[#3b82f6]">
+                            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-primary)] flex items-center justify-center text-[var(--accent-color)]">
                                 <Shield size={32} />
                             </div>
                             <div>
                                 <h3 className="text-lg font-bold">Privacy Settings</h3>
-                                <p className="text-[#94a3b8] text-sm">
+                                <p className="text-[var(--text-secondary)] text-sm">
                                     Your profile is currently visible to everyone. You can change this in Privacy settings.
                                 </p>
                             </div>
                         </div>
-                        <button className="bg-[#0b0e11] hover:bg-[#1c2635] px-8 py-4 rounded-2xl text-sm font-bold border border-white/5 transition-all active:scale-95 shadow-lg">
+                        <button className="bg-[var(--bg-primary)] hover:bg-[var(--bg-tertiary)] px-8 py-4 rounded-2xl text-sm font-bold border border-[var(--border-color)] transition-all active:scale-95 shadow-lg">
                             Manage Privacy
                         </button>
                     </div>
                 </div>
             </div>
 
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                className="hidden"
-            />
-
-            {isCropOpen && tempFile && (
-                <ImageCropModal
-                    file={tempFile}
-                    onConfirm={handleCropConfirm}
-                    onCancel={() => setIsCropOpen(false)}
-                />
-            )}
-
             {/* Change Password Modal */}
             {isPasswordModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-                    <div className="relative w-full max-w-md bg-[#161d28] border border-white/5 rounded-3xl p-8 shadow-2xl">
+                    <div className="relative w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-3xl p-8 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-2xl font-bold text-white">Change Password</h2>
+                            <h2 className="text-2xl font-bold text-[var(--text-primary)]">Change Password</h2>
                             <button
                                 onClick={() => setIsPasswordModalOpen(false)}
-                                className="p-2 hover:bg-white/5 rounded-full text-[#8b949e] transition-colors"
+                                className="p-2 hover:bg-[var(--bg-tertiary)] rounded-full text-[var(--text-muted)] transition-colors"
                             >
                                 <X size={24} />
                             </button>
@@ -389,24 +498,24 @@ export default function SettingsView() {
 
                         <form onSubmit={handleChangePassword} className="space-y-6">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-[#94a3b8] ml-1">Current Password</label>
+                                <label className="text-sm font-medium text-[var(--text-secondary)] ml-1">Current Password</label>
                                 <input
                                     type="password"
                                     value={oldPassword}
                                     onChange={(e) => setOldPassword(e.target.value)}
-                                    className="w-full bg-[#0b0e11] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#2563eb]/40 outline-none transition-all placeholder:text-[#334155]"
+                                    className="w-full bg-[var(--bg-primary)] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[var(--primary-light)] outline-none transition-all placeholder:text-[var(--text-muted)]"
                                     placeholder="Enter current password"
                                     required
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-[#94a3b8] ml-1">New Password</label>
+                                <label className="text-sm font-medium text-[var(--text-secondary)] ml-1">New Password</label>
                                 <input
                                     type="password"
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
-                                    className="w-full bg-[#0b0e11] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#2563eb]/40 outline-none transition-all placeholder:text-[#334155]"
+                                    className="w-full bg-[var(--bg-primary)] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[var(--primary-light)] outline-none transition-all placeholder:text-[var(--text-muted)]"
                                     placeholder="Enter new password"
                                     required
                                     minLength={6}
@@ -414,12 +523,12 @@ export default function SettingsView() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm font-medium text-[#94a3b8] ml-1">Confirm New Password</label>
+                                <label className="text-sm font-medium text-[var(--text-secondary)] ml-1">Confirm New Password</label>
                                 <input
                                     type="password"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="w-full bg-[#0b0e11] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[#2563eb]/40 outline-none transition-all placeholder:text-[#334155]"
+                                    className="w-full bg-[var(--bg-primary)] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[var(--primary-light)] outline-none transition-all placeholder:text-[var(--text-muted)]"
                                     placeholder="Confirm new password"
                                     required
                                     minLength={6}
@@ -429,7 +538,7 @@ export default function SettingsView() {
                             <button
                                 type="submit"
                                 disabled={passwordLoading || !oldPassword || !newPassword || !confirmPassword}
-                                className="w-full bg-[#2563eb] hover:bg-[#1d4ed8] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/10"
+                                className="w-full bg-[var(--accent-color)] hover:bg-[var(--accent-dark)] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl transition-all shadow-lg shadow-blue-500/10"
                             >
                                 {passwordLoading ? 'Changing Password...' : 'Change Password'}
                             </button>
@@ -437,6 +546,32 @@ export default function SettingsView() {
                     </div>
                 </div>
             )}
+
+            {/* Social Links Modals */}
+            {activeModal?.type === "add" && (
+                <AddSocialLinkModal
+                    existingLinks={socialLinks}
+                    onClose={() => setActiveModal(null)}
+                    onSave={handleAddSocialLinks}
+                    loading={socialLinksLoading}
+                />
+            )}
+
+            {activeModal?.type === "edit" && (
+                <EditSocialLinkModal
+                    link={activeModal.link}
+                    onClose={() => setActiveModal(null)}
+                    onUpdate={handleUpdateSocialLink}
+                    onDelete={handleDeleteSocialLink}
+                    loading={socialLinksLoading}
+                />
+            )}
+
+            {/* Edit Profile Modal */}
+            <EditProfileModal
+                isOpen={isEditProfileOpen}
+                onClose={() => setIsEditProfileOpen(false)}
+            />
         </div>
     );
 }

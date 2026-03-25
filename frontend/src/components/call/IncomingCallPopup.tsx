@@ -57,7 +57,7 @@ export default function IncomingCallPopup({ callerName, callerPicture, withVideo
 
     return (
         <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <div className="relative w-[320px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
+            <div className="relative w-[320px] bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-2xl shadow-2xl shadow-black/50 overflow-hidden">
                 {/* Animated background */}
                 <div className="absolute inset-0 opacity-20">
                     <div className="absolute inset-0 bg-gradient-to-br from-green-500/30 to-blue-500/30 animate-pulse" />
@@ -78,7 +78,7 @@ export default function IncomingCallPopup({ callerName, callerPicture, withVideo
                             {callerPicture ? (
                                 <img src={callerPicture} alt={callerName} className="w-14 h-14 rounded-full object-cover ring-2 ring-green-500/40" />
                             ) : (
-                                <div className="w-14 h-14 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-2xl font-bold text-[#e6edf3]">
+                                <div className="w-14 h-14 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] flex items-center justify-center text-2xl font-bold text-[var(--text-primary)]">
                                     {callerName[0]?.toUpperCase()}
                                 </div>
                             )}
@@ -86,8 +86,8 @@ export default function IncomingCallPopup({ callerName, callerPicture, withVideo
                             <span className="absolute inset-0 rounded-full border-2 border-green-400/40 animate-ping" />
                         </div>
                         <div>
-                            <p className="font-semibold text-[#e6edf3] text-base">{callerName}</p>
-                            <p className="text-xs text-[#8b949e] flex items-center gap-1">
+                            <p className="font-semibold text-[var(--text-primary)] text-base">{callerName}</p>
+                            <p className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                                 {withVideo ? <Video size={11} /> : <Phone size={11} />}
                                 {withVideo ? 'Video calling you...' : 'Voice calling you...'}
                             </p>

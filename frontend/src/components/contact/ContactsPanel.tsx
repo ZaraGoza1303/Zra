@@ -192,7 +192,7 @@ export default function ContactsPanel({
     if (!isVisible) return null;
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-[#0b0e11] overflow-hidden animate-fade-in relative">
+        <div className="flex-1 flex flex-col h-full bg-[var(--bg-primary)] overflow-hidden animate-fade-in relative">
             {selectedUser && (
                 <UserDetailDrawer
                     user={selectedUser}
@@ -233,12 +233,12 @@ export default function ContactsPanel({
                 {/* HEADER SECTION */}
                 <div className="flex items-start justify-between mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold text-[#e6edf3] mb-2">Contacts</h1>
-                        <p className="text-[#8b949e]">Connect with your friends</p>
+                        <h1 className="text-4xl font-bold text-[var(--text-primary)] mb-2">Contacts</h1>
+                        <p className="text-[var(--text-muted)]">Connect with your friends</p>
                     </div>
                     <button
                         onClick={() => setIsAddContactModalOpen(true)}
-                        className="flex items-center gap-2 px-5 py-2.5 cursor-pointer bg-blue-600 text-white hover:bg-blue-700 font-semibold rounded-xl transition-all shadow-lg text-sm"
+                        className="flex items-center gap-2 px-5 py-2.5 cursor-pointer bg-[var(--accent-color)] text-white hover:bg-[var(--accent-color)]/80 font-semibold rounded-xl transition-all shadow-lg text-sm"
                     >
                         <Plus size={18} />
                         Add Contact
@@ -247,53 +247,53 @@ export default function ContactsPanel({
 
                 {/* SEARCH BAR SECTION (LOCAL FILTER) */}
                 <div className="relative mb-8 group">
-                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#8b949e] group-focus-within:text-blue-500 transition-colors" size={20} />
+                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] group-focus-within:text-[var(--accent-color)] transition-colors" size={20} />
                     <input
                         type="text"
                         placeholder="Filter friends by username"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-14 pr-6 py-4 bg-[#111318] border border-white/5 rounded-2xl text-[#e6edf3] placeholder-[#8b949e] outline-none focus:border-blue-500/40 transition-all"
+                        className="w-full pl-14 pr-6 py-4 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-2xl text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-[var(--accent-color)]/40 transition-all"
                     />
                 </div>
 
                 {/* TABS SECTION */}
-                <div className="flex items-center gap-8 border-b border-white/5 mb-8">
+                <div className="flex items-center gap-8 border-b border-[var(--border-color)] mb-8">
                     <button
                         onClick={() => setActiveSection('all')}
-                        className={`pb-4 px-1 text-sm font-semibold transition-all relative ${activeSection === 'all' ? 'text-[#e6edf3]' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}
+                        className={`pb-4 px-1 text-sm font-semibold transition-all relative ${activeSection === 'all' ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                         <div className="flex items-center gap-2">
                             All Contacts
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeSection === 'all' ? 'bg-[#1c2128] text-[#e6edf3]' : 'bg-transparent text-[#8b949e]'}`}>
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeSection === 'all' ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'bg-transparent text-[var(--text-muted)]'}`}>
                                 {friends.length}
                             </span>
                         </div>
-                        {activeSection === 'all' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#e6edf3] rounded-full" />}
+                        {activeSection === 'all' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--text-primary)] rounded-full" />}
                     </button>
                     <button
                         onClick={() => setActiveSection('online')}
-                        className={`pb-4 px-1 text-sm font-semibold transition-all relative ${activeSection === 'online' ? 'text-[#e6edf3]' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}
+                        className={`pb-4 px-1 text-sm font-semibold transition-all relative ${activeSection === 'online' ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                         <div className="flex items-center gap-2">
                             Online
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeSection === 'online' ? 'bg-emerald-500/10 text-emerald-500' : 'text-[#8b949e]'}`}>
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeSection === 'online' ? 'bg-emerald-500/10 text-emerald-500' : 'text-[var(--text-muted)]'}`}>
                                 {friends.filter(f => onlineUserIds.has(f.id)).length}
                             </span>
                         </div>
-                        {activeSection === 'online' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#e6edf3] rounded-full" />}
+                        {activeSection === 'online' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--text-primary)] rounded-full" />}
                     </button>
                     <button
                         onClick={() => setActiveSection('requests')}
-                        className={`pb-4 px-1 text-sm font-semibold transition-all relative ${activeSection === 'requests' ? 'text-[#e6edf3]' : 'text-[#8b949e] hover:text-[#e6edf3]'}`}
+                        className={`pb-4 px-1 text-sm font-semibold transition-all relative ${activeSection === 'requests' ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}`}
                     >
                         <div className="flex items-center gap-2">
                             Requests
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeSection === 'requests' || friendRequests.length > 0 ? 'bg-blue-500/10 text-blue-500' : 'text-[#8b949e]'}`}>
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${activeSection === 'requests' || friendRequests.length > 0 ? 'bg-[var(--accent-color)]/10 text-[var(--accent-color)]' : 'text-[var(--text-muted)]'}`}>
                                 {friendRequests.length}
                             </span>
                         </div>
-                        {activeSection === 'requests' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[#e6edf3] rounded-full" />}
+                        {activeSection === 'requests' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--text-primary)] rounded-full" />}
                     </button>
                 </div>
 
@@ -302,23 +302,23 @@ export default function ContactsPanel({
 
                     {activeSection !== 'requests' ? (
                         <div className="animate-fade-in">
-                            <h2 className="text-[11px] font-bold text-[#8b949e] uppercase tracking-[0.1em] mb-4">
+                            <h2 className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-[0.1em] mb-4">
                                 {searchQuery.trim() ? 'Search Results' : activeSection === 'online' ? 'Online Friends' : 'All Contacts'}
                             </h2>
 
                             {loading ? (
-                                <div className="py-12 flex flex-col items-center justify-center gap-3 text-[#8b949e]">
+                                <div className="py-12 flex flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
                                     <Loader2 size={32} className="animate-spin opacity-20" />
                                     <span className="text-sm">Loading contacts...</span>
                                 </div>
                             ) : filteredFriends.length === 0 ? (
                                 <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
-                                    <div className="w-20 h-20 rounded-3xl bg-[#1c2128] flex items-center justify-center text-[#8b949e]">
+                                    <div className="w-20 h-20 rounded-3xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)]">
                                         <Users size={32} className="opacity-20" />
                                     </div>
                                     <div className="max-w-xs">
-                                        <p className="text-[#e6edf3] font-medium">No contacts found</p>
-                                        <p className="text-sm text-[#8b949e] mt-1">
+                                        <p className="text-[var(--text-primary)] font-medium">No contacts found</p>
+                                        <p className="text-sm text-[var(--text-muted)] mt-1">
                                             {searchQuery.trim()
                                                 ? `No friends matching "${searchQuery}"`
                                                 : activeSection === 'online'
@@ -341,7 +341,7 @@ export default function ContactsPanel({
                                     ))}
 
                                     {!searchQuery.trim() && filteredFriends.length > 20 && (
-                                        <button className="w-full flex items-center justify-center gap-2 py-6 text-sm font-semibold text-[#8b949e] hover:text-[#e6edf3] transition-colors group">
+                                        <button className="w-full flex items-center justify-center gap-2 py-6 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors group">
                                             <ChevronDown size={18} className="group-hover:translate-y-0.5 transition-transform" />
                                             Show more contacts
                                         </button>
@@ -351,15 +351,15 @@ export default function ContactsPanel({
                         </div>
                     ) : (
                         <div className="animate-fade-in">
-                            <h2 className="text-[11px] font-bold text-[#8b949e] uppercase tracking-[0.1em] mb-4">Pending Requests</h2>
+                            <h2 className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-[0.1em] mb-4">Pending Requests</h2>
                             {friendRequests.length === 0 ? (
                                 <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
-                                    <div className="w-20 h-20 rounded-3xl bg-[#1c2128] flex items-center justify-center text-[#8b949e]">
+                                    <div className="w-20 h-20 rounded-3xl bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)]">
                                         <UserCheck size={32} className="opacity-20" />
                                     </div>
                                     <div className="max-w-xs">
-                                        <p className="text-[#e6edf3] font-medium">No pending requests</p>
-                                        <p className="text-sm text-[#8b949e] mt-1">When someone sends you a friend request, it will appear here.</p>
+                                        <p className="text-[var(--text-primary)] font-medium">No pending requests</p>
+                                        <p className="text-sm text-[var(--text-muted)] mt-1">When someone sends you a friend request, it will appear here.</p>
                                     </div>
                                 </div>
                             ) : (

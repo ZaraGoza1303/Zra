@@ -58,7 +58,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
                 if (msg.type === 'chat') {
                     if (msg.user_id !== user?.id) {
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === msg.id)) return prev;
+                            return [...prev, { ...msg, status: 'sent' }];
+                        });
                         callbacks.onNewMessage?.(actualRoomId, {
                             content: msg.content,
                             username: msg.username,
@@ -108,7 +111,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
                 if (msg.type === 'sticker') {
                     if (msg.user_id !== user?.id) {
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === msg.id)) return prev;
+                            return [...prev, { ...msg, status: 'sent' }];
+                        });
                         callbacks.onNewMessage?.(actualRoomId, {
                             content: '🎭 Sticker',
                             username: msg.username,
@@ -122,7 +128,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
                 if (msg.type === 'image') {
                     if (msg.user_id !== user?.id) {
                         apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        setMessages(prev => [...prev, { ...msg, status: 'sent' }]);
+                        setMessages(prev => {
+                            if (prev.some(m => m.id === msg.id)) return prev;
+                            return [...prev, { ...msg, status: 'sent' }];
+                        });
                         callbacks.onNewMessage?.(actualRoomId, {
                             content: '📷 Image',
                             username: msg.username,
@@ -147,7 +156,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
 
                 if (msg.type !== 'chat' && msg.type !== 'readed' && msg.type !== 'sticker'
                     && msg.type !== 'image' && msg.type !== 'delete-message' && msg.type !== 'update-message') {
-                    setMessages(prev => [...prev, msg]);
+                    setMessages(prev => {
+                        if (msg.id && prev.some(m => m.id === msg.id)) return prev;
+                        return [...prev, msg];
+                    });
                 }
 
             } catch (e) {

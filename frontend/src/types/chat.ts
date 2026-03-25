@@ -109,3 +109,11 @@ export interface UserProfile {
     is_verified?: boolean;
     created_at?: string;
 }
+
+export type SocialPlatform = 'youtube' | 'instagram' | 'github' | 'reddit';
+
+export interface SocialLink {
+    id: number;
+    type: SocialPlatform;
+    url: string;
+}

@@ -32,24 +32,24 @@ export default function ConfirmDialog({
         >
             <div
                 onClick={e => e.stopPropagation()}
-                className="w-full max-w-[380px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+                className="w-full max-w-[380px] bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-2xl shadow-2xl overflow-hidden"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
                     <div className="flex items-center gap-2.5">
                         <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${variant === 'danger' ? 'bg-red-500/15' : 'bg-yellow-500/15'}`}>
                             <AlertTriangle size={16} className={variant === 'danger' ? 'text-red-400' : 'text-yellow-400'} />
                         </div>
-                        <h3 className="text-[15px] font-semibold text-[#e6edf3]">{title}</h3>
+                        <h3 className="text-[15px] font-semibold text-[var(--text-primary)]">{title}</h3>
                     </div>
-                    <button onClick={onCancel} className="text-[#8b949e] hover:text-[#e6edf3] transition-colors">
+                    <button onClick={onCancel} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
                         <X size={18} />
                     </button>
                 </div>
 
                 {/* Body */}
                 <div className="px-5 py-5">
-                    <p className="text-[14px] text-[#8b949e] leading-relaxed">{description}</p>
+                    <p className="text-[14px] text-[var(--text-muted)] leading-relaxed">{description}</p>
                 </div>
 
                 {/* Footer */}
@@ -57,7 +57,7 @@ export default function ConfirmDialog({
                     <button
                         onClick={onCancel}
                         disabled={loading}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors disabled:opacity-50"
+                        className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[var(--text-muted)] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-light)] transition-colors disabled:opacity-50"
                     >
                         {cancelLabel}
                     </button>

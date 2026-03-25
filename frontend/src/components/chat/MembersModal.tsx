@@ -23,18 +23,18 @@ export default function MembersModal({
             onClick={onClose}
         >
             <div
-                className="w-full max-w-[380px] bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
+                className="w-full max-w-[380px] bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-2xl shadow-2xl flex flex-col max-h-[80vh]"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b border-white/5 shrink-0">
+                <div className="flex items-center justify-between p-5 border-b border-[var(--border-color)] shrink-0">
                     <div>
-                        <h2 className="text-base font-semibold text-[#e6edf3]">Members</h2>
-                        <p className="text-xs text-[#8b949e] mt-0.5">{roomMembers.length} people in this room</p>
+                        <h2 className="text-base font-semibold text-[var(--text-primary)]">Members</h2>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{roomMembers.length} people in this room</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         <X size={18} />
                     </button>
@@ -43,7 +43,7 @@ export default function MembersModal({
                 {/* Member List */}
                 <div className="flex-1 overflow-y-auto p-3">
                     {fetchingMembers ? (
-                        <div className="flex items-center justify-center py-8 gap-2 text-[#8b949e]">
+                        <div className="flex items-center justify-center py-8 gap-2 text-[var(--text-muted)]">
                             <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                             <span className="text-sm">Loading...</span>
                         </div>
@@ -55,7 +55,7 @@ export default function MembersModal({
                                 className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all mb-0.5
                                     ${targetUserId === member.user_id
                                         ? 'bg-blue-600/15 border border-blue-600/20'
-                                        : member.user_id !== user?.id ? 'hover:bg-white/4 border border-transparent' : 'border border-transparent opacity-70 cursor-default'
+                                        : member.user_id !== user?.id ? 'hover:bg-[var(--bg-tertiary)] border border-transparent' : 'border border-transparent opacity-70 cursor-default'
                                     }`}
                             >
                                 <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
@@ -69,11 +69,11 @@ export default function MembersModal({
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-medium text-[#e6edf3] truncate">
+                                        <span className="text-sm font-medium text-[var(--text-primary)] truncate">
                                             {member.username}
                                         </span>
                                         {member.user_id === user?.id && (
-                                            <span className="text-[10px] text-[#8b949e] font-normal">(You)</span>
+                                            <span className="text-[10px] text-[var(--text-muted)] font-normal">(You)</span>
                                         )}
                                     </div>
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full inline-block font-medium
@@ -86,20 +86,20 @@ export default function MembersModal({
                                     </span>
                                 </div>
                                 {member.role !== 'admin' && member.user_id !== user?.id && isAdmin && (
-                                    <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors">
+                                    <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                                         <MoreVertical size={14} />
                                     </button>
                                 )}
                             </div>
                         ))
                     ) : (
-                        <div className="text-center py-8 text-[#8b949e] text-sm">No members found.</div>
+                        <div className="text-center py-8 text-[var(--text-muted)] text-sm">No members found.</div>
                     )}
                 </div>
 
                 {/* Admin Actions */}
                 {isAdmin && (
-                    <div className="p-4 border-t border-white/5 flex gap-2 shrink-0">
+                    <div className="p-4 border-t border-[var(--border-color)] flex gap-2 shrink-0">
                         <button
                             onClick={() => handleRoomAction('kick')}
                             disabled={actionLoading || targetUserId === null || targetUserId === user?.id}
@@ -120,7 +120,7 @@ export default function MembersModal({
                 <div className="p-4 pt-0" hidden={isAdmin}>
                     <button
                         onClick={onClose}
-                        className="w-full py-2.5 rounded-xl text-sm font-medium text-[#e6edf3] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                        className="w-full py-2.5 rounded-xl text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-tertiary)] hover:brightness-110 border border-[var(--border-light)] transition-colors"
                     >
                         Done
                     </button>

@@ -111,7 +111,7 @@ func (h *Hub) handleSignal(message Message) {
 	}
 
 	// Skip kalau target lagi aktif di room yang sama (udah nerima dari Broadcast)
-	if message.Type == "chat" {
+	if message.Type == "chat" || message.Type == "message_notification" {
 		h.RoomMu.RLock()
 		roomClients := h.Rooms[message.RoomID]
 		for client := range roomClients {

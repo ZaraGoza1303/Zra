@@ -18,24 +18,24 @@ export default function PreviewPictureModal({
             onClick={() => setPreviewPicture(null)}
         >
             <div
-                className="w-full max-w-[360px] bg-[#161b22] border border-white/10 rounded-2xl overflow-hidden shadow-2xl"
+                className="w-full max-w-[360px] bg-[var(--bg-secondary)] border border-[var(--border-light)] rounded-2xl overflow-hidden shadow-2xl"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-                    <h3 className="text-sm font-semibold text-[#e6edf3]">Change Group Photo</h3>
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)]">Change Group Photo</h3>
                     <button
                         onClick={() => setPreviewPicture(null)}
-                        className="text-[#8b949e] hover:text-[#e6edf3] transition-colors"
+                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         <X size={18} />
                     </button>
                 </div>
 
                 <div className="flex flex-col items-center gap-4 p-6">
-                    <div className="w-32 h-32 rounded-[28px] overflow-hidden border border-white/10 shadow-xl">
+                    <div className="w-32 h-32 rounded-[28px] overflow-hidden border border-[var(--border-light)] shadow-xl">
                         <img src={previewPicture.url} alt="preview" className="w-full h-full object-cover" />
                     </div>
-                    <p className="text-xs text-[#8b949e] text-center">
+                    <p className="text-xs text-[var(--text-muted)] text-center">
                         This will be the new group photo. Are you sure?
                     </p>
                 </div>
@@ -46,7 +46,7 @@ export default function PreviewPictureModal({
                             URL.revokeObjectURL(previewPicture.url);
                             setPreviewPicture(null);
                         }}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[#8b949e] bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+                        className="flex-1 py-2.5 rounded-xl text-sm font-medium text-[var(--text-muted)] bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)] border border-[var(--border-light)] transition-colors"
                     >
                         Cancel
                     </button>
@@ -57,7 +57,7 @@ export default function PreviewPictureModal({
                             setPreviewPicture(null);
                         }}
                         disabled={editLoading}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[var(--accent-color)] hover:opacity-90 disabled:opacity-50 transition-colors"
                     >
                         {editLoading ? 'Saving...' : 'Confirm'}
                     </button>

@@ -1,6 +1,7 @@
 // src/services/api.ts
 import { API_BASE_URL } from "../config";
 import { getRoomImageUrl, getUserImageUrl } from "../utils/imageUtils";
+import type { SocialLink, User } from "../types/chat";
 
 // Re-export helper functions untuk kemudahan
 export { getRoomImageUrl, getUserImageUrl };
@@ -169,3 +170,26 @@ export const apiCall = async <T>(
 
   return makeRequest();
 };
+
+export const getUserById = (userId: number) =>
+  apiCall<{ data: User }>(`/user/${userId}`, { method: 'GET' });
+
+export const getSocialLinks = () => 
+  apiCall<{ data: SocialLink[] }>('/user/social-links', { method: 'GET' });
+
+export const createSocialLinks = (links: { type: string; url: string }[]) =>
+  apiCall('/user/social-links', {
+    method: 'POST',
+    body: JSON.stringify({ link: links }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const updateSocialLink = (linkId: number, data: { type?: string; url?: string }) =>
+  apiCall(`/user/social-link/${linkId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+export const deleteSocialLink = (linkId: number) =>
+  apiCall(`/user/social-link/${linkId}`, { method: 'DELETE' });

@@ -163,8 +163,8 @@ export default function CallOverlay({
                     : undefined
             }
             className={`${isMinimized
-                ? 'rounded-2xl shadow-2xl overflow-hidden border border-white/10'
-                : 'fixed inset-0 z-[100] bg-[#0d1117] overflow-hidden'
+                ? 'rounded-2xl shadow-2xl overflow-hidden border border-[var(--border-light)]'
+                : 'fixed inset-0 z-[100] bg-[var(--bg-primary)] overflow-hidden'
                 }`}
             onPointerDown={isMinimized ? onPointerDown : undefined}
             onPointerMove={isMinimized ? onPointerMove : undefined}
@@ -187,14 +187,14 @@ export default function CallOverlay({
                             {partnerPicture ? (
                                 <img src={partnerPicture} alt={partnerName} className="w-24 h-24 rounded-full object-cover ring-2 ring-white/10 relative z-10" />
                             ) : (
-                                <div className="w-24 h-24 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-4xl font-bold text-[#e6edf3] relative z-10">
+                                <div className="w-24 h-24 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] flex items-center justify-center text-4xl font-bold text-[var(--text-primary)] relative z-10">
                                     {partnerName[0]?.toUpperCase()}
                                 </div>
                             )}
                         </div>
                         <div className="text-center">
-                            <p className="text-xl font-semibold text-[#e6edf3]">{partnerName}</p>
-                            <p className="text-sm text-[#8b949e] mt-1">
+                            <p className="text-xl font-semibold text-[var(--text-primary)]">{partnerName}</p>
+                            <p className="text-sm text-[var(--text-muted)] mt-1">
                                 {remoteStream ? formatDuration(callDuration) : (isCaller ? 'Calling...' : 'Connecting...')}
                             </p>
                         </div>
@@ -217,23 +217,23 @@ export default function CallOverlay({
                 </button>
 
                 {withVideo && (
-                    <div className="absolute bottom-32 right-6 w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-[#1c2128] z-20">
-                        <video ref={localVideoRef} autoPlay playsInline muted
-                            className={`w-full h-full object-cover scale-x-[-1] ${isVideoOff ? 'hidden' : 'block'}`}
-                        />
-                        {isVideoOff && (
-                            <div className="w-full h-full flex items-center justify-center text-[#8b949e] bg-[#0d1117]">
-                                <VideoOff size={24} />
-                            </div>
-                        )}
-                    </div>
+<div className="absolute bottom-32 right-6 w-32 h-44 rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-[var(--bg-tertiary)] z-20">
+                            <video ref={localVideoRef} autoPlay playsInline muted
+                                className={`w-full h-full object-cover scale-x-[-1] ${isVideoOff ? 'hidden' : 'block'}`}
+                            />
+                            {isVideoOff && (
+                                <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)] bg-[var(--bg-primary)]">
+                                    <VideoOff size={24} />
+                                </div>
+                            )}
+                        </div>
                 )}
 
                 {autoplayError && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
                         <button
                             onClick={() => audioInstanceRef.current?.play().then(() => setAutoplayError(false)).catch(console.error)}
-                            className="px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-semibold flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.5)] transform hover:scale-105 transition-all"
+                            className="px-6 py-4 bg-[var(--accent-color)] hover:bg-[var(--accent-color)]/80 text-white rounded-full font-semibold flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.5)] transform hover:scale-105 transition-all"
                         >
                             <Mic size={24} className="animate-pulse" />
                             <span>Browser Blocked Audio. Click to Play!</span>
@@ -266,7 +266,7 @@ export default function CallOverlay({
 
             {/* ── MINIMIZED MODE ── */}
             {isMinimized && (
-                <div className="relative w-full h-full bg-[#0d1117]">
+                <div className="relative w-full h-full bg-[var(--bg-primary)]">
                     {withVideo && remoteStream ? (
                         <video
                             ref={miniRemoteVideoRef}
@@ -274,12 +274,12 @@ export default function CallOverlay({
                             className="absolute inset-0 w-full h-full object-cover"
                         />
                     ) : (
-                        <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]">
+                        <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-primary)]">
                             {partnerPicture ? (
                                 <img src={partnerPicture} alt={partnerName}
                                     className="w-full h-full object-cover opacity-30" />
                             ) : (
-                                <div className="w-12 h-12 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-2xl font-bold text-[#e6edf3]">
+                                <div className="w-12 h-12 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] flex items-center justify-center text-2xl font-bold text-[var(--text-primary)]">
                                     {partnerName[0]?.toUpperCase()}
                                 </div>
                             )}
@@ -289,7 +289,7 @@ export default function CallOverlay({
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent pointer-events-none" />
 
                     {withVideo && localStream && (
-                        <div className="absolute top-2 right-2 w-[52px] h-[68px] rounded-xl overflow-hidden border border-white/25 shadow-lg bg-[#1c2128] z-10">
+                        <div className="absolute top-2 right-2 w-[52px] h-[68px] rounded-xl overflow-hidden border border-white/25 shadow-lg bg-[var(--bg-tertiary)] z-10">
                             {!isVideoOff ? (
                                 <video
                                     ref={miniLocalVideoRef}
@@ -297,8 +297,8 @@ export default function CallOverlay({
                                     className="w-full h-full object-cover scale-x-[-1]"
                                 />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-[#0d1117]">
-                                    <VideoOff size={13} className="text-[#8b949e]" />
+                                <div className="w-full h-full flex items-center justify-center bg-[var(--bg-primary)]">
+                                    <VideoOff size={13} className="text-[var(--text-muted)]" />
                                 </div>
                             )}
                         </div>

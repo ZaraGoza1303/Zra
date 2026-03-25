@@ -16,6 +16,7 @@ interface ChatHeaderProps {
 }
 
 export default function ChatHeader({
+    roomId,
     roomName,
     roomPicture,
     roomType,
@@ -25,17 +26,22 @@ export default function ChatHeader({
     onStartCall,
     onlineUserIds
 }: ChatHeaderProps) {
-    const { totalMemberCount, roomDetails, privatePartner } = useChatStore();
+    const { totalMemberCount, roomDetails, privatePartner, typingUsers } = useChatStore();
     const isPrivate = roomType === 'private';
+    const partnerTyping = isPrivate
+        && privatePartner
+        && Object.keys(typingUsers[roomId] || {}).some(
+            uid => Number(uid) === Number(privatePartner.user_id)
+        );
 
     return (
 
-        <div className="flex items-center justify-between px-5 py-3.5 bg-[#0b0e11] border-b border-white/5 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-[var(--bg-primary)] border-b border-[var(--border-color)] shrink-0">
             <div className="flex items-center gap-3">
                 {onBack && (
                     <button
                         onClick={onBack}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         <ArrowLeft size={18} />
                     </button>
@@ -47,19 +53,21 @@ export default function ChatHeader({
                     {roomDetails?.picture || roomPicture ? (
                         <img src={getRoomImageUrl(roomDetails?.picture || roomPicture)} alt={roomName} className="w-10 h-10 rounded-full object-cover" />
                     ) : (
-                        <div className="w-10 h-10 rounded-full bg-[#1c2128] border border-white/10 flex items-center justify-center text-[#8b949e]">
+                        <div className="w-10 h-10 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-light)] flex items-center justify-center text-[var(--text-muted)]">
                             {isPrivate ? <User size={18} /> : <Users size={18} />}
                         </div>
                     )}
                     <div>
-                        <h3 className="text-[15px] font-semibold text-[#e6edf3] leading-tight group-hover:text-blue-400 transition-colors">
+                        <h3 className="text-[15px] font-semibold text-[var(--text-primary)] leading-tight group-hover:text-blue-400 transition-colors">
                             {roomName}
                         </h3>
-                        <p className="text-[12px] text-[#8b949e] leading-tight mt-0.5">
+                        <p className="text-[12px] text-[var(--text-muted)] leading-tight mt-0.5">
                             {isPrivate
-                                ? (privatePartner && onlineUserIds?.has(Number(privatePartner.user_id))
-                                    ? <span className="text-green-400">● Online</span>
-                                    : <span>● Offline</span>)
+                                ? partnerTyping
+                                    ? <span className="text-[var(--accent-color)] animate-pulse">typing...</span>
+                                    : onlineUserIds?.has(Number(privatePartner?.user_id))
+                                        ? <span className="text-green-400">● Online</span>
+                                        : <span>● Offline</span>
                                 : totalMemberCount !== null
                                     ? `${totalMemberCount > 999 ? '999+' : totalMemberCount} members`
                                     : 'Click to view info'
@@ -73,7 +81,7 @@ export default function ChatHeader({
                 {isPrivate && (
                     <button
                         onClick={() => onStartCall?.(true)}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                         title="Video Call"
                     >
                         <Video size={18} />
@@ -82,7 +90,7 @@ export default function ChatHeader({
                 {isPrivate && (
                     <button
                         onClick={() => onStartCall?.(false)}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                         title="Voice Call"
                     >
                         <Phone size={18} />
@@ -91,7 +99,7 @@ export default function ChatHeader({
                 {!isPrivate && (
                     <button
                         onClick={onOpenUsersModal}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                         title="Members"
                     >
                         <Users size={18} />
@@ -100,7 +108,7 @@ export default function ChatHeader({
                 {!isPrivate && (
                     <button
                         onClick={onOpenInfoModal}
-                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[#8b949e] hover:bg-white/5 hover:text-[#e6edf3] transition-colors"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                         title="More"
                     >
                         <MoreHorizontal size={18} />

@@ -8,7 +8,7 @@ type User struct {
 	Email          string    `gorm:"size:255;not null;unique"`
 	Provider       *string   `gorm:"size:255"`
 	Bio            string    `gorm:"size:255"`
-	Username       string    `gorm:"size:255;not null"`
+	Username       string    `gorm:"size:255;not null;unique"`
 	Name           string    `gorm:"size:255"`
 	Password       string    `gorm:"size:255;not null"`
 	IsVerified     bool      `gorm:"default:false;not null"`
