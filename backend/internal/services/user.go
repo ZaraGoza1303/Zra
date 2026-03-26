@@ -41,6 +41,8 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 		return nil, err
 	}
 
+	currentUserId, _ := ctx.Value("user_id").(uint)
+
 	var response []dto.UserResponse
 
 	for _, user := range users {
@@ -57,6 +59,8 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 			provider = ""
 		}
 
+		visible := u.checkPrivacyAccess(user.ID, currentUserId)
+
 		item := dto.UserResponse{
 			ID:             user.ID,
 			Email:          user.Email,
@@ -64,7 +68,14 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
 			Name:           user.Name,
+			LastSeenAt:     u.getVisibleLastSeen(&user, currentUserId),
 			CreatedAt:      user.CreatedAt,
+		}
+
+		if !visible {
+			item.Name = ""
+			item.Bio = ""
+			item.ProfilePicture = ""
 		}
 
 		response = append(response, item)
@@ -80,6 +91,9 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 		return nil, err
 	}
 
+	currentUserId, _ := ctx.Value("user_id").(uint)
+	visible := u.checkPrivacyAccess(user.ID, currentUserId)
+
 	var profilePicture string
 	var provider string
 
@@ -98,11 +112,15 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Provider:       provider,
-		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
+		LastSeenAt:     u.getVisibleLastSeen(user, currentUserId),
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
+	}
+
+	if visible {
+		response.Bio = user.Bio
 	}
 
 	return &response, nil
@@ -114,6 +132,8 @@ func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse
 		return nil, err
 	}
 
+	currentUserId, _ := ctx.Value("user_id").(uint)
+
 	var profilePicture string
 	var provider string
 
@@ -127,16 +147,22 @@ func (u *userServices) FindById(ctx context.Context, id uint) (*dto.UserResponse
 		provider = ""
 	}
 
+	visible := u.checkPrivacyAccess(user.ID, currentUserId)
+
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
 		Email:          user.Email,
 		Provider:       provider,
-		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
+		LastSeenAt:     u.getVisibleLastSeen(user, currentUserId),
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
+	}
+
+	if visible {
+		response.Bio = user.Bio
 	}
 
 	return &response, nil
@@ -177,6 +203,8 @@ func (u *userServices) FindListFriend(ctx context.Context, filter string) ([]dto
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
 			Name:           user.Name,
+			Bio:            user.Bio,
+			LastSeenAt:     user.LastSeenAt,
 			CreatedAt:      user.CreatedAt,
 		}
 
@@ -221,6 +249,7 @@ func (u *userServices) FindListFriendRequest(ctx context.Context, filter string)
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
 			Name:           user.Name,
+			LastSeenAt:     user.LastSeenAt,
 			CreatedAt:      user.CreatedAt,
 		}
 
@@ -257,6 +286,7 @@ func (u *userServices) FindByToken(ctx context.Context, token string) (*dto.User
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
+		LastSeenAt:     user.LastSeenAt,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
 	}
@@ -292,6 +322,7 @@ func (u *userServices) FindByEmail(ctx context.Context, email string) (*dto.User
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
+		LastSeenAt:     user.LastSeenAt,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
 		UpdatedAt:      user.UpdatedAt,
@@ -328,6 +359,7 @@ func (u *userServices) FindByEmailAndProvider(ctx context.Context, email, provid
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
+		LastSeenAt:     user.LastSeenAt,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
 	}
@@ -956,6 +988,7 @@ func (u *userServices) FindByIdWithoutCtx(id uint) (*dto.UserResponse, error) {
 		Bio:            user.Bio,
 		Username:       user.Username,
 		Name:           user.Name,
+		LastSeenAt:     user.LastSeenAt,
 		IsVerified:     user.IsVerified,
 		CreatedAt:      user.CreatedAt,
 	}
@@ -971,4 +1004,300 @@ func (u *userServices) FindOnlineUsers() ([]uint, error) {
 	}
 
 	return users, nil
+}
+
+func (u *userServices) GetSettingsByUserId(userId uint) (*dto.UserSettingsResponse, error) {
+	settings, err := u.UserRepositories.GetSettings(context.Background(), userId)
+	if err != nil {
+		return nil, err
+	}
+
+	if settings == nil {
+		return &dto.UserSettingsResponse{
+			ProfileVisibility: "public",
+			LastSeen:          "everyone",
+			ReadReceipts:      true,
+			MessageNotif:      true,
+			GroupNotif:        true,
+			Sound:             true,
+			Preview:           true,
+		}, nil
+	}
+
+	return &dto.UserSettingsResponse{
+		ProfileVisibility: settings.ProfileVisibility,
+		LastSeen:          settings.LastSeen,
+		ReadReceipts:      settings.ReadReceipts,
+		MessageNotif:      settings.MessageNotif,
+		GroupNotif:        settings.GroupNotif,
+		Sound:             settings.Sound,
+		Preview:           settings.Preview,
+	}, nil
+}
+
+func (u *userServices) UpdateLastSeen(userId uint) error {
+	now := time.Now()
+	update := models.User{
+		LastSeenAt: &now,
+	}
+	return u.UserRepositories.Update(context.Background(), userId, &update)
+}
+
+func (u *userServices) checkPrivacyAccess(targetUserId, currentUserId uint) bool {
+	if currentUserId == 0 {
+		return false
+	}
+	if targetUserId == currentUserId {
+		return true
+	}
+
+	settings, err := u.UserRepositories.GetSettings(context.Background(), targetUserId)
+	if err != nil || settings == nil {
+		return true
+	}
+
+	if settings.ProfileVisibility == "public" {
+		return true
+	}
+
+	if settings.ProfileVisibility == "friends" {
+		isFriend, _ := u.UserRepositories.GetFriendship(context.Background(), targetUserId, currentUserId)
+		return isFriend
+	}
+
+	return false
+}
+
+func (u *userServices) getVisibleLastSeen(user *models.User, currentUserId uint) *time.Time {
+	if currentUserId == 0 {
+		return nil
+	}
+	if user.ID == currentUserId {
+		return user.LastSeenAt
+	}
+
+	settings, err := u.UserRepositories.GetSettings(context.Background(), user.ID)
+	if err != nil || settings == nil {
+		return user.LastSeenAt
+	}
+
+	if settings.LastSeen == "everyone" {
+		return user.LastSeenAt
+	}
+
+	if settings.LastSeen == "friends" {
+		isFriend, _ := u.UserRepositories.GetFriendship(context.Background(), user.ID, currentUserId)
+		if isFriend {
+			return user.LastSeenAt
+		}
+	}
+
+	return nil
+}
+
+// BlockUser implements [core.UserServices].
+func (u *userServices) BlockUser(ctx context.Context, targetId uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	if userId == targetId {
+		return fmt.Errorf("you cannot block yourself")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, targetId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("target user not found")
+		}
+		return err
+	}
+
+	alreadyBlocked, err := u.UserRepositories.IsBlocked(ctx, userId, targetId)
+	if err != nil {
+		return err
+	}
+
+	if alreadyBlocked {
+		return errors.New("user already blocked")
+	}
+
+	block := models.Block{
+		UserID:    userId,
+		BlockedID: targetId,
+	}
+
+	if err := u.UserRepositories.BlockUser(ctx, &block); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnblockUser implements [core.UserServices].
+func (u *userServices) UnblockUser(ctx context.Context, targetId uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	if userId == targetId {
+		return fmt.Errorf("you cannot unblock yourself")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, targetId)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("target user not found")
+		}
+		return err
+	}
+
+	if err := u.UserRepositories.UnblockUser(ctx, userId, targetId); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetBlockedUsers implements [core.UserServices].
+func (u *userServices) GetBlockedUsers(ctx context.Context) ([]dto.UserResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	users, err := u.UserRepositories.GetBlockedUsers(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.UserResponse
+	for _, user := range users {
+		var profilePicture string
+
+		if user.ProfilePicture != nil {
+			profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, u.backendUrl, u.usersPath)
+		}
+
+		item := dto.UserResponse{
+			ID:             user.ID,
+			Email:          user.Email,
+			ProfilePicture: profilePicture,
+			Username:       user.Username,
+			Name:           user.Name,
+			Bio:            user.Bio,
+			CreatedAt:      user.CreatedAt,
+		}
+
+		response = append(response, item)
+	}
+
+	return response, nil
+}
+
+// IsBlocked implements [core.UserServices].
+func (u *userServices) IsBlocked(ctx context.Context, targetId uint) (bool, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return false, fmt.Errorf("user_id not found")
+	}
+
+	blocked, err := u.UserRepositories.IsBlocked(ctx, userId, targetId)
+	if err != nil {
+		return false, err
+	}
+
+	return blocked, nil
+}
+
+// GetSettings implements [core.UserServices].
+func (u *userServices) GetSettings(ctx context.Context) (*dto.UserSettingsResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	settings, err := u.UserRepositories.GetSettings(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	if settings == nil {
+		return &dto.UserSettingsResponse{
+			ProfileVisibility: "public",
+			LastSeen:          "everyone",
+			ReadReceipts:      true,
+			MessageNotif:      true,
+			GroupNotif:        true,
+			Sound:             true,
+			Preview:           true,
+		}, nil
+	}
+
+	return &dto.UserSettingsResponse{
+		ProfileVisibility: settings.ProfileVisibility,
+		LastSeen:          settings.LastSeen,
+		ReadReceipts:      settings.ReadReceipts,
+		MessageNotif:      settings.MessageNotif,
+		GroupNotif:        settings.GroupNotif,
+		Sound:             settings.Sound,
+		Preview:           settings.Preview,
+	}, nil
+}
+
+// UpdateSettings implements [core.UserServices].
+func (u *userServices) UpdateSettings(ctx context.Context, req *dto.UpdateUserSettingsRequest) (*dto.UserSettingsResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	settings, err := u.UserRepositories.GetSettings(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	if settings == nil {
+		settings = &models.UserSettings{
+			UserID: userId,
+		}
+	}
+
+	if req.ProfileVisibility != nil {
+		settings.ProfileVisibility = *req.ProfileVisibility
+	}
+	if req.LastSeen != nil {
+		settings.LastSeen = *req.LastSeen
+	}
+	if req.ReadReceipts != nil {
+		settings.ReadReceipts = *req.ReadReceipts
+	}
+	if req.MessageNotif != nil {
+		settings.MessageNotif = *req.MessageNotif
+	}
+	if req.GroupNotif != nil {
+		settings.GroupNotif = *req.GroupNotif
+	}
+	if req.Sound != nil {
+		settings.Sound = *req.Sound
+	}
+	if req.Preview != nil {
+		settings.Preview = *req.Preview
+	}
+
+	if err := u.UserRepositories.UpsertSettings(ctx, settings); err != nil {
+		return nil, err
+	}
+
+	return &dto.UserSettingsResponse{
+		ProfileVisibility: settings.ProfileVisibility,
+		LastSeen:          settings.LastSeen,
+		ReadReceipts:      settings.ReadReceipts,
+		MessageNotif:      settings.MessageNotif,
+		GroupNotif:        settings.GroupNotif,
+		Sound:             settings.Sound,
+		Preview:           settings.Preview,
+	}, nil
 }

@@ -54,6 +54,13 @@ func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
 
 	h.hub.Join <- &client
 	go h.writePump(&client)
+
+	go func() {
+		if err := h.userService.UpdateLastSeen(userId); err != nil {
+			log.Printf("Failed to update last seen: %v", err)
+		}
+	}()
+
 	go func() {
 		time.Sleep(2000 * time.Millisecond)
 
@@ -226,7 +233,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		}
 
 		if msg.ReplyToID != "" {
-			replyMsg, err := h.roomService.FindMessageByID(context.Background(), msg.ReplyToID)
+			replyMsg, err := h.cachedRoomServices.FindMessageByID(context.Background(), msg.ReplyToID)
 			if err == nil && replyMsg != nil {
 				msg.ReplyTo = replyMsg
 			}
@@ -235,6 +242,14 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		h.hub.Broadcast <- msg
 
 		go func(msg dto.Message) {
+			room, err := h.roomService.FindById(context.Background(), msg.RoomID)
+			if err != nil {
+				log.Printf("Failed to get room: %v", err)
+				return
+			}
+
+			isGroup := room.Type == "group"
+
 			members, err := h.cachedRoomServices.GetAllRoomMembers(context.Background(), msg.RoomID)
 			if err != nil {
 				log.Printf("Failed to get members: %v", err)
@@ -242,6 +257,15 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 			}
 			for _, member := range members {
 				if member.UserID != msg.UserID {
+					settings, err := h.userService.GetSettingsByUserId(member.UserID)
+					if err == nil && settings != nil {
+						if isGroup && !settings.GroupNotif {
+							continue
+						}
+						if !isGroup && !settings.MessageNotif {
+							continue
+						}
+					}
 					msg.ToID = member.UserID
 					h.hub.Signal <- msg
 				}

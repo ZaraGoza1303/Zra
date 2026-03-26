@@ -14,7 +14,7 @@ import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile, Soc
 import { useDashboardStore } from '../../store/dashboardStore';
 import { useToastStore } from '../../store/toastStore';
 
-export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds, privatePartnerInfo }: ChatRoomProps) {
+export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds, privatePartnerInfo, onOpenDM }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
     const { user, token } = useAuthStore();
     const { updateRoom } = useDashboardStore();
@@ -53,7 +53,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setFriendsList,
         showUsersModal, setShowUsersModal,
         showInfoModal, setShowInfoModal,
-        targetUserId, setTargetUserId,
+        setTargetUserId,
         setActionLoading,
         setPrivatePartner,
         setEditingName,
@@ -187,7 +187,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 } catch (socialErr) {
                     console.log("No social links found for user");
                 }
-                
+
                 setPrivatePartner({
                     user_id: partner.user_id,
                     username: partner.username,
@@ -790,8 +790,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 onBack?.();
 
             } else if (action === 'kick') {
-                if (targetUserId === null) return showToast('Please select a user to kick.', 'error');
-                await apiCall(`/room/${roomId}/kick?user_id=${targetUserId}`, { method: 'DELETE' });
+                const currentTargetUserId = useChatStore.getState().targetUserId;
+                if (currentTargetUserId === null) return showToast('Please select a user to kick.', 'error');
+                await apiCall(`/room/${roomId}/kick?user_id=${currentTargetUserId}`, { method: 'DELETE' });
                 showToast('User kicked successfully!');
                 setTargetUserId(null);
                 await Promise.all([
@@ -800,8 +801,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 ]);
 
             } else if (action === 'admin') {
-                if (targetUserId === null) return showToast('Please select a user to make admin.', 'error');
-                await apiCall(`/room/${roomId}/to-admin?user_id=${targetUserId}`, { method: 'PUT' });
+                const currentTargetUserId = useChatStore.getState().targetUserId;
+                if (currentTargetUserId === null) return showToast('Please select a user to make admin.', 'error');
+                await apiCall(`/room/${roomId}/to-admin?user_id=${currentTargetUserId}`, { method: 'PUT' });
                 showToast('User is now an admin!');
                 setTargetUserId(null);
                 await fetchRoomMembers();
@@ -1038,6 +1040,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     }}
                     roomType={roomType}
                     onlineUserIds={onlineUserIds}
+                    onOpenDM={onOpenDM}
                 />
             )}
 

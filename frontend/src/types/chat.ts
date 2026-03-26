@@ -36,6 +36,7 @@ export interface ChatRoomProps {
     onNewMessage?: (roomId: string, message: LastMessage) => void;
     onRoomResolved?: (resolvedRoomId: string) => void;
     onStartCall?: (withVideo: boolean) => void;
+    onOpenDM?: (roomId: string, targetName: string, targetPicture?: string, targetUserId?: number) => void;
     onlineUserIds?: Set<number>;
     /** When opening a pending DM, pass partner info so online status shows immediately */
     privatePartnerInfo?: {

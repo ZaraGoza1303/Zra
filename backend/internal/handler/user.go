@@ -29,18 +29,24 @@ func NewUser(router fiber.Router, service core.UserServices, storageService core
 	route.Get("/user/list-friend", middleware, handler.FindListFriend)
 	route.Get("/user/list-friend-requests", middleware, handler.FindListFriendRequest)
 	route.Get("/user/unread-notifications", middleware, handler.FindUnreadNotifCount)
+	route.Get("/user/blocked-list", middleware, handler.GetBlockedUsers)
+	route.Get("/user/settings", middleware, handler.GetSettings)
 	route.Get("/user/:id", middleware, handler.FindById)
 	route.Get("/user/social-links/:id", middleware, handler.FindSocialLinksById)
 	route.Post("/user/make-friend-requests/:target_id", middleware, handler.MakeFriendRequest)
 	route.Post("/user/social-links", middleware, handler.CreateSocialLinks)
+	route.Post("/user/block/:target_id", middleware, handler.BlockUser)
 	route.Put("/user/change-password", middleware, handler.ChangePassword)
 	route.Put("/user/read-notifications", middleware, handler.ReadNotifications)
 	route.Put("/user", middleware, handler.Update)
+	route.Put("/user/settings", middleware, handler.UpdateSettings)
 	route.Put("/user/accept-friend-requests/:target_id", middleware, handler.UpdateFriendRequest)
 	route.Put("/user/social-link/:link_id", middleware, handler.UpdateSocialLink)
 	route.Delete("/user/reject-friend-requests/:target_id", middleware, handler.RejectFriendRequest)
 	route.Delete("/user/unfriend/:target_id", middleware, handler.Unfriend)
 	route.Delete("/user/social-link/:link_id", middleware, handler.RemoveSocialLink)
+	route.Delete("/user/block/:target_id", middleware, handler.UnblockUser)
+
 }
 
 func (h *userHandler) FindAll(c *fiber.Ctx) error {
@@ -453,4 +459,92 @@ func (h *userHandler) RemoveSocialLink(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Remove Link Successfully", nil))
+}
+
+func (h *userHandler) BlockUser(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.BlockUser(ctx, uint(targetId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("User blocked successfully", nil))
+}
+
+func (h *userHandler) UnblockUser(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	targetId, err := helper.GetParams(c.Params("target_id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	if err := h.UserServices.UnblockUser(ctx, uint(targetId)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("User unblocked successfully", nil))
+}
+
+func (h *userHandler) GetBlockedUsers(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	users, err := h.UserServices.GetBlockedUsers(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Blocked users list", users))
+}
+
+func (h *userHandler) GetSettings(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	settings, err := h.UserServices.GetSettings(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("User settings", settings))
+}
+
+func (h *userHandler) UpdateSettings(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
+	var req dto.UpdateUserSettingsRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	settings, err := h.UserServices.UpdateSettings(ctx, &req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Settings updated", settings))
 }

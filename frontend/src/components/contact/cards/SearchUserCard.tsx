@@ -1,4 +1,4 @@
-import { MessageSquare, UserPlus, Clock, UserCheck, Loader2 } from 'lucide-react';
+import { MessageSquare, UserPlus, Clock, UserCheck, Loader2, User } from 'lucide-react';
 import Avatar from '../Avatar';
 import StatusBadge from '../StatusBadge';
 import type { SearchedUser } from '../../../types/contacts';
@@ -13,7 +13,7 @@ interface Props {
     dmLoading?: boolean;
 }
 
-export default function SearchUserCard({ user, actionLoading, onAdd, onDirectMessage, dmLoading, currentUserId }: Props) {
+export default function SearchUserCard({ user, actionLoading, onAdd, onViewDetail, onDirectMessage, dmLoading, currentUserId }: Props) {
     const isLoading = actionLoading === user.id;
     const isSelf = user.id === currentUserId;
 
@@ -46,6 +46,20 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onDirectMes
                 ) : (
                     <button disabled className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] opacity-30 cursor-not-allowed">
                         <MessageSquare size={15} />
+                    </button>
+                )}
+
+                {/* View Detail button */}
+                {!isSelf && onViewDetail && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onViewDetail();
+                        }}
+                        title="View Profile"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--accent-color)]/15 hover:text-[var(--accent-color)] transition-colors"
+                    >
+                        <User size={15} />
                     </button>
                 )}
 

@@ -15,6 +15,9 @@ import ContactsPanel from '../components/contact/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
 import SettingsView from '../components/SettingsView';
 import ThemeSettings from '../components/settings/ThemeSettings';
+import AccountSettings from '../components/settings/AccountSettings';
+import PrivacySettings from '../components/settings/PrivacySettings';
+import NotificationSettings from '../components/settings/NotificationSettings';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import type { LastMessage, Room } from '../types/chat';
 import { BACKEND_URL } from '../config';
@@ -386,7 +389,8 @@ export default function Dashboard() {
             setSearchTerm(''); // Clear search on create
             useToastStore.getState().showToast('Room created successfully', 'success');
 
-            // ENSURE LIST REFRESHES WITHOUT FLICKERING
+            // Clear cache first so fetchRooms is forced to re-fetch from API (not serve from stale cache)
+            setAllRooms([]);
             fetchRooms('');
         } catch (err) {
             console.error('Failed to create room:', err);
@@ -535,8 +539,8 @@ export default function Dashboard() {
                                                         <button
                                                             onClick={() => setActiveSettingsTab(sub.key)}
                                                             className={`text-left pl-5 py-2 text-sm font-medium transition-colors capitalize whitespace-nowrap overflow-hidden ${activeSettingsTab === sub.key
-                                                                    ? 'text-[var(--text-primary)]'
-                                                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                                                ? 'text-[var(--text-primary)]'
+                                                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                                                                 }`}
                                                         >
                                                             {sub.label}
@@ -580,24 +584,9 @@ export default function Dashboard() {
                 <div className="flex-1 overflow-hidden bg-[var(--bg-primary)]">
                     {activeSettingsTab === 'profile' && <SettingsView />}
                     {activeSettingsTab === 'appearance' && <ThemeSettings />}
-                    {activeSettingsTab === 'account' && (
-                        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] p-10">
-                            <h1 className="text-[var(--accent-color, [var(--accent-color)])] font-bold text-lg">Account Settings</h1>
-                            <p className="text-[var(--text-secondary)] mt-2">Account settings coming soon...</p>
-                        </div>
-                    )}
-                    {activeSettingsTab === 'privacy' && (
-                        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] p-10">
-                            <h1 className="text-[var(--accent-color, [var(--accent-color)])] font-bold text-lg">Privacy & Safety</h1>
-                            <p className="text-[var(--text-secondary)] mt-2">Privacy settings coming soon...</p>
-                        </div>
-                    )}
-                    {activeSettingsTab === 'notifications' && (
-                        <div className="flex-1 overflow-y-auto bg-[var(--bg-primary)] text-[var(--text-primary)] p-10">
-                            <h1 className="text-[var(--accent-color, [var(--accent-color)])] font-bold text-lg">Notifications</h1>
-                            <p className="text-[var(--text-secondary)] mt-2">Notification settings coming soon...</p>
-                        </div>
-                    )}
+                    {activeSettingsTab === 'account' && <AccountSettings />}
+                    {activeSettingsTab === 'privacy' && <PrivacySettings />}
+                    {activeSettingsTab === 'notifications' && <NotificationSettings />}
                 </div>
             )}
 
@@ -786,6 +775,7 @@ export default function Dashboard() {
                                             });
                                         }
                                     }}
+                                    onOpenDM={handleOpenDM}
                                 />
                             ) : (
                                 <main className="flex-1 flex flex-col bg-[var(--bg-primary)] relative overflow-hidden items-center justify-center text-[var(--text-muted)] text-center gap-4 relative">

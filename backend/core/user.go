@@ -40,6 +40,16 @@ type UserRepositories interface {
 
 	IsLinkOwnedByUser(ctx context.Context, userId uint, linkId uint) (bool, error)
 	VerifyEmail(ctx context.Context, id uint, req *models.User) error
+
+	// Block
+	BlockUser(ctx context.Context, block *models.Block) error
+	UnblockUser(ctx context.Context, userId, blockedId uint) error
+	GetBlockedUsers(ctx context.Context, userId uint) ([]models.User, error)
+	IsBlocked(ctx context.Context, userId, blockedId uint) (bool, error)
+
+	// Settings
+	GetSettings(ctx context.Context, userId uint) (*models.UserSettings, error)
+	UpsertSettings(ctx context.Context, settings *models.UserSettings) error
 }
 
 type UserServices interface {
@@ -74,4 +84,16 @@ type UserServices interface {
 	//For Websocket
 	FindByIdWithoutCtx(id uint) (*dto.UserResponse, error)
 	FindOnlineUsers() ([]uint, error)
+	GetSettingsByUserId(userId uint) (*dto.UserSettingsResponse, error)
+	UpdateLastSeen(userId uint) error
+
+	// Block
+	BlockUser(ctx context.Context, targetId uint) error
+	UnblockUser(ctx context.Context, targetId uint) error
+	GetBlockedUsers(ctx context.Context) ([]dto.UserResponse, error)
+	IsBlocked(ctx context.Context, targetId uint) (bool, error)
+
+	// Settings
+	GetSettings(ctx context.Context) (*dto.UserSettingsResponse, error)
+	UpdateSettings(ctx context.Context, req *dto.UpdateUserSettingsRequest) (*dto.UserSettingsResponse, error)
 }

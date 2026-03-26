@@ -462,3 +462,103 @@ func (u *userRepositories) VerifyEmail(ctx context.Context, id uint, req *models
 
 	return nil
 }
+
+// BlockUser implements [core.UserRepositories].
+func (u *userRepositories) BlockUser(ctx context.Context, block *models.Block) error {
+	result := u.DB.WithContext(ctx).Create(block)
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+// UnblockUser implements [core.UserRepositories].
+func (u *userRepositories) UnblockUser(ctx context.Context, userId, blockedId uint) error {
+	result := u.DB.WithContext(ctx).
+		Where("user_id = ? AND blocked_id = ?", userId, blockedId).
+		Delete(&models.Block{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("block record not found")
+	}
+
+	return nil
+}
+
+// GetBlockedUsers implements [core.UserRepositories].
+func (u *userRepositories) GetBlockedUsers(ctx context.Context, userId uint) ([]models.User, error) {
+	var blockedUsers []models.User
+
+	result := u.DB.WithContext(ctx).
+		Model(&models.Block{}).
+		Joins("JOIN users ON users.id = blocks.blocked_id").
+		Where("blocks.user_id = ?", userId).
+		Select("users.id, users.email, users.username, users.name, users.profile_picture, users.bio, users.created_at, users.updated_at").
+		Find(&blockedUsers)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return blockedUsers, nil
+}
+
+// IsBlocked implements [core.UserRepositories].
+func (u *userRepositories) IsBlocked(ctx context.Context, userId, blockedId uint) (bool, error) {
+	var count int64
+
+	result := u.DB.WithContext(ctx).
+		Model(&models.Block{}).
+		Where("user_id = ? AND blocked_id = ?", userId, blockedId).
+		Count(&count)
+
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return count > 0, nil
+}
+
+// GetSettings implements [core.UserRepositories].
+func (u *userRepositories) GetSettings(ctx context.Context, userId uint) (*models.UserSettings, error) {
+	var settings models.UserSettings
+
+	result := u.DB.WithContext(ctx).
+		Where("user_id = ?", userId).
+		First(&settings)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &settings, nil
+}
+
+// UpsertSettings implements [core.UserRepositories].
+func (u *userRepositories) UpsertSettings(ctx context.Context, settings *models.UserSettings) error {
+	result := u.DB.WithContext(ctx).
+		Where("user_id = ?", settings.UserID).
+		Assign(models.UserSettings{
+			ProfileVisibility: settings.ProfileVisibility,
+			LastSeen:          settings.LastSeen,
+			ReadReceipts:      settings.ReadReceipts,
+			MessageNotif:      settings.MessageNotif,
+			GroupNotif:        settings.GroupNotif,
+			Sound:             settings.Sound,
+			Preview:           settings.Preview,
+		}).
+		FirstOrCreate(settings)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
