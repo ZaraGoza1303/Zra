@@ -12,6 +12,7 @@ type RoomMemberResponse struct {
 	UserID             uint      `json:"user_id"`
 	UserProfilePicture string    `json:"user_profile_picture"`
 	Username           string    `json:"username"`
+	Name               string    `json:"name"`
 	UserBio            string    `json:"user_bio"`
 	Role               string    `json:"role"`
 	LastReadAt         time.Time `json:"last_read_at"`

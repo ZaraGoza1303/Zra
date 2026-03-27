@@ -6,6 +6,7 @@ type Client struct {
 	Conn           *websocket.Conn
 	UserID         uint
 	Username       string
+	Name           string
 	ProfilePicture string
 	RoomID         string
 	Send           chan Message

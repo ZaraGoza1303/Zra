@@ -41,6 +41,7 @@ type RoomUpdateRequest struct {
 type LastMessageInfo struct {
 	Content  string    `json:"content"`
 	Username string    `json:"username"`
+	Name     string    `json:"name"`
 	SentAt   time.Time `json:"sent_at"`
 	Type     string    `json:"type"`
 	Caption  string    `json:"caption,omitempty"`

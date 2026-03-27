@@ -232,18 +232,19 @@ export default function SettingsView() {
                                     <div className="w-6 h-6 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                                 </div>
                             ) : (
-                                PLATFORMS.map((platform) => {
-                                    const link = socialLinks.find(l => l.type === platform.id);
-                                    const username = link ? extractUsername(link.url, platform.id) : null;
+                                Array.from({ length: 4 }).map((_, i) => {
+                                    const link = socialLinks[i];
+                                    const platform = link ? PLATFORMS.find(p => p.id === link.type) : null;
+                                    const username = link && platform ? extractUsername(link.url, platform.id) : null;
 
-                                    let platformColor = platform.color;
-                                    if (platform.id === 'github') {
+                                    let platformColor = platform?.color || "var(--text-muted)";
+                                    if (platform?.id === 'github') {
                                         platformColor = isDark ? '#F0F6FC' : '#1e293b';
                                     }
 
                                     return (
                                         <div
-                                            key={platform.id}
+                                            key={i}
                                             className="flex flex-col items-center gap-2"
                                         >
                                             <div
@@ -255,20 +256,28 @@ export default function SettingsView() {
                                                     backgroundColor: link ? `${platformColor}20` : undefined,
                                                     borderColor: link ? platformColor : undefined,
                                                 }}
-                                                onClick={() => link && setActiveModal({ type: "edit", link })}
+                                                onClick={() => {
+                                                    if (link) {
+                                                        setActiveModal({ type: "edit", link });
+                                                    } else {
+                                                        setActiveModal({ type: "add" });
+                                                    }
+                                                }}
                                             >
-                                                {link ? (
+                                                {link && platform ? (
                                                     <>
                                                         <PlatformIcon platform={platform.id} color={platformColor} sizeClass="w-8 h-8" />
                                                         <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <Pencil size={20} className="text-white" />
                                                         </div>
                                                     </>
-                                                ) : null}
+                                                ) : (
+                                                    <Plus size={24} className="text-[var(--text-muted)]" />
+                                                )}
                                             </div>
                                             <span className={`text-xs font-medium truncate max-w-[80px] ${link ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
                                                 }`}>
-                                                {username || ""}
+                                                {username || (platform?.name || "")}
                                             </span>
                                         </div>
                                     );

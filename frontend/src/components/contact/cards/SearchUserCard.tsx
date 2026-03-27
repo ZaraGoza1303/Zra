@@ -1,20 +1,17 @@
-import { MessageSquare, UserPlus, Clock, UserCheck, Loader2, User } from 'lucide-react';
+import { MessageSquare, Loader2, User } from 'lucide-react';
 import Avatar from '../Avatar';
 import StatusBadge from '../StatusBadge';
 import type { SearchedUser } from '../../../types/contacts';
 
 interface Props {
     user: SearchedUser;
-    actionLoading: number | null;
-    onAdd: (id: number) => void;
     onViewDetail?: () => void;
     currentUserId?: number;
     onDirectMessage: (targetId: number, targetUser: SearchedUser) => void;
     dmLoading?: boolean;
 }
 
-export default function SearchUserCard({ user, actionLoading, onAdd, onViewDetail, onDirectMessage, dmLoading, currentUserId }: Props) {
-    const isLoading = actionLoading === user.id;
+export default function SearchUserCard({ user, onViewDetail, onDirectMessage, dmLoading, currentUserId }: Props) {
     const isSelf = user.id === currentUserId;
 
     return (
@@ -30,7 +27,6 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onViewDetai
                 <p className="text-xs text-[var(--text-muted)] truncate">@{user.username}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-                {/* DM button - aktif kalau bukan diri sendiri */}
                 {!isSelf ? (
                     <button
                         onClick={(e) => {
@@ -49,7 +45,6 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onViewDetai
                     </button>
                 )}
 
-                {/* View Detail button */}
                 {!isSelf && onViewDetail && (
                     <button
                         onClick={(e) => {
@@ -61,22 +56,6 @@ export default function SearchUserCard({ user, actionLoading, onAdd, onViewDetai
                     >
                         <User size={15} />
                     </button>
-                )}
-
-                {!isSelf && (
-                    user.friendship_status === 'friend' ? (
-                        <button disabled className="w-8 h-8 rounded-lg flex items-center justify-center text-emerald-400 opacity-60 cursor-not-allowed">
-                            <UserCheck size={15} />
-                        </button>
-                    ) : user.friendship_status === 'pending_sent' ? (
-                        <button disabled className="w-8 h-8 rounded-lg flex items-center justify-center text-amber-400 opacity-60 cursor-not-allowed">
-                            <Clock size={15} />
-                        </button>
-                    ) : (
-                        <button onClick={() => onAdd(user.id)} disabled={isLoading} title="Add Friend" className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--accent-color)] hover:bg-[var(--accent-color)]/15 disabled:opacity-50 transition-colors">
-                            {isLoading ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
-                        </button>
-                    )
                 )}
             </div>
         </div>

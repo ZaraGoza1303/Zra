@@ -192,7 +192,7 @@ func (h *roomHandler) UploadImage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	if file.Size > 8*1024*1024 {
+	if file.Size > 10*1024*1024 {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("File Too Large"))
 	}
 

@@ -46,7 +46,8 @@ func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
 	client := dto.Client{
 		Conn:           c,
 		UserID:         userId,
-		Username:       user.Name,
+		Username:       user.Username,
+		Name:           user.Name,
 		ProfilePicture: user.ProfilePicture,
 		RoomID:         "global",
 		Send:           make(chan dto.Message, 256),
@@ -114,7 +115,8 @@ func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
 	client := dto.Client{
 		Conn:           c,
 		UserID:         userId,
-		Username:       user.Name,
+		Username:       user.Username,
+		Name:           user.Name,
 		ProfilePicture: user.ProfilePicture,
 		RoomID:         roomId,
 		Send:           make(chan dto.Message, 256),
@@ -220,6 +222,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		msg.RoomID = client.RoomID
 		msg.UserID = client.UserID
 		msg.Username = client.Username
+		msg.Name = client.Name
 		msg.ProfilePicture = client.ProfilePicture
 		msg.TimeStamp = time.Now()
 

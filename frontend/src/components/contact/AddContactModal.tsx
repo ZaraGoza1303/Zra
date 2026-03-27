@@ -4,24 +4,20 @@ import { apiCall } from '../../services/api';
 import SearchUserCard from './cards/SearchUserCard';
 import UserDetailModal from './UserDetailModal';
 import type { SearchedUser } from '../../types/contacts';
-import { useToastStore } from '../../store/toastStore';
 import { useAuthStore } from '../../store/authStore';
 
 interface AddContactModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onRefreshFriends: () => void;
     onDirectMessage: (targetId: number, targetUser: SearchedUser) => void;
 }
 
-export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onDirectMessage }: AddContactModalProps) {
+export default function AddContactModal({ isOpen, onClose, onDirectMessage }: AddContactModalProps) {
     const { user: currentUser } = useAuthStore();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
     const [searching, setSearching] = useState(false);
-    const [actionLoading, setActionLoading] = useState<number | null>(null);
     const [selectedUser, setSelectedUser] = useState<SearchedUser | null>(null);
-    const { showToast } = useToastStore();
 
     useEffect(() => {
         if (!isOpen) {
@@ -53,115 +49,6 @@ export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onD
 
         return () => clearTimeout(timer);
     }, [searchQuery]);
-
-    const handleSendRequest = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/make-friend-requests/${targetId}`, { method: 'POST' });
-            setSearchResults(prev => prev.map(u =>
-                u.id === targetId ? { ...u, friendship_status: 'pending_sent' } : u
-            ));
-            showToast('Friend request sent!');
-            onRefreshFriends();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to send friend request', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleCancelRequest = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/cancel-friend-request/${targetId}`, { method: 'DELETE' });
-            setSearchResults(prev => prev.map(u =>
-                u.id === targetId ? { ...u, friendship_status: 'none' } : u
-            ));
-            showToast('Friend request cancelled');
-            onRefreshFriends();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to cancel request', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleAcceptRequest = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/accept-friend/${targetId}`, { method: 'POST' });
-            setSearchResults(prev => prev.map(u =>
-                u.id === targetId ? { ...u, friendship_status: 'friend' } : u
-            ));
-            showToast('Friend request accepted!');
-            onRefreshFriends();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to accept request', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleRejectRequest = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/reject-friend/${targetId}`, { method: 'DELETE' });
-            setSearchResults(prev => prev.map(u =>
-                u.id === targetId ? { ...u, friendship_status: 'none' } : u
-            ));
-            showToast('Friend request rejected');
-            onRefreshFriends();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to reject request', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleUnfriend = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/unfriend/${targetId}`, { method: 'DELETE' });
-            setSearchResults(prev => prev.map(u =>
-                u.id === targetId ? { ...u, friendship_status: 'none' } : u
-            ));
-            if (selectedUser && selectedUser.id === targetId) {
-                setSelectedUser(prev => prev ? { ...prev, friendship_status: 'none' } : null);
-            }
-            showToast('User unfriended');
-            onRefreshFriends();
-        } catch (err: any) {
-            showToast(err.message || 'Failed to unfriend', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleBlock = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/block/${targetId}`, { method: 'POST' });
-            setSelectedUser(null);
-            showToast('User blocked');
-        } catch (err: any) {
-            showToast(err.message || 'Failed to block user', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
-
-    const handleUnblock = async (targetId: number) => {
-        setActionLoading(targetId);
-        try {
-            await apiCall(`/user/block/${targetId}`, { method: 'DELETE' });
-            setSelectedUser(null);
-            showToast('User unblocked');
-        } catch (err: any) {
-            showToast(err.message || 'Failed to unblock user', 'error');
-        } finally {
-            setActionLoading(null);
-        }
-    };
 
     if (!isOpen) return null;
 
@@ -203,8 +90,6 @@ export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onD
                                     <SearchUserCard
                                         key={u.id}
                                         user={u}
-                                        actionLoading={actionLoading}
-                                        onAdd={handleSendRequest}
                                         onViewDetail={() => setSelectedUser(u)}
                                         onDirectMessage={onDirectMessage}
                                         dmLoading={false}
@@ -239,18 +124,10 @@ export default function AddContactModal({ isOpen, onClose, onRefreshFriends, onD
                 <UserDetailModal
                     user={selectedUser as SearchedUser}
                     onClose={() => setSelectedUser(null)}
-                    onAdd={handleSendRequest}
-                    onCancelRequest={handleCancelRequest}
-                    onAccept={handleAcceptRequest}
-                    onReject={handleRejectRequest}
-                    onUnfriend={handleUnfriend}
-                    onBlock={handleBlock}
-                    onUnblock={handleUnblock}
                     onDirectMessage={(id, user) => {
                         onDirectMessage(id, user);
                         setSelectedUser(null);
                     }}
-                    actionLoading={actionLoading}
                     dmLoading={false}
                 />
             )}

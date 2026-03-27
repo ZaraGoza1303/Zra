@@ -1,14 +1,22 @@
 import { useState } from "react";
-import { X, Plus, ArrowLeft, Check } from "lucide-react";
+import { X, Plus, ArrowLeft, Check, ExternalLink } from "lucide-react";
 import { useThemeStore } from "../../store/themeStore";
 import type { SocialLink, SocialPlatform } from "../../types/chat";
 
-const PLATFORMS: { id: SocialPlatform; name: string; color: string; darkColor: string; buttonColor: string; placeholder: string }[] = [
-    { id: "youtube", name: "YouTube", color: "#FF0000", darkColor: "#FF0000", buttonColor: "#FF0000", placeholder: "https://youtube.com/@channelname" },
-    { id: "instagram", name: "Instagram", color: "#E4405F", darkColor: "#E4405F", buttonColor: "#E4405F", placeholder: "https://instagram.com/username" },
-    { id: "github", name: "GitHub", color: "#1e293b", darkColor: "#F0F6FC", buttonColor: "#24292f", placeholder: "https://github.com/username" },
-    { id: "reddit", name: "Reddit", color: "#FF4500", darkColor: "#FF4500", buttonColor: "#FF4500", placeholder: "https://reddit.com/u/username" },
-];
+const PLATFORMS: {
+    id: SocialPlatform;
+    name: string;
+    color: string;
+    darkColor: string;
+    buttonColor: string;
+    placeholder: string;
+    domain: string;
+}[] = [
+        { id: "youtube", name: "YouTube", color: "#FF0000", darkColor: "#FF0000", buttonColor: "#FF0000", placeholder: "https://youtube.com/@channelname", domain: "youtube.com" },
+        { id: "instagram", name: "Instagram", color: "#E4405F", darkColor: "#E4405F", buttonColor: "#E4405F", placeholder: "https://instagram.com/username", domain: "instagram.com" },
+        { id: "github", name: "GitHub", color: "#1e293b", darkColor: "#F0F6FC", buttonColor: "#24292f", placeholder: "https://github.com/username", domain: "github.com" },
+        { id: "reddit", name: "Reddit", color: "#FF4500", darkColor: "#FF4500", buttonColor: "#FF4500", placeholder: "https://reddit.com/u/username", domain: "reddit.com" },
+    ];
 
 function parseUsername(platform: SocialPlatform, url: string): string {
     try {
@@ -34,7 +42,7 @@ function parseUsername(platform: SocialPlatform, url: string): string {
     }
 }
 
-function PlatformIcon({ platform, color, sizeClass = "w-6 h-6" }: { platform: SocialPlatform; color: string; sizeClass?: string }) {
+function PlatformIcon({ platform, color, sizeClass = "w-5 h-5" }: { platform: SocialPlatform; color: string; sizeClass?: string }) {
     switch (platform) {
         case "youtube":
             return (
@@ -65,49 +73,7 @@ function PlatformIcon({ platform, color, sizeClass = "w-6 h-6" }: { platform: So
     }
 }
 
-type SlotState = { status: "empty" } | { status: "selecting" } | { status: "inputting"; platform: SocialPlatform } | { status: "filled"; platform: SocialPlatform; url: string };
-
-function EmptySlot({ onClick }: { onClick: () => void }) {
-    return (
-        <button
-            onClick={onClick}
-            className="w-[72px] h-[72px] rounded-full border-2 border-dashed border-[var(--text-muted)] opacity-60 hover:opacity-100 bg-[var(--bg-primary)] flex items-center justify-center cursor-pointer transition-all duration-200 text-[var(--text-muted)] hover:border-[var(--accent-color)] hover:text-[var(--accent-color)] hover:scale-105"
-        >
-            <Plus size={28} />
-        </button>
-    );
-}
-
-function FilledSlot({ platform, url, onRemove, isDark }: { platform: SocialPlatform; url: string; onRemove: () => void; isDark: boolean }) {
-    const meta = PLATFORMS.find((p) => p.id === platform);
-    const username = parseUsername(platform, url);
-    const [hovered, setHovered] = useState(false);
-
-    if (!meta) return null;
-    const effectiveColor = isDark ? meta.darkColor : meta.color;
-
-    return (
-        <div className="flex flex-col items-center gap-1.5" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-            <div
-                className="w-[72px] h-[72px] rounded-full flex items-center justify-center relative transition-all duration-200"
-                style={{ backgroundColor: `${effectiveColor}18`, border: `2px solid ${effectiveColor}55` }}
-            >
-                <PlatformIcon platform={platform} color={effectiveColor} sizeClass="w-7 h-7" />
-                {hovered && (
-                    <button
-                        onClick={onRemove}
-                        className="absolute -top-1 -right-1 w-[22px] h-[22px] rounded-full bg-red-500 border-none cursor-pointer flex items-center justify-center text-white"
-                    >
-                        <X size={12} />
-                    </button>
-                )}
-            </div>
-            <span className="text-[11px] text-[var(--text-secondary)] max-w-[80px] truncate text-center" title={username}>
-                {username}
-            </span>
-        </div>
-    );
-}
+type Step = "list" | "select-platform" | "input-url";
 
 interface AddSocialLinkModalProps {
     existingLinks: SocialLink[];
@@ -118,48 +84,35 @@ interface AddSocialLinkModalProps {
 
 export default function AddSocialLinkModal({ existingLinks, onClose, onSave, loading }: AddSocialLinkModalProps) {
     const { mode } = useThemeStore();
-    const isDark = mode === 'dark';
+    const isDark = mode === "dark";
 
-    const initialSlots: SlotState[] = Array.from({ length: 4 }, (_, i) => {
-        const existing = existingLinks[i];
-        if (existing) return { status: "filled", platform: existing.type, url: existing.url };
-        return { status: "empty" };
-    });
-
-    const [slots, setSlots] = useState<SlotState[]>(initialSlots);
-    const [activeSlot, setActiveSlot] = useState<number | null>(null);
+    const [step, setStep] = useState<Step>("list");
+    const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform | null>(null);
     const [urlInput, setUrlInput] = useState("");
     const [urlError, setUrlError] = useState("");
 
-    const activeSlotData = activeSlot !== null ? slots[activeSlot] : null;
-    const filledCount = slots.filter((s) => s.status === "filled").length;
-    const isInFlow = activeSlotData?.status === "selecting" || activeSlotData?.status === "inputting";
-    const inputtingPlatform = activeSlotData?.status === "inputting" ? PLATFORMS.find((p) => p.id === activeSlotData.platform) : null;
+    // Pending links to add this session (not yet saved)
+    const [pendingLinks, setPendingLinks] = useState<{ type: SocialPlatform; url: string }[]>([]);
 
-    const handleSlotClick = (index: number) => {
-        if (isInFlow) return;
-        const slot = slots[index];
-        if (slot.status === "empty") {
-            setSlots((prev) => prev.map((s, i) => (i === index ? { status: "selecting" } : s)));
-            setActiveSlot(index);
-            setUrlInput("");
-            setUrlError("");
-        }
-    };
+    const allLinks = [...existingLinks, ...pendingLinks];
+    const canAddMore = allLinks.length < 4;
+
+    const usedPlatforms = new Set(allLinks.map((l) => l.type));
+
+    const platformMeta = (id: SocialPlatform) => PLATFORMS.find((p) => p.id === id)!;
+    const effectiveColor = (p: ReturnType<typeof platformMeta>) => isDark ? p.darkColor : p.color;
 
     const handleSelectPlatform = (platform: SocialPlatform) => {
-        if (activeSlot === null) return;
-        setSlots((prev) => prev.map((s, i) => (i === activeSlot ? { status: "inputting", platform } : s)));
+        setSelectedPlatform(platform);
         setUrlInput("");
         setUrlError("");
+        setStep("input-url");
     };
 
-    const handleConfirm = () => {
-        if (activeSlot === null) return;
-        const slot = slots[activeSlot];
-        if (slot.status !== "inputting") return;
-
+    const handleConfirmUrl = () => {
+        if (!selectedPlatform) return;
         const trimmed = urlInput.trim();
+
         if (!trimmed) {
             setUrlError("URL tidak boleh kosong.");
             return;
@@ -167,170 +120,253 @@ export default function AddSocialLinkModal({ existingLinks, onClose, onSave, loa
         try {
             new URL(trimmed);
         } catch {
-            setUrlError("URL tidak valid. Pastikan format benar.");
+            setUrlError("URL tidak valid.");
             return;
         }
 
-        const platformConfig = PLATFORMS.find(p => p.id === slot.platform);
-        if (platformConfig) {
-            const domain = platformConfig.id === 'youtube' ? 'youtube.com' : platformConfig.id === 'instagram' ? 'instagram.com' : platformConfig.id === 'github' ? 'github.com' : 'reddit.com';
-            if (!trimmed.toLowerCase().includes(domain)) {
-                setUrlError(`URL harus menggunakan ${platformConfig.name}.`);
-                return;
-            }
+        const meta = platformMeta(selectedPlatform);
+        if (!trimmed.toLowerCase().includes(meta.domain)) {
+            setUrlError(`URL harus dari ${meta.name}.`);
+            return;
         }
 
-        setSlots((prev) => prev.map((s, i) => (i === activeSlot ? { status: "filled", platform: slot.platform, url: trimmed } : s)));
-        setActiveSlot(null);
+        setPendingLinks((prev) => [...prev, { type: selectedPlatform, url: trimmed }]);
+        setStep("list");
+        setSelectedPlatform(null);
         setUrlInput("");
         setUrlError("");
     };
 
-    const handleBack = () => {
-        if (activeSlot === null) return;
-        const slot = slots[activeSlot];
-        if (slot.status === "inputting") {
-            setSlots((prev) => prev.map((s, i) => (i === activeSlot ? { status: "selecting" } : s)));
-        } else if (slot.status === "selecting") {
-            setSlots((prev) => prev.map((s, i) => (i === activeSlot ? { status: "empty" } : s)));
-            setActiveSlot(null);
-        }
-        setUrlError("");
-    };
-
-    const handleRemoveSlot = (index: number) => {
-        setSlots((prev) => prev.map((s, i) => (i === index ? { status: "empty" } : s)));
-        if (activeSlot === index) setActiveSlot(null);
+    const handleRemovePending = (index: number) => {
+        setPendingLinks((prev) => prev.filter((_, i) => i !== index));
     };
 
     const handleSave = () => {
-        const filled = slots.filter((s): s is Extract<SlotState, { status: "filled" }> => s.status === "filled").map((s) => ({ type: s.platform, url: s.url }));
-        onSave(filled);
+        if (pendingLinks.length === 0) return;
+        onSave(pendingLinks);
     };
+
+    const handleBack = () => {
+        if (step === "input-url") {
+            setStep("select-platform");
+            setUrlError("");
+        } else if (step === "select-platform") {
+            setStep("list");
+        }
+    };
+
+    const currentPlatformMeta = selectedPlatform ? platformMeta(selectedPlatform) : null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={isInFlow ? undefined : onClose} />
-            <div className="relative w-full max-w-[420px] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[28px] p-8 shadow-2xl overflow-hidden">
-                <div className="flex justify-between items-center mb-7">
-                    {isInFlow ? (
-                        <button onClick={handleBack} className="flex items-center gap-1.5 bg-none border-none cursor-pointer text-[var(--text-secondary)] text-sm py-1">
-                            <ArrowLeft size={18} />
-                            Back
-                        </button>
-                    ) : (
-                        <h2 className="text-[22px] font-bold text-[var(--text-primary)] m-0">Social Links</h2>
-                    )}
-                    <button onClick={onClose} className="p-2 rounded-full bg-none border-none cursor-pointer text-[var(--text-muted)] flex">
-                        <X size={22} />
+            <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={step === "list" ? onClose : undefined}
+            />
+
+            <div className="relative w-full max-w-[400px] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-[28px] shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-7 pt-7 pb-5">
+                    <div className="flex items-center gap-2">
+                        {step !== "list" && (
+                            <button
+                                onClick={handleBack}
+                                className="p-1.5 rounded-xl hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
+                            >
+                                <ArrowLeft size={17} />
+                            </button>
+                        )}
+                        <h2 className="text-base font-bold text-[var(--text-primary)]">
+                            {step === "list" && "Social Links"}
+                            {step === "select-platform" && "Pilih Platform"}
+                            {step === "input-url" && currentPlatformMeta?.name}
+                        </h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-all"
+                    >
+                        <X size={18} />
                     </button>
                 </div>
 
-                <div className="flex justify-center gap-4 mb-7">
-                    {slots.map((slot, i) => {
-                        if (slot.status === "filled") {
-                            return <FilledSlot key={i} platform={slot.platform} url={slot.url} onRemove={() => handleRemoveSlot(i)} isDark={isDark} />;
-                        }
-                        if (slot.status === "selecting" || slot.status === "inputting") {
-                            const platformId = slot.status === "inputting" ? slot.platform : null;
-                            const platformMeta = platformId ? PLATFORMS.find(p => p.id === platformId) : null;
-                            return (
-                                <div key={i} className="flex flex-col items-center gap-1.5">
-                                    <div className="w-[72px] h-[72px] rounded-full border-2 border-[var(--accent-color)] bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--accent-color)]">
-                                        {slot.status === "inputting" && platformMeta ? (
-                                            <PlatformIcon platform={platformId!} color={isDark ? platformMeta.darkColor : platformMeta.color} sizeClass="w-7 h-7" />
-                                        ) : (
-                                            <Plus size={28} />
-                                        )}
-                                    </div>
+                <div className="px-7 pb-7">
+                    {/* STEP: LIST */}
+                    {step === "list" && (
+                        <div>
+                            {/* Existing links (read-only, dari backend) */}
+                            {existingLinks.length > 0 && (
+                                <div className="mb-3">
+                                    {existingLinks.map((link) => {
+                                        const meta = platformMeta(link.type);
+                                        const color = effectiveColor(meta);
+                                        const username = parseUsername(link.type, link.url);
+                                        return (
+                                            <div
+                                                key={link.id}
+                                                className="flex items-center gap-3 py-3 border-b border-[var(--border-color)] last:border-0"
+                                            >
+                                                <div
+                                                    className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                                                    style={{ backgroundColor: `${color}18`, border: `1.5px solid ${color}44` }}
+                                                >
+                                                    <PlatformIcon platform={link.type} color={color} sizeClass="w-4 h-4" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{username}</p>
+                                                    <p className="text-[11px] text-[var(--text-muted)]">{meta.name}</p>
+                                                </div>
+                                                <a
+                                                    href={link.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[var(--text-muted)] hover:text-[var(--accent-color)] transition-colors"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <ExternalLink size={14} />
+                                                </a>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            );
-                        }
-                        return (
-                            <div key={i} className="flex flex-col items-center gap-1.5">
-                                <EmptySlot onClick={() => handleSlotClick(i)} />
-                            </div>
-                        );
-                    })}
-                </div>
+                            )}
 
-                {activeSlotData?.status === "selecting" && (
-                    <div>
-                        <p className="text-[13px] text-[var(--text-muted)] text-center mb-4">Pilih platform</p>
+                            {/* Pending links  */}
+                            {pendingLinks.length > 0 && (
+                                <div className="mb-3">
+                                    {pendingLinks.map((link, i) => {
+                                        const meta = platformMeta(link.type);
+                                        const color = effectiveColor(meta);
+                                        const username = parseUsername(link.type, link.url);
+                                        return (
+                                            <div
+                                                key={i}
+                                                className="flex items-center gap-3 py-3 border-b border-[var(--border-color)] last:border-0"
+                                            >
+                                                <div
+                                                    className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                                                    style={{ backgroundColor: `${color}18`, border: `1.5px solid ${color}44` }}
+                                                >
+                                                    <PlatformIcon platform={link.type} color={color} sizeClass="w-4 h-4" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{username}</p>
+                                                    <p className="text-[11px] text-[var(--text-muted)]">{meta.name}</p>
+                                                </div>
+                                                {/* Badge "new" + remove */}
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent-color)]/15 text-[var(--accent-color)]">
+                                                        new
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleRemovePending(i)}
+                                                        className="text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Empty state */}
+                            {allLinks.length === 0 && (
+                                <p className="text-sm text-[var(--text-muted)] text-center py-4 mb-3">
+                                    Belum ada social link.
+                                </p>
+                            )}
+
+                            {/* Add more button */}
+                            {canAddMore && (
+                                <button
+                                    onClick={() => setStep("select-platform")}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-[var(--border-color)] text-sm text-[var(--text-muted)] hover:text-[var(--accent-color)] hover:border-[var(--accent-color)] transition-all mb-4"
+                                >
+                                    <Plus size={15} />
+                                    Add link
+                                </button>
+                            )}
+
+                            {/* Save button */}
+                            <button
+                                onClick={handleSave}
+                                disabled={loading || pendingLinks.length === 0}
+                                className="w-full py-3 rounded-2xl bg-[var(--accent-color)] text-white text-sm font-bold transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                {loading ? "Saving..." : `Save${pendingLinks.length > 0 ? ` (${pendingLinks.length})` : ""}`}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* STEP: SELECT PLATFORM */}
+                    {step === "select-platform" && (
                         <div className="grid grid-cols-2 gap-3">
                             {PLATFORMS.map((platform) => {
-                                const alreadyUsed = slots.some(s => s.status === "filled" && s.platform === platform.id);
+                                const used = usedPlatforms.has(platform.id);
+                                const color = effectiveColor(platform);
                                 return (
                                     <button
                                         key={platform.id}
-                                        onClick={() => !alreadyUsed && handleSelectPlatform(platform.id)}
-                                        disabled={alreadyUsed}
-                                        className={`flex items-center gap-3 p-3.5 rounded-2xl border text-sm font-semibold transition-all duration-150 ${alreadyUsed
+                                        onClick={() => !used && handleSelectPlatform(platform.id)}
+                                        disabled={used}
+                                        className={`flex items-center gap-3 p-3.5 rounded-2xl border text-sm font-semibold transition-all duration-150 ${used
                                             ? "border-[var(--border-color)] bg-[var(--bg-primary)] cursor-not-allowed opacity-40"
-                                            : "cursor-pointer"
+                                            : "cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
                                             }`}
-                                        style={{
-                                            borderColor: alreadyUsed ? undefined : `${isDark ? platform.darkColor : platform.color}44`,
-                                            background: alreadyUsed ? undefined : `${isDark ? platform.darkColor : platform.color}10`
-                                        }}
+                                        style={
+                                            !used
+                                                ? {
+                                                    borderColor: `${color}44`,
+                                                    background: `${color}10`,
+                                                }
+                                                : undefined
+                                        }
                                     >
-                                        <PlatformIcon platform={platform.id} color={isDark ? platform.darkColor : platform.color} sizeClass="w-5 h-5" />
+                                        <PlatformIcon platform={platform.id} color={color} sizeClass="w-5 h-5" />
                                         <span className="text-[var(--text-primary)]">{platform.name}</span>
-                                        {alreadyUsed && <Check size={14} className="ml-auto text-[var(--text-muted)]" />}
+                                        {used && <Check size={13} className="ml-auto text-[var(--text-muted)]" />}
                                     </button>
                                 );
                             })}
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {activeSlotData?.status === "inputting" && inputtingPlatform && (
-                    <div>
-                        <div className="flex items-center justify-between mb-2.5">
-                            <label className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
-                                <PlatformIcon platform={inputtingPlatform.id} color={isDark ? inputtingPlatform.darkColor : inputtingPlatform.color} sizeClass="w-[18px] h-[18px]" />
-                                {inputtingPlatform.name} URL
+                    {/* STEP: INPUT URL */}
+                    {step === "input-url" && currentPlatformMeta && (
+                        <div>
+                            <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)] mb-2 uppercase tracking-wider">
+                                <PlatformIcon
+                                    platform={currentPlatformMeta.id}
+                                    color={effectiveColor(currentPlatformMeta)}
+                                    sizeClass="w-4 h-4"
+                                />
+                                {currentPlatformMeta.name} URL
                             </label>
+                            <input
+                                autoFocus
+                                type="url"
+                                value={urlInput}
+                                onChange={(e) => { setUrlInput(e.target.value); setUrlError(""); }}
+                                onKeyDown={(e) => e.key === "Enter" && handleConfirmUrl()}
+                                placeholder={currentPlatformMeta.placeholder}
+                                className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-color)]"
+                                style={urlError ? { borderColor: "#ef4444" } : undefined}
+                            />
+                            {urlError && (
+                                <p className="text-xs text-red-400 mt-1.5">{urlError}</p>
+                            )}
                             <button
-                                onClick={handleBack}
-                                className="flex items-center gap-1 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-2.5 py-1 text-xs text-[var(--text-muted)] cursor-pointer transition-all duration-150 hover:text-[var(--text-primary)] hover:border-[var(--text-muted)]"
+                                onClick={handleConfirmUrl}
+                                className="w-full mt-4 py-3 rounded-2xl text-white text-sm font-bold transition-opacity"
+                                style={{ background: currentPlatformMeta.buttonColor }}
                             >
-                                <ArrowLeft size={12} />
-                                Ganti platform
+                                Tambah
                             </button>
                         </div>
-                        <input
-                            autoFocus
-                            type="url"
-                            value={urlInput}
-                            onChange={(e) => { setUrlInput(e.target.value); setUrlError(""); }}
-                            onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
-                            placeholder={inputtingPlatform.placeholder}
-                            className="w-full bg-[var(--bg-primary)] rounded-2xl p-3 text-sm text-[var(--text-primary)] outline-none box-border transition-colors"
-                            style={{ border: `1px solid ${urlError ? "#ef4444" : "transparent"}` }}
-                            onFocus={(e) => { (e.target as HTMLInputElement).style.borderColor = inputtingPlatform.color; }}
-                            onBlur={(e) => { if (!urlError) (e.target as HTMLInputElement).style.borderColor = "transparent"; }}
-                        />
-                        {urlError && <p className="text-xs text-red-500 mt-1.5">{urlError}</p>}
-                        <button
-                            onClick={handleConfirm}
-                            className="w-full mt-4 py-3.5 rounded-2xl border-none text-white text-[15px] font-bold cursor-pointer transition-opacity"
-                            style={{ background: inputtingPlatform.buttonColor }}
-                        >
-                            Confirm
-                        </button>
-                    </div>
-                )}
-
-                {!isInFlow && (
-                    <button
-                        onClick={handleSave}
-                        disabled={loading || filledCount === 0}
-                        className="w-full mt-2 py-3.5 rounded-2xl border-none bg-[var(--accent-color)] text-white text-[15px] font-bold cursor-pointer transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                        {loading ? "Saving..." : `Save ${filledCount > 0 ? `(${filledCount})` : ""}`}
-                    </button>
-                )}
+                    )}
+                </div>
             </div>
         </div>
     );

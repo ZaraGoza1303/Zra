@@ -16,6 +16,7 @@ type RoomRepositories interface {
 	Delete(ctx context.Context, room_id string) error
 
 	GetByLink(ctx context.Context, room_link string) (*models.Room, error)
+	GetImageMessageByRoomID(ctx context.Context, roomId string) ([]models.Message, error)
 	GetMessageByID(ctx context.Context, message_id string) (*models.Message, error)
 	GetMessagesByReplyToID(ctx context.Context, msgId string) ([]models.Message, error)
 	GetMultipleMessagesByIDs(ctx context.Context, msgIds []string) ([]models.Message, error)

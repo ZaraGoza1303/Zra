@@ -278,7 +278,7 @@ export default function RoomInfoSidebar({
                             {privatePartner.user_bio && (
                                 <div className="w-full bg-[var(--bg-primary)] p-4 rounded-xl border border-[var(--border-color)]">
                                     <p className="text-[11px] font-bold text-[var(--text-muted)] tracking-widest uppercase mb-2">Bio</p>
-                                    <p className="text-[14px] text-[#cdd9f0] leading-relaxed">{privatePartner.user_bio}</p>
+                                    <p className="text-[14px] text-[var(--text-primary)] leading-relaxed">{privatePartner.user_bio}</p>
                                 </div>
                             )}
 
@@ -341,7 +341,7 @@ export default function RoomInfoSidebar({
                                             };
                                             const iconColor = link.type === 'youtube' ? 'text-red-500' :
                                                 link.type === 'instagram' ? 'text-pink-500' :
-                                                    link.type === 'github' ? 'text-gray-300' :
+                                                    link.type === 'github' ? 'text-[var(--text-primary)]' :
                                                         link.type === 'reddit' ? 'text-orange-500' : 'text-[var(--text-muted)]';
                                             return (
                                                 <a
@@ -434,7 +434,7 @@ export default function RoomInfoSidebar({
                                                         <Users size={14} className="text-[var(--text-muted)]" />
                                                     )}
                                                 </div>
-                                                <span className="text-[13px] text-[#cdd9f0] truncate">{room.name}</span>
+                                                <span className="text-[13px] text-[var(--text-primary)] truncate">{room.name}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -472,7 +472,7 @@ export default function RoomInfoSidebar({
                                 {friendshipStatus === 'none' && (
                                     <button
                                         onClick={() => privatePartner && setConfirmAddFriend(true)}
-                                        className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 border border-emerald-500/40 transition-colors"
                                     >
                                         <UserPlus size={14} />
                                         Add Friend
@@ -481,7 +481,7 @@ export default function RoomInfoSidebar({
                                 {isBlocked ? (
                                     <button
                                         onClick={() => privatePartner && setConfirmUnblock(true)}
-                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 border border-emerald-500/40 transition-colors"
                                     >
                                         <Shield size={14} />
                                         Unblock User
@@ -489,7 +489,7 @@ export default function RoomInfoSidebar({
                                 ) : (
                                     <button
                                         onClick={() => privatePartner && setConfirmBlock(true)}
-                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/15 border border-red-500/40 transition-colors"
                                     >
                                         <Shield size={14} />
                                         Block User
@@ -620,7 +620,7 @@ export default function RoomInfoSidebar({
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-[14px] text-[#cdd9f0] leading-relaxed">
+                            <p className="text-[14px] text-[var(--text-primary)] leading-relaxed">
                                 {roomDetails?.description || <span className="text-[var(--text-muted)] italic">No description yet.</span>}
                             </p>
                         )}
@@ -652,7 +652,7 @@ export default function RoomInfoSidebar({
                                                     {member.user_profile_picture ? (
                                                         <img src={getUserImageUrl(member.user_profile_picture)} alt={member.username} className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <div className="w-full h-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[#cdd9f0] font-bold text-[15px]">
+                                                        <div className="w-full h-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)] font-bold text-[15px]">
                                                             <User size={18} strokeWidth={2} />
                                                         </div>
                                                     )}
@@ -929,12 +929,6 @@ export default function RoomInfoSidebar({
                         friendship_status: 'friend'
                     }}
                     onClose={() => setSelectedMember(null)}
-                    onUnfriend={async () => {
-                        handleRoomAction('kick');
-                        setSelectedMember(null);
-                    }}
-                    onBlock={handleBlock}
-                    onUnblock={handleUnblock}
                     onDirectMessage={(targetId, targetUser) => {
                         setSelectedMember(null);
                         onClose();

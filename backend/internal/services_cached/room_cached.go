@@ -66,7 +66,7 @@ func (r *cachedRoomServices) IsMember(room_id string, user_id uint) (bool, error
 
 // FindAllStickers implements [core.RoomServices].
 func (r *cachedRoomServices) FindAllStickers(ctx context.Context, filter string, category string) ([]dto.StickerResponse, error) {
-	panic("unimplemented")
+	return r.roomServices.FindAllStickers(ctx, filter, category)
 }
 
 // GetAllRoomMembers implements [core.RoomServices].
@@ -103,7 +103,7 @@ func (r *cachedRoomServices) MakePrivateRoom(ctx context.Context, user_id uint, 
 
 // SendImage implements [core.RoomServices].
 func (r *cachedRoomServices) SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
-	panic("unimplemented")
+	return r.roomServices.SendImage(ctx, fileHeader)
 }
 
 // TakeChatHistory implements [core.RoomServices].
@@ -123,12 +123,12 @@ func (r *cachedRoomServices) KickUser(ctx context.Context, room_id string, targe
 
 // RemoveMessage implements [core.RoomServices].
 func (r *cachedRoomServices) RemoveMessage(ctx context.Context, msgId string) error {
-	panic("unimplemented")
+	return r.roomServices.RemoveMessage(ctx, msgId)
 }
 
 // RemoveMultipleMessages implements [core.RoomServices].
 func (r *cachedRoomServices) RemoveMultipleMessages(ctx context.Context, req dto.MultipleMsgDeleteReq) error {
-	panic("unimplemented")
+	return r.roomServices.RemoveMultipleMessages(ctx, req)
 }
 
 // JoinRoom implements [core.RoomServices].
@@ -176,12 +176,12 @@ func (r *cachedRoomServices) UpdateLastReadMessages(ctx context.Context, room_id
 
 // UpdateMessage implements [core.RoomServices].
 func (r *cachedRoomServices) UpdateMessage(ctx context.Context, msgId string, req *dto.MessageUpdateRequest) error {
-	panic("unimplemented")
+	return r.roomServices.UpdateMessage(ctx, msgId, req)
 }
 
 // FindMessageByID implements [core.RoomServices].
 func (r *cachedRoomServices) FindMessageByID(ctx context.Context, message_id string) (*dto.Message, error) {
-	panic("unimplemented")
+	return r.roomServices.FindMessageByID(ctx, message_id)
 }
 
 // GetActiveMemberCount implements [core.RoomServices].
@@ -196,7 +196,7 @@ func (r *cachedRoomServices) GetActiveMembers(room_id string) ([]uint, error) {
 
 // GetAllRoomMembersByUserId implements [core.RoomServices].
 func (r *cachedRoomServices) GetAllRoomMembersByUserId(ctx context.Context, user_id uint) ([]uint, error) {
-	panic("unimplemented")
+	return r.roomServices.GetAllRoomMembersByUserId(ctx, user_id)
 }
 
 // OnlineUsers implements [core.RoomServices].

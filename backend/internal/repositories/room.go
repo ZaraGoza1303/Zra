@@ -312,6 +312,23 @@ func (r *roomRepositories) GetIdPrivateRoom(ctx context.Context, userID uint, ta
 	return roomID, nil
 }
 
+// GetImageMessageByRoomID implements [core.RoomRepositories].
+func (r *roomRepositories) GetImageMessageByRoomID(ctx context.Context, roomId string) ([]models.Message, error) {
+	var messages []models.Message
+
+	result := r.DB.WithContext(ctx).
+		Preload("ReplyTo").
+		Model(&models.Message{}).
+		Where("room_id = ? AND type = ?", roomId, "image").
+		Find(&messages)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return messages, nil
+}
+
 // GetMessageByID implements [core.RoomRepositories].
 func (r *roomRepositories) GetMessageByID(ctx context.Context, message_id string) (*models.Message, error) {
 	var messages models.Message

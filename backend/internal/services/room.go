@@ -112,6 +112,7 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 				item.Members = append(item.Members, dto.RoomMemberResponse{
 					UserID:             m.UserID,
 					Username:           m.User.Username,
+					Name:               m.User.Name,
 					UserProfilePicture: pfp,
 				})
 			}
@@ -128,9 +129,15 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 				decryptedCaption, _ = helper.Decrypt(msg.Caption)
 			}
 
+			var senderName string
+			if msg.User.Name != "" {
+				senderName = msg.User.Name
+			}
+
 			lastMsg := dto.LastMessageInfo{
 				Content:  decryptedContent,
 				Username: msg.Username,
+				Name:     senderName,
 				SentAt:   msg.CreatedAt,
 				Type:     msg.Type,
 				Caption:  decryptedCaption,
@@ -372,6 +379,35 @@ func (r *roomServices) Delete(ctx context.Context, room_id string) error {
 		return helper.ErrNotAllowed
 	}
 
+	existsMessage, err := r.roomRepositories.GetImageMessageByRoomID(ctx, room_id)
+	if err != nil {
+		return err
+	}
+
+	// hapus exists upload gambar di room
+	for _, message := range existsMessage {
+		decryptContent, err := helper.Decrypt(message.Content)
+		if err != nil {
+			return err
+		}
+
+		if message.ReplyTo != nil {
+			decryptReplyContent, err := helper.Decrypt(message.ReplyTo.Content)
+			if err != nil {
+				return err
+			}
+
+			if err := r.storageServices.RemoveFile("uploads", decryptReplyContent); err != nil {
+				log.Printf("failed to remove reply image message :%v", err)
+			}
+		}
+
+		if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+			log.Printf("failed to remove image message :%v", err)
+		}
+
+	}
+
 	if err := r.roomRepositories.Delete(ctx, room_id); err != nil {
 		return err
 	}
@@ -520,12 +556,12 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 	for _, msg := range messages {
 		decryptedContent, err := helper.Decrypt(msg.Content)
 		if err != nil {
-			decryptedContent = "Failed to load messages..."
+			decryptedContent = ""
 		}
 
 		decryptedCaption, err := helper.Decrypt(msg.Caption)
 		if err != nil {
-			decryptedContent = "Failed to load messages..."
+			decryptedCaption = "Failed to load messages..."
 		}
 
 		item := dto.Message{
@@ -549,7 +585,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 
 			replyCaption, err := helper.Decrypt(msg.ReplyTo.Caption)
 			if err != nil {
-				replyContent = "Failed to load message..."
+				replyCaption = "Failed to load message..."
 			}
 
 			item.ReplyTo = &dto.Message{
@@ -562,7 +598,6 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 				Caption:        replyCaption,
 			}
 		}
-
 		msgResponse = append(msgResponse, item)
 	}
 

@@ -214,21 +214,16 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             if (creatingDM) return;
             setCreatingDM(true);
             const targetId = roomId.replace('pending:', '');
-            console.log('[DEBUG-STEP1] isPendingRoom:', isPendingRoom, 'targetId:', targetId);
             try {
                 // 1. Create/Get DM room
-                console.log('[DEBUG-STEP2] Creating/Getting DM room...');
                 const res = await apiCall<{ data: any }>(`/room/${targetId}/private`, { method: 'POST' });
-                console.log('[DEBUG-STEP3] Room creation response:', res);
 
                 // Handle both array (existing room) and string (new room) response
                 let newRoomId: string;
                 if (Array.isArray(res.data)) {
                     newRoomId = res.data[0]?.id;  // Room exists - use existing
-                    console.log('[DEBUG-STEP4] Room exists, using id:', newRoomId);
                 } else {
                     newRoomId = res.data;  // New room - use new ID
-                    console.log('[DEBUG-STEP4] New room created, id:', newRoomId);
                 }
 
                 if (!newRoomId) {
@@ -237,13 +232,11 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 // 2. Send first message via HTTP (not WS) to ensure it's saved in DB
                 const timestamp = new Date().toISOString();
-                console.log('[DEBUG-STEP5] Sending message via HTTP...');
                 await apiCall(`/room/${newRoomId}/message`, {
                     method: 'POST',
                     body: JSON.stringify({ content: messageContent, local_id: localId }),
                     headers: { 'Content-Type': 'application/json' }
                 });
-                console.log('[DEBUG-STEP6] Message sent successfully');
 
                 // 3. Create optimistic message for immediate UI update
                 const optimisticMsg: Message = {
@@ -261,18 +254,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 };
                 setMessages([optimisticMsg]);
                 setInput('');
-                console.log('[DEBUG-STEP7] Optimistic message set');
 
                 // 4. Trigger room resolved - ChatRoom will remount and fetchChatHistory will find the message
-                console.log('[DEBUG-STEP8] Calling onNewMessage and onRoomResolved');
                 onNewMessage?.(newRoomId, {
                     content: messageContent,
                     username: user?.username || '',
+                    name: user?.name,
+                    user_id: user?.id,
+                    profile_picture: user?.profile_picture,
                     sent_at: timestamp,
                 });
                 onRoomResolved?.(newRoomId);
                 setReplyTo(null);
-                console.log('[DEBUG-STEP9] Done with onNewMessage and onRoomResolved');
             } catch (err) {
                 console.error('[DEBUG-ERROR] Failed to create DM room:', err);
                 showToast('Failed to create DM room', 'error');
@@ -311,6 +304,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             onNewMessage?.(roomId, {
                 content: messageContent,
                 username: user?.username || '',
+                name: user?.name,
+                user_id: user?.id,
+                profile_picture: user?.profile_picture,
                 sent_at: new Date().toISOString(),
             });
             ws.current.send(JSON.stringify({
@@ -365,6 +361,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         onNewMessage?.(roomId, {
             content: '🎭 Sticker',
             username: user?.username || '',
+            name: user?.name,
+            user_id: user?.id,
+            profile_picture: user?.profile_picture,
             sent_at: new Date().toISOString(),
             type: 'sticker',
         });
@@ -411,6 +410,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         onNewMessage?.(roomId, {
             content: caption ? `📷 ${caption}` : '📷 Image',
             username: user?.username || '',
+            name: user?.name,
+            user_id: user?.id,
+            profile_picture: user?.profile_picture,
             sent_at: new Date().toISOString(),
             type: 'image',
         });
@@ -466,6 +468,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         onNewMessage?.(actualRoomId, {
                             content: msg.content,
                             username: msg.username,
+                            name: msg.name,
+                            user_id: msg.user_id,
+                            profile_picture: msg.profile_picture,
                             sent_at: msg.time_stamp,
                         });
 
@@ -546,6 +551,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         onNewMessage?.(actualRoomId, {
                             content: '🎭 Sticker',
                             username: msg.username,
+                            name: msg.name,
+                            user_id: msg.user_id,
+                            profile_picture: msg.profile_picture,
                             sent_at: msg.time_stamp,
                             type: 'sticker'
                         });
@@ -585,6 +593,9 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         onNewMessage?.(actualRoomId, {
                             content: '📷 Image',
                             username: msg.username,
+                            name: msg.name,
+                            user_id: msg.user_id,
+                            profile_picture: msg.profile_picture,
                             sent_at: msg.time_stamp,
                             type: 'image',
                         });

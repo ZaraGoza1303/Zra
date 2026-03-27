@@ -167,6 +167,7 @@ export default function Dashboard() {
                         room_id: msg.room_id,
                         user_id: msg.user_id,
                         username: msg.username,
+                        name: msg.name,
                         profile_picture: msg.profile_picture,
                         content: msg.content || 'New message',
                         type: msg.type,
@@ -450,7 +451,7 @@ export default function Dashboard() {
         }
         const otherUser = room.members?.find(m => m.user_id !== user?.id);
         return {
-            name: otherUser?.username || 'Unknown User',
+            name: otherUser?.name || otherUser?.username || 'Unknown User',
             image: otherUser?.user_profile_picture ? getUserImageUrl(otherUser.user_profile_picture) : undefined
         };
     }, [user?.id]);
@@ -718,7 +719,7 @@ export default function Dashboard() {
                                                             {room.last_message ? (
                                                                 <>
                                                                     {room.type !== 'private' && room.last_message.username && (
-                                                                        <span className="font-semibold text-[var(--accent-color)]">{room.last_message.username}: </span>
+                                                                        <span className="font-semibold text-[var(--accent-color)]">{room.last_message.name || room.last_message.username}: </span>
                                                                     )}
                                                                     {room.last_message.type === 'image' ? (
                                                                         <>
@@ -758,9 +759,10 @@ export default function Dashboard() {
                                         const notificationMsg = {
                                             id: `notif-${Date.now()}`,
                                             room_id: msgRoomId,
-                                            user_id: user?.id,
+                                            user_id: message.user_id || user?.id,
                                             username: message.username,
-                                            profile_picture: user?.profile_picture,
+                                            name: message.name || (message.user_id === user?.id ? user?.name : undefined),
+                                            profile_picture: message.profile_picture || (message.user_id === user?.id ? user?.profile_picture : undefined),
                                             content: message.content || 'New message',
                                             type: message.type || 'chat',
                                             time_stamp: message.sent_at,
@@ -879,7 +881,7 @@ export default function Dashboard() {
                                     value={newRoomName}
                                     onChange={(e) => setNewRoomName(e.target.value)}
                                     className="w-full bg-[var(--bg-tertiary)] border border-transparent rounded-2xl px-6 py-4 text-sm focus:border-[var(--accent-color)]/40 outline-none transition-all placeholder:text-[var(--text-muted)]"
-                                    placeholder="e.g. Design Team"
+                                    placeholder="e.g. Cool Group"
                                     required
                                 />
                             </div>

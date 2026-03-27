@@ -16,7 +16,7 @@ export const getRoomDisplayInfo = (
     if (room.type !== 'group') {
         const otherMember = room.members?.find(m => m.user_id !== currentUserId);
         return {
-            name: otherMember?.username || 'Direct Message',
+            name: otherMember?.name || otherMember?.username || 'Direct Message',
             picture: otherMember?.user_profile_picture || null,
         };
     }

@@ -23,6 +23,9 @@ export interface Message {
 export interface LastMessage {
     content: string;
     username: string;
+    name?: string;
+    user_id?: number;
+    profile_picture?: string;
     sent_at: string;
     type?: string;
     caption?: string;
@@ -52,6 +55,7 @@ export interface RoomMember {
     user_id: number;
     user_profile_picture?: string;
     username: string;
+    name?: string;
     user_bio?: string;
     role?: string;
     is_verified?: boolean;
@@ -77,6 +81,7 @@ export interface RoomMemberResponse {
     user_id: number;
     user_profile_picture?: string;
     username: string;
+    name?: string;
     user_bio: string;
 }
 

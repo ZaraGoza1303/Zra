@@ -10,6 +10,7 @@ type Message struct {
 	UserID          uint        `json:"user_id"`
 	ToID            uint        `json:"to_id,omitempty"`
 	Username        string      `json:"username"`
+	Name            string      `json:"name"`
 	ProfilePicture  string      `json:"profile_picture"`
 	Content         string      `json:"content"`
 	Type            string      `json:"type"`

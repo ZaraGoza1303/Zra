@@ -541,6 +541,8 @@ func (u *userServices) CreateSocialLinks(ctx context.Context, req *dto.CreateSoc
 		if err := u.UserRepositories.InsertSocialLink(ctx, &socialRequest); err != nil {
 			return err
 		}
+
+		social = &socialRequest
 	}
 
 	var links []models.Link

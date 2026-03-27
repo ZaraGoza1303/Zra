@@ -208,7 +208,6 @@ export default function ContactsPanel({
             <AddContactModal
                 isOpen={isAddContactModalOpen}
                 onClose={() => setIsAddContactModalOpen(false)}
-                onRefreshFriends={handleRefresh}
                 onDirectMessage={(id, u) => {
                     handleDirectMessage(id, u);
                     setIsAddContactModalOpen(false);

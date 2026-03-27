@@ -1,43 +1,47 @@
 import { useState, useEffect } from 'react';
 import { X, MessageSquare, UserPlus, Clock, UserCheck, Loader2, UserX, Link2, ShieldOff } from 'lucide-react';
-import { apiCall } from '../../services/api';
+import { apiCall, getBlockedUsers } from '../../services/api';
 import Avatar from './Avatar';
+import ConfirmDialog from '../ui/ConfirmDialog';
+import { useToastStore } from '../../store/toastStore';
 import type { SearchedUser } from '../../types/contacts';
 import type { SocialLink } from '../../types/chat';
 
 interface UserDetailModalProps {
     user: SearchedUser;
     onClose: () => void;
-    onAdd?: (id: number) => void;
-    onCancelRequest?: (id: number) => void;
-    onAccept?: (id: number) => void;
-    onReject?: (id: number) => void;
-    onUnfriend?: (id: number) => void;
-    onBlock?: (id: number) => void;
-    onUnblock?: (id: number) => void;
     onDirectMessage: (targetId: number, targetUser: SearchedUser) => void;
-    actionLoading?: number | null;
     dmLoading?: boolean;
 }
 
 export default function UserDetailModal({
     user,
     onClose,
-    onAdd,
-    onCancelRequest,
-    onAccept,
-    onReject,
-    onUnfriend,
-    onBlock,
-    onUnblock,
     onDirectMessage,
-    actionLoading,
     dmLoading
 }: UserDetailModalProps) {
     const [bio, setBio] = useState<string | null>(null);
     const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
     const [loading, setLoading] = useState(true);
     const [isBlocked, setIsBlocked] = useState(false);
+    const [friendshipStatus, setFriendshipStatus] = useState<'friend' | 'pending_sent' | 'pending_received' | 'none'>('none');
+    const { showToast } = useToastStore();
+
+    const [confirmUnfriend, setConfirmUnfriend] = useState(false);
+    const [confirmBlock, setConfirmBlock] = useState(false);
+    const [confirmUnblock, setConfirmUnblock] = useState(false);
+    const [confirmAddFriend, setConfirmAddFriend] = useState(false);
+    const [confirmCancelRequest, setConfirmCancelRequest] = useState(false);
+    const [confirmAccept, setConfirmAccept] = useState(false);
+    const [confirmReject, setConfirmReject] = useState(false);
+
+    const [loadingUnfriend, setLoadingUnfriend] = useState(false);
+    const [loadingBlock, setLoadingBlock] = useState(false);
+    const [loadingUnblock, setLoadingUnblock] = useState(false);
+    const [loadingAddFriend, setLoadingAddFriend] = useState(false);
+    const [loadingCancelRequest, setLoadingCancelRequest] = useState(false);
+    const [loadingAccept, setLoadingAccept] = useState(false);
+    const [loadingReject, setLoadingReject] = useState(false);
 
     useEffect(() => {
         const fetchUserDetails = async () => {
@@ -45,7 +49,7 @@ export default function UserDetailModal({
                 const [userRes, linksRes, blockedRes] = await Promise.all([
                     apiCall<{ data: SearchedUser }>(`/user/${user.id}`),
                     apiCall<{ data: SocialLink[] }>(`/user/social-links/${user.id}`),
-                    apiCall<{ data: { id: number; blocked_id: number }[] }>('/user/blocked-list')
+                    getBlockedUsers()
                 ]);
                 if (userRes?.data) {
                     setBio(userRes.data.bio || null);
@@ -54,7 +58,7 @@ export default function UserDetailModal({
                     setSocialLinks(linksRes.data);
                 }
                 if (blockedRes?.data) {
-                    setIsBlocked(blockedRes.data.some(b => b.blocked_id === user.id));
+                    setIsBlocked(blockedRes.data.some(b => b.id === user.id));
                 }
             } catch (err) {
                 console.error('Failed to fetch user details:', err);
@@ -65,7 +69,125 @@ export default function UserDetailModal({
         fetchUserDetails();
     }, [user.id]);
 
-    const isLoading = actionLoading === user.id;
+    useEffect(() => {
+        const checkFriendshipStatus = async () => {
+            try {
+                const res = await apiCall<{ data: { status: 'friend' | 'pending_sent' | 'pending_received' | 'none' } }>(
+                    `/user/friendship-status/${user.id}`,
+                    { method: 'GET' }
+                );
+                setFriendshipStatus(res.data.status);
+            } catch (err) {
+                console.error('Failed to check friendship status:', err);
+            }
+        };
+        checkFriendshipStatus();
+    }, [user.id]);
+
+    const handleAddFriend = async () => {
+        setLoadingAddFriend(true);
+        try {
+            await apiCall(`/user/make-friend-requests/${user.id}`, { method: 'POST' });
+            setFriendshipStatus('pending_sent');
+            showToast('Friend request sent');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to send friend request', 'error');
+        } finally {
+            setLoadingAddFriend(false);
+            setConfirmAddFriend(false);
+        }
+    };
+
+    const handleCancelRequest = async () => {
+        setLoadingCancelRequest(true);
+        try {
+            await apiCall(`/user/cancel-friend-request/${user.id}`, { method: 'DELETE' });
+            setFriendshipStatus('none');
+            showToast('Friend request cancelled');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to cancel request', 'error');
+        } finally {
+            setLoadingCancelRequest(false);
+            setConfirmCancelRequest(false);
+        }
+    };
+
+    const handleAcceptRequest = async () => {
+        setLoadingAccept(true);
+        try {
+            await apiCall(`/user/accept-friend-requests/${user.id}`, { method: 'PUT' });
+            setFriendshipStatus('friend');
+            showToast('Friend request accepted');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to accept request', 'error');
+        } finally {
+            setLoadingAccept(false);
+            setConfirmAccept(false);
+        }
+    };
+
+    const handleRejectRequest = async () => {
+        setLoadingReject(true);
+        try {
+            await apiCall(`/user/reject-friend/${user.id}`, { method: 'DELETE' });
+            setFriendshipStatus('none');
+            showToast('Friend request rejected');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to reject request', 'error');
+        } finally {
+            setLoadingReject(false);
+            setConfirmReject(false);
+        }
+    };
+
+    const handleUnfriend = async () => {
+        setLoadingUnfriend(true);
+        try {
+            await apiCall(`/user/unfriend/${user.id}`, { method: 'DELETE' });
+            setFriendshipStatus('none');
+            showToast('User unfriended');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to unfriend', 'error');
+        } finally {
+            setLoadingUnfriend(false);
+            setConfirmUnfriend(false);
+        }
+    };
+
+    const handleBlock = async () => {
+        setLoadingBlock(true);
+        try {
+            await apiCall(`/user/block/${user.id}`, { method: 'POST' });
+            setIsBlocked(true);
+            showToast('User blocked');
+        } catch (err: any) {
+            if (err.message === 'user already blocked') {
+                setIsBlocked(true);
+                showToast('User is already blocked');
+            } else {
+                showToast(err.message || 'Failed to block user', 'error');
+            }
+        } finally {
+            setLoadingBlock(false);
+            setConfirmBlock(false);
+        }
+    };
+
+    const handleUnblock = async () => {
+        setLoadingUnblock(true);
+        try {
+            await apiCall(`/user/block/${user.id}`, { method: 'DELETE' });
+            setIsBlocked(false);
+            showToast('User unblocked');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to unblock user', 'error');
+        } finally {
+            setLoadingUnblock(false);
+            setConfirmUnblock(false);
+        }
+    };
+
+
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -216,84 +338,174 @@ export default function UserDetailModal({
                             Direct Message
                         </button>
 
-                        {(user.friendship_status === 'none' || !user.friendship_status) && onAdd && (
+                        {friendshipStatus === 'none' && (
                             <button
-                                onClick={() => onAdd(user.id)}
-                                disabled={isLoading}
+                                onClick={() => setConfirmAddFriend(true)}
+                                disabled={loadingAddFriend}
                                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-tertiary)] border border-[var(--border-light)] hover:bg-[var(--accent-color)]/10 hover:border-[var(--accent-color)]/20 hover:text-[var(--accent-color)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             >
-                                {isLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                                {loadingAddFriend ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
                                 Add Friend
                             </button>
                         )}
 
-                        {user.friendship_status === 'pending_sent' && onCancelRequest && (
+                        {friendshipStatus === 'pending_sent' && (
                             <button
-                                onClick={() => onCancelRequest(user.id)}
-                                disabled={isLoading}
+                                onClick={() => setConfirmCancelRequest(true)}
+                                disabled={loadingCancelRequest}
                                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
                             >
-                                {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
+                                {loadingCancelRequest ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
                                 Cancel Request
                             </button>
                         )}
 
-                        {user.friendship_status === 'pending_received' && onAccept && onReject && (
+                        {friendshipStatus === 'pending_received' && (
                             <div className="flex gap-2">
                                 <button
-                                    onClick={() => onReject(user.id)}
-                                    disabled={isLoading}
+                                    onClick={() => setConfirmReject(true)}
+                                    disabled={loadingReject}
                                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-[var(--text-muted)] bg-[var(--bg-tertiary)] hover:bg-red-500/15 hover:text-red-400 border border-[var(--border-light)] disabled:opacity-50 transition-colors"
                                 >
-                                    {isLoading ? <Loader2 size={15} className="animate-spin" /> : <UserX size={15} />}
+                                    {loadingReject ? <Loader2 size={15} className="animate-spin" /> : <UserX size={15} />}
                                     Decline
                                 </button>
                                 <button
-                                    onClick={() => onAccept(user.id)}
-                                    disabled={isLoading}
+                                    onClick={() => setConfirmAccept(true)}
+                                    disabled={loadingAccept}
                                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white bg-[var(--accent-color)] hover:bg-[var(--accent-color)]/80 disabled:opacity-50 transition-colors"
                                 >
-                                    {isLoading ? <Loader2 size={15} className="animate-spin" /> : <UserCheck size={15} />}
+                                    {loadingAccept ? <Loader2 size={15} className="animate-spin" /> : <UserCheck size={15} />}
                                     Accept
                                 </button>
                             </div>
                         )}
 
-                        {user.friendship_status === 'friend' && onUnfriend && (
+                        {friendshipStatus === 'friend' && (
                             <button
-                                onClick={() => onUnfriend(user.id)}
-                                disabled={isLoading}
+                                onClick={() => setConfirmUnfriend(true)}
+                                disabled={loadingUnfriend}
                                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 border border-[var(--border-color)] hover:border-red-500/20 disabled:opacity-50 transition-colors"
                             >
-                                {isLoading ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
+                                {loadingUnfriend ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
                                 Unfriend
                             </button>
                         )}
 
-                        {(onBlock || onUnblock) && (
-                            isBlocked ? (
-                                <button
-                                    onClick={() => onUnblock ? onUnblock(user.id) : onBlock && onBlock(user.id)}
-                                    disabled={isLoading}
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/20 disabled:opacity-50 transition-colors"
-                                >
-                                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />}
-                                    Unblock User
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={() => onBlock && onBlock(user.id)}
-                                    disabled={isLoading}
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-[var(--text-muted)] hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/20 disabled:opacity-50 transition-colors"
-                                >
-                                    {isLoading ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
-                                    Block User
-                                </button>
-                            )
+                        {isBlocked ? (
+                            <button
+                                onClick={() => setConfirmUnblock(true)}
+                                disabled={loadingUnblock}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/20 disabled:opacity-50 transition-colors"
+                            >
+                                {loadingUnblock ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />}
+                                Unblock User
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setConfirmBlock(true)}
+                                disabled={loadingBlock}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-[var(--text-muted)] hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/20 disabled:opacity-50 transition-colors"
+                            >
+                                {loadingBlock ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
+                                Block User
+                            </button>
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Confirm Dialogs */}
+            {confirmAddFriend && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Add Friend"
+                    description={`Are you sure you want to send a friend request to ${user.name}?`}
+                    confirmLabel="Send Request"
+                    variant="warning"
+                    onConfirm={handleAddFriend}
+                    onCancel={() => setConfirmAddFriend(false)}
+                    loading={loadingAddFriend}
+                />
+            )}
+
+            {confirmCancelRequest && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Cancel Request"
+                    description={`Are you sure you want to cancel the friend request to ${user.name}?`}
+                    confirmLabel="Cancel Request"
+                    variant="warning"
+                    onConfirm={handleCancelRequest}
+                    onCancel={() => setConfirmCancelRequest(false)}
+                    loading={loadingCancelRequest}
+                />
+            )}
+
+            {confirmAccept && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Accept Request"
+                    description={`Do you want to accept the friend request from ${user.name}?`}
+                    confirmLabel="Accept"
+                    variant="warning"
+                    onConfirm={handleAcceptRequest}
+                    onCancel={() => setConfirmAccept(false)}
+                    loading={loadingAccept}
+                />
+            )}
+
+            {confirmReject && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Reject Request"
+                    description={`Do you want to reject the friend request from ${user.name}?`}
+                    confirmLabel="Reject"
+                    variant="danger"
+                    onConfirm={handleRejectRequest}
+                    onCancel={() => setConfirmReject(false)}
+                    loading={loadingReject}
+                />
+            )}
+
+            {confirmUnfriend && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Unfriend"
+                    description={`Are you sure you want to unfriend ${user.name}?`}
+                    confirmLabel="Unfriend"
+                    variant="danger"
+                    onConfirm={handleUnfriend}
+                    onCancel={() => setConfirmUnfriend(false)}
+                    loading={loadingUnfriend}
+                />
+            )}
+
+            {confirmBlock && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Block User"
+                    description={`Are you sure you want to block ${user.name}? They will no longer be able to message you or see your profile.`}
+                    confirmLabel="Block"
+                    variant="danger"
+                    onConfirm={handleBlock}
+                    onCancel={() => setConfirmBlock(false)}
+                    loading={loadingBlock}
+                />
+            )}
+
+            {confirmUnblock && (
+                <ConfirmDialog
+                    isOpen={true}
+                    title="Unblock User"
+                    description={`Are you sure you want to unblock ${user.name}?`}
+                    confirmLabel="Unblock"
+                    variant="warning"
+                    onConfirm={handleUnblock}
+                    onCancel={() => setConfirmUnblock(false)}
+                    loading={loadingUnblock}
+                />
+            )}
         </div>
     );
 }
