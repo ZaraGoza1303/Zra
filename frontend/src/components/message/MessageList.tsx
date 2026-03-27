@@ -535,7 +535,7 @@ export default function MessageList({
                 ) : messages.length === 0 ? (
                     <div className="m-auto text-[var(--text-muted)] text-sm text-center">
                         <p>No messages yet.</p>
-                        <p className="text-xs mt-1 opacity-70">Start the conversation! 👋</p>
+                        <p className="text-xs mt-1 opacity-70">Start the conversation!</p>
                     </div>
                 ) : renderMessages()}
                 <div ref={messagesEndRef} />

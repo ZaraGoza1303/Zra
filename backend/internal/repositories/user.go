@@ -122,6 +122,46 @@ func (u *userRepositories) GetFriendship(ctx context.Context, user_id uint, targ
 	return alreadyFriend > 0, nil
 }
 
+// GetFriendshipDetailStatus implements [core.UserRepositories].
+func (u *userRepositories) GetFriendshipDetailStatus(ctx context.Context, user_id uint, target_id uint) (string, error) {
+	var friend models.Friend
+
+	// Check if friend (status = "accepted")
+	result := u.DB.WithContext(ctx).
+		Where("((user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)) AND status = ?",
+			user_id, target_id, target_id, user_id, "accepted").
+		First(&friend)
+
+	if result.Error == nil {
+		return "friend", nil
+	}
+
+	// Check if pending_sent (user_id sent request, status = "pending")
+	result = u.DB.WithContext(ctx).
+		Where("user_id = ? AND friend_id = ? AND status = ?", user_id, target_id, "pending").
+		First(&friend)
+
+	if result.Error == nil {
+		return "pending_sent", nil
+	}
+
+	// Check if pending_received (target_id sent request, status = "pending")
+	result = u.DB.WithContext(ctx).
+		Where("user_id = ? AND friend_id = ? AND status = ?", target_id, user_id, "pending").
+		First(&friend)
+
+	if result.Error == nil {
+		return "pending_received", nil
+	}
+
+	// No relationship
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return "none", nil
+	}
+
+	return "none", result.Error
+}
+
 // GetSocialLinkByUserId implements [core.UserRepositories].
 func (u *userRepositories) GetSocialLinkByUserId(ctx context.Context, userId uint) (*models.SocialLink, error) {
 	var social models.SocialLink

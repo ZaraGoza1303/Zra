@@ -94,7 +94,7 @@ export default function RoomList({ activeNav, onSelectRoom, onlineUserIds }: Roo
                                         <span className="text-xs text-[var(--text-muted)] flex items-center gap-1 min-w-0">
                                             <span className="truncate">
                                                 {room.last_message
-                                                    ? formatLastMessage(room.last_message)
+                                                    ? formatLastMessage(room.last_message, room.type)
                                                     : (isPrivate ? 'No messages yet' : 'Tap to join chat')
                                                 }
                                             </span>

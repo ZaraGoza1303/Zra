@@ -18,6 +18,7 @@ type UserRepositories interface {
 	GetListFriendRequest(ctx context.Context, filter string, user_id uint) ([]models.User, error)
 	GetUnreadNotifCount(ctx context.Context, user_id uint) ([]dto.UnreadNotifResponse, error)
 	GetFriendship(ctx context.Context, user_id uint, target_id uint) (bool, error)
+	GetFriendshipDetailStatus(ctx context.Context, user_id uint, target_id uint) (string, error)
 	GetLinks(ctx context.Context, userId uint) ([]models.Link, error)
 	GetSocialLinkByUserId(ctx context.Context, userId uint) (*models.SocialLink, error)
 	InsertFriendRequest(ctx context.Context, req *models.Friend) error
@@ -75,6 +76,8 @@ type UserServices interface {
 	RemoveSocialLink(ctx context.Context, linkId uint) error
 	Unfriend(ctx context.Context, target_id uint) error
 	RejectFriendRequest(ctx context.Context, target_id uint) error
+	CancelFriendRequest(ctx context.Context, target_id uint) error
+	GetFriendshipStatus(ctx context.Context, target_id uint) (*dto.FriendshipStatusResponse, error)
 	ChangePassword(ctx context.Context, req dto.ChangePasswordRequest) error
 	ExecuteReset(ctx context.Context, token string, req dto.ResetPasswordRequest) error
 	CleanRefreshToken(ctx context.Context) error

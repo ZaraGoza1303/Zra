@@ -37,6 +37,7 @@ func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServi
 	route.Get("/room/:id", handler.FindById)
 	route.Get("/room/:id/members", handler.GetAllRoomMember)
 	route.Get("/room/:id/history", handler.TakeChatHistory)
+	route.Get("/room/:id/media", handler.TakeMediaMessages)
 	route.Get("/room/:target_id/mutual", handler.FindMutualRooms)
 	route.Get("/room/:id/private", handler.GetPrivateRoom)
 	route.Post("/room", handler.CreateRoom)
@@ -611,4 +612,29 @@ func (h *roomHandler) TakeChatHistory(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Messages", messages))
+}
+
+func (h *roomHandler) TakeMediaMessages(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	roomId := c.Params("id")
+	limit := 20
+	cursorStr := c.Query("cursor")
+
+	var cursor time.Time
+	if cursorStr != "" {
+		t, err := time.Parse(time.RFC3339, cursorStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Wrong time format"))
+		}
+		cursor = t
+	}
+
+	medias, err := h.roomServices.TakeMediaMessages(ctx, roomId, limit, cursor)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Showing Media", medias))
 }

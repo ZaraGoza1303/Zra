@@ -25,6 +25,7 @@ export interface LastMessage {
     username: string;
     sent_at: string;
     type?: string;
+    caption?: string;
 }
 
 export interface ChatRoomProps {

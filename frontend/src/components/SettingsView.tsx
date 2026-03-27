@@ -64,8 +64,6 @@ export default function SettingsView() {
             }
         };
         fetchSocialLinks();
-        console.log("user:", user);
-        console.log("localStorage user:", localStorage.getItem('user'));
     }, []);
 
     // Social links handlers
@@ -192,7 +190,7 @@ export default function SettingsView() {
                             </div>
                         </div>
 
-                        <h3 className="text-3xl font-bold mb-1">{user?.name || "Alex Chen"}</h3>
+                        <h3 className="text-3xl font-bold mb-1">{user?.name || "Unknown"}</h3>
 
                         <div className="flex gap-3 w-full max-w-[320px] mb-6">
                             <div className="flex-1 bg-[var(--bg-tertiary)] rounded-2xl p-4 border border-[var(--border-color)]">
@@ -218,8 +216,8 @@ export default function SettingsView() {
 
                     {/* Portfolio & Links Card */}
                     <div className="bg-[var(--bg-secondary)] rounded-[32px] p-10 border border-[var(--border-color)] shadow-2xl">
-                        <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest uppercase">Portfolio & Links</h3>
+                        <div className="flex items-center justify-between mt-17 mb-8">
+                            <h3 className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest uppercase">Social Links</h3>
                             <button
                                 onClick={() => setActiveModal({ type: "add" })}
                                 className="text-[var(--accent-color)] flex items-center gap-1 text-xs font-bold hover:opacity-80 transition-opacity"
@@ -240,7 +238,7 @@ export default function SettingsView() {
 
                                     let platformColor = platform.color;
                                     if (platform.id === 'github') {
-                                        platformColor = isDark ? '#F0F6FC' : '#1e293b'; // White in dark mode, slate-800 in light mode
+                                        platformColor = isDark ? '#F0F6FC' : '#1e293b';
                                     }
 
                                     return (

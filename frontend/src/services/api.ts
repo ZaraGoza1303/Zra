@@ -193,3 +193,6 @@ export const updateSocialLink = (linkId: number, data: { type?: string; url?: st
 
 export const deleteSocialLink = (linkId: number) =>
   apiCall(`/user/social-link/${linkId}`, { method: 'DELETE' });
+
+export const getBlockedUsers = () =>
+  apiCall<{ data: { id: number }[] }>('/user/blocked-list', { method: 'GET' });

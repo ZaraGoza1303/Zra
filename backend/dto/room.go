@@ -43,6 +43,7 @@ type LastMessageInfo struct {
 	Username string    `json:"username"`
 	SentAt   time.Time `json:"sent_at"`
 	Type     string    `json:"type"`
+	Caption  string    `json:"caption,omitempty"`
 }
 
 type StickerResponse struct {
@@ -50,4 +51,9 @@ type StickerResponse struct {
 	Name     string `json:"name"`
 	Url      string `json:"url"`
 	Category string `json:"category"`
+}
+
+type MediaResponse struct {
+	Media      []Message  `json:"message"`
+	NextCursor *time.Time `json:"next_cursor"`
 }

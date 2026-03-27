@@ -111,6 +111,11 @@ func (r *cachedRoomServices) TakeChatHistory(ctx context.Context, room_id string
 	return nil, nil
 }
 
+// TakeMediaMessages implements [core.RoomServices].
+func (r *cachedRoomServices) TakeMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) (*dto.MediaResponse, error) {
+	return nil, nil
+}
+
 // KickUser implements [core.RoomServices].
 func (r *cachedRoomServices) KickUser(ctx context.Context, room_id string, target_id uint) error {
 	return nil

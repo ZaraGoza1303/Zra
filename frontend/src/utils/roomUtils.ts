@@ -23,10 +23,19 @@ export const getRoomDisplayInfo = (
     return { name: room.name, picture: room.picture || null };
 };
 
-export const formatLastMessage = (msg?: LastMessage): string | null => {
+export const formatLastMessage = (msg?: LastMessage, _roomType?: string): string | null => {
     if (!msg) return null;
-    if (msg.type === 'sticker') {
-        return `${msg.username}: Sticker`;
+
+    if (msg.type === 'image') {
+        if (msg.caption) {
+            return msg.caption;
+        }
+        return 'Image';
     }
-    return `${msg.username}: ${msg.content}`;
+
+    if (msg.type === 'sticker') {
+        return 'Sticker';
+    }
+
+    return msg.content;
 };

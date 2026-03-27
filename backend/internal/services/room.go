@@ -123,10 +123,17 @@ func (r *roomServices) FindAll(ctx context.Context, filter string) ([]dto.RoomRe
 				decryptedContent = "Failed to load messages..."
 			}
 
+			decryptedCaption := msg.Caption
+			if msg.Caption != "" {
+				decryptedCaption, _ = helper.Decrypt(msg.Caption)
+			}
+
 			lastMsg := dto.LastMessageInfo{
 				Content:  decryptedContent,
 				Username: msg.Username,
 				SentAt:   msg.CreatedAt,
+				Type:     msg.Type,
+				Caption:  decryptedCaption,
 			}
 			item.LastMessage = &lastMsg
 		}
@@ -560,6 +567,54 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 	}
 
 	return msgResponse, nil
+}
+
+// TakeMediaMessages implements [core.RoomServices].
+func (r *roomServices) TakeMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) (*dto.MediaResponse, error) {
+	messages, nextCursor, err := r.roomRepositories.GetMediaMessages(ctx, roomId, limit, cursor)
+	if err != nil {
+		return nil, err
+	}
+
+	msgResponse := make([]dto.Message, 0, len(messages))
+	for _, msg := range messages {
+		decryptedContent := msg.Content
+		if msg.Content != "" {
+			decryptedContent, err = helper.Decrypt(msg.Content)
+			if err != nil {
+				decryptedContent = msg.Content
+			}
+		}
+
+		decryptedCaption := msg.Caption
+		if msg.Caption != "" {
+			decryptedCaption, err = helper.Decrypt(msg.Caption)
+			if err != nil {
+				decryptedCaption = msg.Caption
+			}
+		}
+
+		item := dto.Message{
+			ID:             msg.ID,
+			RoomID:         msg.RoomID,
+			UserID:         msg.UserID,
+			Username:       msg.Username,
+			Content:        decryptedContent,
+			ProfilePicture: msg.ProfilePicture,
+			Type:           msg.Type,
+			Caption:        decryptedCaption,
+			TimeStamp:      msg.CreatedAt,
+		}
+
+		msgResponse = append(msgResponse, item)
+	}
+
+	response := dto.MediaResponse{
+		Media:      msgResponse,
+		NextCursor: nextCursor,
+	}
+
+	return &response, nil
 }
 
 // KickUser implements [core.RoomServices].

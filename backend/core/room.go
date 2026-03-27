@@ -25,6 +25,7 @@ type RoomRepositories interface {
 	GetIdPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
 	GetMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetLastMessages(ctx context.Context, roomIds []string) ([]models.Message, error)
+	GetMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) ([]models.Message, *time.Time, error)
 	GetUnreadMessagesCount(ctx context.Context, room_id string, user_id uint) (int64, error)
 	InsertPrivateRoom(ctx context.Context, room *models.Room, user_id []uint) error
 	InsertRoomMembers(ctx context.Context, member *models.RoomMember) error
@@ -60,6 +61,7 @@ type RoomServices interface {
 	MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
 	SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error)
 	TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error)
+	TakeMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) (*dto.MediaResponse, error)
 	JoinRoom(ctx context.Context, room_id string) error
 	AddMember(ctx context.Context, room_id string, user_id uint) error
 	MakeAdmin(ctx context.Context, room_id string, target_id uint) error

@@ -480,6 +480,32 @@ func (r *roomRepositories) GetLastMessages(ctx context.Context, roomIds []string
 	return messages, nil
 }
 
+// GetMediaMessages implements [core.RoomRepositories].
+func (r *roomRepositories) GetMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) ([]models.Message, *time.Time, error) {
+	var messages []models.Message
+
+	query := r.DB.WithContext(ctx).
+		Where("room_id = ? AND type = ?", roomId, "image").
+		Order("created_at DESC").
+		Limit(limit)
+
+	if !cursor.IsZero() {
+		query = query.Where("created_at < ?", cursor)
+	}
+
+	if err := query.Find(&messages).Error; err != nil {
+		return nil, nil, err
+	}
+
+	var nextCursor *time.Time
+	if len(messages) == limit {
+		last := messages[len(messages)-1].CreatedAt
+		nextCursor = &last
+	}
+
+	return messages, nextCursor, nil
+}
+
 // MarkMessageRead implements [core.RoomRepositories].
 func (r *roomRepositories) MarkMessageRead(ctx context.Context, room_id string, user_id uint) error {
 	result := r.DB.WithContext(ctx).Model(&models.Message{}).

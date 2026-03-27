@@ -10,7 +10,6 @@ interface ChatHeaderProps {
     roomType?: 'group' | 'private';
     onBack?: () => void;
     onOpenInfoModal: () => void;
-    onOpenUsersModal: () => void;
     onStartCall?: (withVideo: boolean) => void;
     onlineUserIds?: Set<number>;
 }
@@ -22,7 +21,6 @@ export default function ChatHeader({
     roomType,
     onBack,
     onOpenInfoModal,
-    onOpenUsersModal,
     onStartCall,
     onlineUserIds
 }: ChatHeaderProps) {
@@ -96,13 +94,13 @@ export default function ChatHeader({
                         <Phone size={18} />
                     </button>
                 )}
-                {!isPrivate && (
+                {isPrivate && (
                     <button
-                        onClick={onOpenUsersModal}
+                        onClick={onOpenInfoModal}
                         className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors"
-                        title="Members"
+                        title="More"
                     >
-                        <Users size={18} />
+                        <MoreHorizontal size={18} />
                     </button>
                 )}
                 {!isPrivate && (

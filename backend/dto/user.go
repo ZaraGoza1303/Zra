@@ -23,6 +23,7 @@ type UserResponse struct {
 type UpdateUserRequest struct {
 	ProfilePicture *string `form:"profile_picture" json:"profile_picture"`
 	Bio            *string `form:"bio" json:"bio"`
+	Username       *string `form:"username" json:"username"`
 	Name           *string `form:"name" json:"name"`
 	Password       *string `form:"password" json:"password"`
 }
@@ -80,4 +81,8 @@ type UpdateUserSettingsRequest struct {
 	GroupNotif        *bool   `json:"group_notif"`
 	Sound             *bool   `json:"sound"`
 	Preview           *bool   `json:"preview"`
+}
+
+type FriendshipStatusResponse struct {
+	Status string `json:"status"`
 }

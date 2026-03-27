@@ -165,8 +165,8 @@ export default function AccountSettings() {
                     <h2 className="text-lg font-semibold mb-4">Connected Accounts</h2>
                     <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--border-color)]">
                         <p className="text-sm text-[var(--text-secondary)]">
-                            {isGoogleAccount 
-                                ? "Your account is connected with Google." 
+                            {isGoogleAccount
+                                ? "Your account is connected with Google."
                                 : "No external accounts connected."}
                         </p>
                     </div>

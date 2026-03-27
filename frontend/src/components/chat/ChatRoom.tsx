@@ -468,6 +468,28 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             username: msg.username,
                             sent_at: msg.time_stamp,
                         });
+
+                        const { allRooms, setAllRooms } = useDashboardStore.getState();
+                        const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
+                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
+                        if (!isActiveRoom) {
+                            const notificationMsg = {
+                                id: msg.id || `notif-${Date.now()}`,
+                                room_id: actualRoomId,
+                                user_id: msg.user_id,
+                                username: msg.username,
+                                profile_picture: msg.profile_picture,
+                                content: msg.content || 'New message',
+                                type: msg.type,
+                                time_stamp: msg.time_stamp || new Date().toISOString(),
+                                sent_at: msg.time_stamp || new Date().toISOString(),
+                            };
+                            setAllRooms(allRooms.map(r =>
+                                r.id === actualRoomId
+                                    ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
+                                    : r
+                            ));
+                        }
                     }
                     return;
                 }
@@ -527,6 +549,28 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             sent_at: msg.time_stamp,
                             type: 'sticker'
                         });
+
+                        const { allRooms, setAllRooms } = useDashboardStore.getState();
+                        const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
+                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
+                        if (!isActiveRoom) {
+                            const notificationMsg = {
+                                id: msg.id || `notif-${Date.now()}`,
+                                room_id: actualRoomId,
+                                user_id: msg.user_id,
+                                username: msg.username,
+                                profile_picture: msg.profile_picture,
+                                content: '🎭 Sticker',
+                                type: msg.type,
+                                time_stamp: msg.time_stamp || new Date().toISOString(),
+                                sent_at: msg.time_stamp || new Date().toISOString(),
+                            };
+                            setAllRooms(allRooms.map(r =>
+                                r.id === actualRoomId
+                                    ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
+                                    : r
+                            ));
+                        }
                     }
                     return;
                 }
@@ -544,6 +588,28 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             sent_at: msg.time_stamp,
                             type: 'image',
                         });
+
+                        const { allRooms, setAllRooms } = useDashboardStore.getState();
+                        const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
+                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
+                        if (!isActiveRoom) {
+                            const notificationMsg = {
+                                id: msg.id || `notif-${Date.now()}`,
+                                room_id: actualRoomId,
+                                user_id: msg.user_id,
+                                username: msg.username,
+                                profile_picture: msg.profile_picture,
+                                content: '📷 Image',
+                                type: msg.type,
+                                time_stamp: msg.time_stamp || new Date().toISOString(),
+                                sent_at: msg.time_stamp || new Date().toISOString(),
+                            };
+                            setAllRooms(allRooms.map(r =>
+                                r.id === actualRoomId
+                                    ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
+                                    : r
+                            ));
+                        }
                     }
                     return;
                 }
@@ -777,7 +843,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         markAsRead();
     }, [roomId]);
 
-    const handleRoomAction = async (action: 'leave' | 'kick' | 'admin' | 'delete') => {
+    const handleRoomAction = async (action: 'leave' | 'kick' | 'admin' | 'demote' | 'delete') => {
         setActionLoading(true);
         try {
             if (action === 'leave') {
@@ -805,6 +871,14 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 if (currentTargetUserId === null) return showToast('Please select a user to make admin.', 'error');
                 await apiCall(`/room/${roomId}/to-admin?user_id=${currentTargetUserId}`, { method: 'PUT' });
                 showToast('User is now an admin!');
+                setTargetUserId(null);
+                await fetchRoomMembers();
+
+            } else if (action === 'demote') {
+                const currentTargetUserId = useChatStore.getState().targetUserId;
+                if (currentTargetUserId === null) return showToast('Please select a user to remove admin.', 'error');
+                await apiCall(`/room/${roomId}/remove-admin?user_id=${currentTargetUserId}`, { method: 'PUT' });
+                showToast('Admin removed successfully!');
                 setTargetUserId(null);
                 await fetchRoomMembers();
 
@@ -937,13 +1011,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         }
     };
 
-    const handleOpenUsersModal = async () => {
-        setShowUsersModal(true);
-        setFetchingMembers(true);
-        await fetchRoomMembers();
-        setFetchingMembers(false);
-    };
-
     const handleAddMember = async (userId: number) => {
         const { setAddingMember } = useChatStore.getState();
         setAddingMember(true);
@@ -974,7 +1041,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     roomType={roomType}
                     onBack={onBack}
                     onOpenInfoModal={handleOpenInfoModal}
-                    onOpenUsersModal={handleOpenUsersModal}
                     onStartCall={handleStartCall}
                     onlineUserIds={onlineUserIds}
                 />

@@ -647,6 +647,14 @@ func (u *userServices) Update(ctx context.Context, req *dto.UpdateUserRequest) (
 		existUser.Bio = *req.Bio
 	}
 
+	if req.Username != nil {
+		existingUser, err := u.UserRepositories.GetByUsername(ctx, *req.Username)
+		if err == nil && existingUser != nil && existingUser.ID != userId {
+			return nil, fmt.Errorf("username already taken")
+		}
+		existUser.Username = *req.Username
+	}
+
 	if req.Name != nil {
 		existUser.Name = *req.Name
 	}
@@ -821,6 +829,55 @@ func (u *userServices) RejectFriendRequest(ctx context.Context, target_id uint) 
 	u.hub.Signal <- rejectMsg
 
 	return nil
+}
+
+// CancelFriendRequest implements [core.UserServices].
+func (u *userServices) CancelFriendRequest(ctx context.Context, target_id uint) error {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return fmt.Errorf("user_id not found")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("Target id not found : %w", err)
+		}
+		return err
+	}
+
+	if err := u.UserRepositories.DeleteFriendRequest(ctx, userId, target_id); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetFriendshipStatus implements [core.UserServices].
+func (u *userServices) GetFriendshipStatus(ctx context.Context, target_id uint) (*dto.FriendshipStatusResponse, error) {
+	userId, ok := ctx.Value("user_id").(uint)
+	if !ok {
+		return nil, fmt.Errorf("user_id not found")
+	}
+
+	_, err := u.UserRepositories.GetById(ctx, target_id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("Target id not found : %w", err)
+		}
+		return nil, err
+	}
+
+	status, err := u.UserRepositories.GetFriendshipDetailStatus(ctx, userId, target_id)
+	if err != nil {
+		return nil, err
+	}
+
+	response := dto.FriendshipStatusResponse{
+		Status: status,
+	}
+
+	return &response, nil
 }
 
 func (u *userServices) ChangePassword(ctx context.Context, req dto.ChangePasswordRequest) error {

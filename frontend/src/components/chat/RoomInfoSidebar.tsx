@@ -1,15 +1,24 @@
-import React, { useState } from 'react';
-import { X, User, Users, Pencil, UserPlus, AlertTriangle, LogOut, Copy, MessageCircle, MoreVertical, Eye, UserMinus, Shield } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, User, Users, Pencil, UserPlus, AlertTriangle, LogOut, Copy, MessageCircle, MoreVertical, Eye, UserMinus, Shield, ChevronRight } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
 import { useAuthStore } from '../../store/authStore';
 import { FRONTEND_JOIN_URL } from '../../config';
 import { getUserImageUrl, getRoomImageUrl } from '../../utils/imageUtils';
+import { getBlockedUsers } from '../../services/api';
 import { useToastStore } from '../../store/toastStore';
 import { apiCall } from '../../services/api';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ImageCropModal from '../ImageCropModal';
 import UserDetailModal from '../contact/UserDetailModal';
+import SharedImagesGallery from './SharedImagesGallery';
 
+
+interface MediaMessage {
+    id: string;
+    content: string;
+    time_stamp: string;
+    username: string;
+}
 
 interface RoomInfoSidebarProps {
     roomId: string;
@@ -18,7 +27,7 @@ interface RoomInfoSidebarProps {
     isAdmin: boolean;
     pictureInputRef: React.RefObject<HTMLInputElement | null>;
     handleUpdateRoom: (field: 'name' | 'description' | 'picture', value?: string | File) => Promise<void>;
-    handleRoomAction: (action: 'leave' | 'kick' | 'admin' | 'delete') => Promise<void>;
+    handleRoomAction: (action: 'leave' | 'kick' | 'admin' | 'demote' | 'delete') => Promise<void>;
     onClose: () => void;
     onAddMember: (userId: number) => Promise<void>;
     onBack?: () => void;
@@ -29,6 +38,7 @@ interface RoomInfoSidebarProps {
 }
 
 export default function RoomInfoSidebar({
+    roomId,
     roomName,
     roomPicture,
     isAdmin,
@@ -45,6 +55,9 @@ export default function RoomInfoSidebar({
     const [showAddMember, setShowAddMember] = useState(false);
     const [cropFile, setCropFile] = useState<File | null>(null);
     const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+    const [sharedImages, setSharedImages] = useState<MediaMessage[]>([]);
+    const [totalImageCount, setTotalImageCount] = useState(0);
+    const [showGallery, setShowGallery] = useState(false);
     const [selectedMember, setSelectedMember] = useState<{
         user_id: number;
         username: string;
@@ -81,16 +94,90 @@ export default function RoomInfoSidebar({
     const isPrivate = roomType === 'private';
     const [confirmLeave, setConfirmLeave] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [confirmUnfriend, setConfirmUnfriend] = useState(false);
+    const [confirmBlock, setConfirmBlock] = useState(false);
+    const [confirmUnblock, setConfirmUnblock] = useState(false);
+    const [confirmAddFriend, setConfirmAddFriend] = useState(false);
+    const [confirmCancelRequest, setConfirmCancelRequest] = useState(false);
+    const [loadingUnfriend, setLoadingUnfriend] = useState(false);
+    const [loadingBlock, setLoadingBlock] = useState(false);
+    const [loadingUnblock, setLoadingUnblock] = useState(false);
+    const [loadingAddFriend, setLoadingAddFriend] = useState(false);
+    const [loadingCancelRequest, setLoadingCancelRequest] = useState(false);
+    const [isBlocked, setIsBlocked] = useState(false);
+    const [friendshipStatus, setFriendshipStatus] = useState<'friend' | 'pending_sent' | 'pending_received' | 'none'>('none');
     const { showToast } = useToastStore();
+
+
+    useEffect(() => {
+        let cancelled = false;
+        const checkBlockedStatus = async () => {
+            if (isPrivate && privatePartner?.user_id) {
+                try {
+                    const res = await getBlockedUsers();
+                    if (!cancelled && res?.data) {
+                        setIsBlocked(res.data.some(b => b.id === privatePartner.user_id));
+                    }
+                } catch (err) {
+                    console.error('Failed to check blocked status:', err);
+                }
+            }
+        };
+        setIsBlocked(false); // reset dulu sebelum fetch
+        checkBlockedStatus();
+        return () => { cancelled = true; };
+    }, [isPrivate, privatePartner?.user_id, roomId]);
+
+    useEffect(() => {
+        const checkFriendshipStatus = async () => {
+            if (isPrivate && privatePartner?.user_id) {
+                try {
+                    const res = await apiCall<{ data: { status: 'friend' | 'pending_sent' | 'pending_received' | 'none' } }>(
+                        `/user/friendship-status/${privatePartner.user_id}`,
+                        { method: 'GET' }
+                    );
+                    setFriendshipStatus(res.data.status);
+                } catch (err) {
+                    console.error('Failed to check friendship status:', err);
+                }
+            }
+        };
+        checkFriendshipStatus();
+    }, [isPrivate, privatePartner?.user_id]);
+
+    // Fetch preview images (first ~20 to know real total) — runs for both private and group
+    const fetchPreviewImages = useCallback(async (rid: string) => {
+        if (!rid) return;
+        try {
+            const res = await apiCall<{ data: { message: MediaMessage[]; next_cursor?: string } }>(`/room/${rid}/media`, { method: 'GET' });
+            const data = res.data?.message || [];
+            setSharedImages(data.slice(0, 6));
+            setTotalImageCount(data.length);
+        } catch (err) {
+            console.error('Failed to fetch preview images:', err);
+        }
+    }, []);
+
+    // Trigger preview fetch whenever roomId prop changes
+    useEffect(() => {
+        if (roomId) {
+            fetchPreviewImages(roomId);
+        }
+    }, [roomId, fetchPreviewImages]);
 
     const handleBlock = async (targetId: number) => {
         try {
             await apiCall(`/user/block/${targetId}`, { method: 'POST' });
             showToast('User blocked');
+            setIsBlocked(true);
             setSelectedMember(null);
-            await onRefresh();
         } catch (err: any) {
-            showToast(err.message || 'Failed to block user', 'error');
+            if (err.message === 'user already blocked') {
+                setIsBlocked(true);
+                showToast('User is already blocked');
+            } else {
+                showToast(err.message || 'Failed to block user', 'error');
+            }
         }
     };
 
@@ -98,10 +185,52 @@ export default function RoomInfoSidebar({
         try {
             await apiCall(`/user/block/${targetId}`, { method: 'DELETE' });
             showToast('User unblocked');
+            setIsBlocked(false);
             setSelectedMember(null);
-            await onRefresh();
         } catch (err: any) {
             showToast(err.message || 'Failed to unblock user', 'error');
+        }
+    };
+
+    const handleAddFriend = async (targetId: number) => {
+        try {
+            await apiCall(`/user/make-friend-requests/${targetId}`, { method: 'POST' });
+            showToast('Friend request sent');
+            setFriendshipStatus('pending_sent');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to send friend request', 'error');
+        }
+    };
+
+    const handleUnfriend = async (targetId: number) => {
+        try {
+            await apiCall(`/user/unfriend/${targetId}`, { method: 'DELETE' });
+            showToast('User unfriended');
+            setFriendshipStatus('none');
+            await onRefresh();
+        } catch (err: any) {
+            showToast(err.message || 'Failed to unfriend', 'error');
+        }
+    };
+
+    const handleCancelRequest = async (targetId: number) => {
+        try {
+            await apiCall(`/user/cancel-friend-request/${targetId}`, { method: 'DELETE' });
+            showToast('Friend request cancelled');
+            setFriendshipStatus('none');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to cancel request', 'error');
+        }
+    };
+
+    const handleAcceptRequest = async (targetId: number) => {
+        try {
+            await apiCall(`/user/accept-friend-requests/${targetId}`, { method: 'PUT' });
+            showToast('Friend request accepted');
+            setFriendshipStatus('friend');
+            await onRefresh();
+        } catch (err: any) {
+            showToast(err.message || 'Failed to accept request', 'error');
         }
     };
 
@@ -115,14 +244,14 @@ export default function RoomInfoSidebar({
             </div>
 
             {isPrivate ? (
-                <div className="flex flex-col h-full gap-4 items-center px-5 pt-8 pb-6 border-b border-[var(--border-color)] shrink-0">
+                <div className="flex flex-col h-full gap-4 items-center px-5 pt-8 pb-6 shrink-0">
                     {fetchingInfo ? (
                         <div className="flex items-center gap-2 text-[var(--text-muted)] text-sm py-4">
                             <div className="w-5 h-5 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
                         </div>
                     ) : privatePartner ? (
                         <>
-                            {/* ── Private: avatar bulat ── */}
+                            {/* Avatar */}
                             <div className="relative w-[100px] h-[100px] mb-2">
                                 <div className="w-full h-full rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden shadow-xl border border-[var(--border-color)]">
                                     {privatePartner.user_profile_picture ? (
@@ -136,11 +265,6 @@ export default function RoomInfoSidebar({
                             <div className="text-center">
                                 <div className="flex items-center justify-center gap-1">
                                     <h2 className="text-xl font-bold text-[var(--text-primary)]">{privatePartner.username}</h2>
-                                    {privatePartner.is_verified && (
-                                        <svg viewBox="0 0 24 24" className="w-5 h-5 text-[var(--accent-color)] shrink-0" fill="currentColor">
-                                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    )}
                                 </div>
                                 <p className="text-[13px] text-[var(--text-muted)] mt-0.5">
                                     {onlineUserIds?.has(privatePartner.user_id) ? (
@@ -152,7 +276,7 @@ export default function RoomInfoSidebar({
                             </div>
 
                             {privatePartner.user_bio && (
-                                <div className="w-full mt-4 bg-[var(--bg-primary)] p-4 rounded-xl border border-[var(--border-color)]">
+                                <div className="w-full bg-[var(--bg-primary)] p-4 rounded-xl border border-[var(--border-color)]">
                                     <p className="text-[11px] font-bold text-[var(--text-muted)] tracking-widest uppercase mb-2">Bio</p>
                                     <p className="text-[14px] text-[#cdd9f0] leading-relaxed">{privatePartner.user_bio}</p>
                                 </div>
@@ -241,14 +365,59 @@ export default function RoomInfoSidebar({
                                 </div>
                             )}
 
-                            {privatePartner.created_at && (
-                                <div className="w-full mt-3 bg-[var(--bg-primary)] p-4 rounded-xl border border-[var(--border-color)]">
-                                    <p className="text-[11px] font-bold text-[var(--text-muted)] tracking-widest uppercase mb-2">Joined</p>
-                                    <p className="text-[14px] text-[#cdd9f0]">
-                                        {new Date(privatePartner.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                                    </p>
+                            {/* Shared Images */}
+                            {sharedImages.length > 0 && (
+                                <div className="w-full mt-4 bg-[var(--bg-primary)] p-4 rounded-xl border border-[var(--border-color)]">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase mb-0.5">Gallery</p>
+                                            <p className="text-[13px] font-semibold text-[var(--text-primary)]">Shared Images</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowGallery(true)}
+                                            className="flex items-center gap-0.5 text-[11px] text-[var(--text-muted)] hover:text-[var(--accent-color)] transition-colors font-medium"
+                                        >
+                                            View All <ChevronRight size={13} />
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {sharedImages.slice(0, 5).map((img) => (
+                                            <button
+                                                key={img.id}
+                                                onClick={() => setShowGallery(true)}
+                                                className="aspect-square rounded-md overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-85 active:scale-95 transition-all duration-150 focus:outline-none"
+                                            >
+                                                <img
+                                                    src={getRoomImageUrl(img.content)}
+                                                    alt="shared"
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            </button>
+                                        ))}
+                                        {sharedImages.length >= 6 && (
+                                            <button
+                                                onClick={() => setShowGallery(true)}
+                                                className="aspect-square rounded-md overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-85 active:scale-95 transition-all duration-150 focus:outline-none relative"
+                                            >
+                                                <img
+                                                    src={getRoomImageUrl(sharedImages[5].content)}
+                                                    alt="shared"
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                                {totalImageCount > 6 && (
+                                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-md">
+                                                        <span className="text-white text-[14px] font-bold">+{totalImageCount - 5}</span>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             )}
+
+
 
                             {mutualRooms.length > 0 && (
                                 <div className="w-full mt-3 bg-[var(--bg-primary)] p-4 rounded-xl border border-[var(--border-color)]">
@@ -271,6 +440,62 @@ export default function RoomInfoSidebar({
                                     </div>
                                 </div>
                             )}
+
+                            <div className="w-full mt-4">
+                                {friendshipStatus === 'friend' && (
+                                    <button
+                                        onClick={() => privatePartner && setConfirmUnfriend(true)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl text-xs font-medium text-orange-400 hover:bg-orange-500/10 border border-orange-500/20 transition-colors"
+                                    >
+                                        <UserMinus size={14} />
+                                        Unfriend
+                                    </button>
+                                )}
+                                {friendshipStatus === 'pending_sent' && (
+                                    <button
+                                        onClick={() => privatePartner && setConfirmCancelRequest(true)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl text-xs font-medium text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 transition-colors"
+                                    >
+                                        <UserMinus size={14} />
+                                        Cancel Request
+                                    </button>
+                                )}
+                                {friendshipStatus === 'pending_received' && (
+                                    <button
+                                        onClick={() => privatePartner && handleAcceptRequest(privatePartner.user_id)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+                                    >
+                                        <UserPlus size={14} />
+                                        Accept Request
+                                    </button>
+                                )}
+                                {friendshipStatus === 'none' && (
+                                    <button
+                                        onClick={() => privatePartner && setConfirmAddFriend(true)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 mb-3 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+                                    >
+                                        <UserPlus size={14} />
+                                        Add Friend
+                                    </button>
+                                )}
+                                {isBlocked ? (
+                                    <button
+                                        onClick={() => privatePartner && setConfirmUnblock(true)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors"
+                                    >
+                                        <Shield size={14} />
+                                        Unblock User
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => privatePartner && setConfirmBlock(true)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors"
+                                    >
+                                        <Shield size={14} />
+                                        Block User
+                                    </button>
+                                )}
+                            </div>
                         </>
                     ) : (
                         <p className="text-sm text-[var(--text-muted)] py-4 text-center">Failed to load profile.</p>
@@ -280,7 +505,6 @@ export default function RoomInfoSidebar({
                 <>
                     <div className="flex flex-col items-center px-5 pt-8 pb-6 border-b border-[var(--border-color)] shrink-0">
 
-                        {/* ── Group: avatar bulat + crop modal ── */}
                         <div className="relative w-[104px] h-[104px] group/avatar mb-4">
                             <div className="w-full h-full rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden shadow-xl border border-[var(--border-color)]">
                                 {roomDetails?.picture || roomPicture ? (
@@ -297,7 +521,6 @@ export default function RoomInfoSidebar({
                                     >
                                         <Pencil size={20} className="text-white" />
                                     </button>
-                                    {/* Hidden file input — buka crop modal, BUKAN langsung upload */}
                                     <input
                                         type="file"
                                         ref={pictureInputRef}
@@ -306,7 +529,7 @@ export default function RoomInfoSidebar({
                                         onChange={e => {
                                             const file = e.target.files?.[0];
                                             if (file) {
-                                                setCropFile(file); // ← buka crop modal dulu
+                                                setCropFile(file);
                                                 // Reset input value biar onChange bisa trigger lagi
                                                 e.target.value = '';
                                             }
@@ -418,7 +641,8 @@ export default function RoomInfoSidebar({
                             ) : roomMembers.map(member => {
                                 const isOnline = activeMembers.includes(member.user_id);
                                 const isSelf = member.user_id === user?.id;
-                                const canShowMenu = !isSelf && isAdmin && member.role !== 'admin';
+                                const canShowMenu = !isSelf && member.role !== 'owner';
+                                const canPerformActions = isAdmin && member.role !== 'owner';
 
                                 return (
                                     <div key={member.user_id} className="flex items-center justify-between relative">
@@ -474,26 +698,42 @@ export default function RoomInfoSidebar({
                                                             >
                                                                 <Eye size={14} /> View Profile
                                                             </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setTargetUserId(member.user_id);
-                                                                    handleRoomAction('kick');
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                                                            >
-                                                                <UserMinus size={14} /> Kick
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setTargetUserId(member.user_id);
-                                                                    handleRoomAction('admin');
-                                                                    setOpenMenuId(null);
-                                                                }}
-                                                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-yellow-400 hover:bg-yellow-500/10 transition-colors"
-                                                            >
-                                                                <Shield size={14} /> Make Admin
-                                                            </button>
+                                                            {canPerformActions && member.role === 'member' && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setTargetUserId(member.user_id);
+                                                                        handleRoomAction('admin');
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+                                                                >
+                                                                    <Shield size={14} /> Make Admin
+                                                                </button>
+                                                            )}
+                                                            {canPerformActions && member.role === 'admin' && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setTargetUserId(member.user_id);
+                                                                        handleRoomAction('demote');
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-yellow-400 hover:bg-yellow-500/10 transition-colors"
+                                                                >
+                                                                    <Shield size={14} /> Remove Admin
+                                                                </button>
+                                                            )}
+                                                            {canPerformActions && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setTargetUserId(member.user_id);
+                                                                        handleRoomAction('kick');
+                                                                        setOpenMenuId(null);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                                                                >
+                                                                    <UserMinus size={14} /> Kick
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -563,6 +803,60 @@ export default function RoomInfoSidebar({
                         )}
                     </div>
 
+                    {/* Shared Photos */}
+                    {sharedImages.length > 0 && (
+                        <div className="flex flex-col p-6 border-b border-[var(--border-color)] shrink-0">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase mb-0.5">Gallery</p>
+                                    <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Shared Photos</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowGallery(true)}
+                                    className="flex items-center gap-1 text-[12px] text-[var(--text-muted)] hover:text-[var(--accent-color)] transition-colors font-medium"
+                                >
+                                    View All <ChevronRight size={14} />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                                {sharedImages.slice(0, 5).map((img) => (
+                                    <button
+                                        key={img.id}
+                                        onClick={() => setShowGallery(true)}
+                                        className="aspect-square rounded-xl overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-85 active:scale-95 transition-all duration-150 focus:outline-none"
+                                    >
+                                        <img
+                                            src={getRoomImageUrl(img.content)}
+                                            alt="shared"
+                                            className="w-full h-full object-cover"
+                                            loading="lazy"
+                                        />
+                                    </button>
+                                ))}
+                                {/* overflow counter or last image */}
+                                {sharedImages.length >= 6 && (
+                                    <button
+                                        onClick={() => setShowGallery(true)}
+                                        className="aspect-square rounded-xl overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-85 active:scale-95 transition-all duration-150 focus:outline-none relative"
+                                    >
+                                        <img
+                                            src={getRoomImageUrl(sharedImages[5].content)}
+                                            alt="shared"
+                                            className="w-full h-full object-cover"
+                                            loading="lazy"
+                                        />
+                                        {totalImageCount > 6 && (
+                                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+                                                <span className="text-white text-[15px] font-bold">+{totalImageCount - 5}</span>
+                                            </div>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Room Link */}
                     <div className="flex flex-col p-6 border-b border-[var(--border-color)] shrink-0">
                         <h3 className="text-[11px] font-bold text-[var(--text-muted)] tracking-[0.1em] uppercase mb-4">Room Link</h3>
@@ -588,9 +882,6 @@ export default function RoomInfoSidebar({
                     <div className="flex flex-col p-6 shrink-0">
                         <h3 className="text-[11px] font-bold text-[var(--text-muted)] tracking-[0.1em] uppercase mb-8">Options</h3>
                         <div className="flex flex-col gap-1">
-                            <button className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all mt-1">
-                                <AlertTriangle size={18} /> Report Group
-                            </button>
                             <button onClick={() => setConfirmLeave(true)} disabled={actionLoading} className="flex items-center p-2.5 -mx-2.5 rounded-xl gap-3.5 text-[#f85149] text-[14px] font-medium hover:bg-red-500/10 transition-all disabled:opacity-50">
                                 <LogOut size={18} /> Leave Group
                             </button>
@@ -604,31 +895,16 @@ export default function RoomInfoSidebar({
                                 </button>
                             )}
 
-                            <ConfirmDialog
-                                isOpen={confirmLeave}
-                                title="Leave Room"
-                                description="Are you sure you want to leave this group?"
-                                confirmLabel="Leave Room"
-                                cancelLabel="Cancel"
-                                variant="danger"
-                                loading={actionLoading}
-                                onConfirm={async () => { await handleRoomAction('leave'); setConfirmLeave(false); }}
-                                onCancel={() => setConfirmLeave(false)}
-                            />
-                            <ConfirmDialog
-                                isOpen={confirmDelete}
-                                title="Delete Room"
-                                description="Are you sure you want to delete this room? All messages and members will be permanently removed. This action cannot be undone."
-                                confirmLabel="Delete Room"
-                                cancelLabel="Cancel"
-                                variant="danger"
-                                loading={actionLoading}
-                                onConfirm={async () => { await handleRoomAction('delete'); setConfirmDelete(false); }}
-                                onCancel={() => setConfirmDelete(false)}
-                            />
                         </div>
                     </div>
                 </>
+            )}
+
+            {showGallery && roomId && (
+                <SharedImagesGallery
+                    roomId={roomId}
+                    onClose={() => setShowGallery(false)}
+                />
             )}
 
             {cropFile && (
@@ -671,6 +947,109 @@ export default function RoomInfoSidebar({
                     }}
                 />
             )}
+
+            <ConfirmDialog
+                isOpen={confirmLeave}
+                title="Leave Room"
+                description="Are you sure you want to leave this group?"
+                confirmLabel="Leave Room"
+                cancelLabel="Cancel"
+                variant="danger"
+                loading={actionLoading}
+                onConfirm={async () => { await handleRoomAction('leave'); setConfirmLeave(false); }}
+                onCancel={() => setConfirmLeave(false)}
+            />
+            <ConfirmDialog
+                isOpen={confirmDelete}
+                title="Delete Room"
+                description="Are you sure you want to delete this room? All messages and members will be permanently removed. This action cannot be undone."
+                confirmLabel="Delete Room"
+                cancelLabel="Cancel"
+                variant="danger"
+                loading={actionLoading}
+                onConfirm={async () => { await handleRoomAction('delete'); setConfirmDelete(false); }}
+                onCancel={() => setConfirmDelete(false)}
+            />
+            <ConfirmDialog
+                isOpen={confirmUnfriend}
+                title="Unfriend User"
+                description={`Are you sure you want to unfriend ${privatePartner?.username}?`}
+                confirmLabel="Unfriend"
+                cancelLabel="Cancel"
+                variant="danger"
+                loading={loadingUnfriend}
+                onConfirm={async () => {
+                    setLoadingUnfriend(true);
+                    await handleUnfriend(privatePartner!.user_id);
+                    setLoadingUnfriend(false);
+                    setConfirmUnfriend(false);
+                }}
+                onCancel={() => setConfirmUnfriend(false)}
+            />
+            <ConfirmDialog
+                isOpen={confirmBlock}
+                title="Block User"
+                description={`Are you sure you want to block ${privatePartner?.username}? They will no longer be able to message you or see your profile.`}
+                confirmLabel="Block"
+                cancelLabel="Cancel"
+                variant="danger"
+                loading={loadingBlock}
+                onConfirm={async () => {
+                    setLoadingBlock(true);
+                    await handleBlock(privatePartner!.user_id);
+                    setLoadingBlock(false);
+                    setConfirmBlock(false);
+                }}
+                onCancel={() => setConfirmBlock(false)}
+            />
+            <ConfirmDialog
+                isOpen={confirmUnblock}
+                title="Unblock User"
+                description={`Are you sure you want to unblock ${privatePartner?.username}?`}
+                confirmLabel="Unblock"
+                cancelLabel="Cancel"
+                variant="warning"
+                loading={loadingUnblock}
+                onConfirm={async () => {
+                    setLoadingUnblock(true);
+                    await handleUnblock(privatePartner!.user_id);
+                    setLoadingUnblock(false);
+                    setConfirmUnblock(false);
+                }}
+                onCancel={() => setConfirmUnblock(false)}
+            />
+            <ConfirmDialog
+                isOpen={confirmAddFriend}
+                title="Add Friend"
+                description={`Send friend request to ${privatePartner?.username}?`}
+                confirmLabel="Send Request"
+                cancelLabel="Cancel"
+                variant="warning"
+                loading={loadingAddFriend}
+                onConfirm={async () => {
+                    setLoadingAddFriend(true);
+                    await handleAddFriend(privatePartner!.user_id);
+                    setLoadingAddFriend(false);
+                    setConfirmAddFriend(false);
+                }}
+                onCancel={() => setConfirmAddFriend(false)}
+            />
+            <ConfirmDialog
+                isOpen={confirmCancelRequest}
+                title="Cancel Request"
+                description={`Cancel friend request to ${privatePartner?.username}?`}
+                confirmLabel="Cancel Request"
+                cancelLabel="Cancel"
+                variant="danger"
+                loading={loadingCancelRequest}
+                onConfirm={async () => {
+                    setLoadingCancelRequest(true);
+                    await handleCancelRequest(privatePartner!.user_id);
+                    setLoadingCancelRequest(false);
+                    setConfirmCancelRequest(false);
+                }}
+                onCancel={() => setConfirmCancelRequest(false)}
+            />
         </div>
     );
 }

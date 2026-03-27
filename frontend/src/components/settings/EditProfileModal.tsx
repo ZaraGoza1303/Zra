@@ -16,6 +16,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
     const { showToast } = useToastStore();
 
     const [name, setName] = useState(user?.name || "");
+    const [username, setUsername] = useState(user?.username || "");
     const [bio, setBio] = useState(user?.bio || "");
     const [previewUrl, setPreviewUrl] = useState(
         user?.profile_picture ? getUserImageUrl(user.profile_picture) : ""
@@ -52,6 +53,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
             const formData = new FormData();
             formData.append("name", name);
             formData.append("bio", bio);
+            formData.append("username", username);
             if (tempFile) {
                 formData.append("file", tempFile);
             }
@@ -65,6 +67,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
                 loginState(token, {
                     ...user,
                     name: response.data.name || user.name,
+                    username: response.data.username || user.username,
                     bio: response.data.bio || user.bio,
                     profile_picture: response.data.profile_picture || user.profile_picture,
                 });
@@ -127,6 +130,20 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
                                 className="hidden"
                             />
                             <p className="text-xs text-[var(--text-muted)]">Click to change profile picture</p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] text-[var(--text-secondary)] font-bold tracking-widest uppercase">Username</label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-6.5 -translate-y-1/2 text-[var(--text-muted)] font-medium">@</span>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full bg-[var(--bg-primary)] border border-transparent rounded-2xl pl-7 pl-9 pr-6 py-4 text-sm focus:border-[var(--accent-color)] outline-none transition-all placeholder:text-[var(--text-muted)]"
+                                    placeholder="username"
+                                />
+                            </div>
                         </div>
 
                         <div className="space-y-2">

@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { useDashboardStore } from '../store/dashboardStore';
 import { apiCall, getUserImageUrl } from '../services/api';
+import { formatLastMessage } from '../utils/roomUtils';
 import ChatRoom from '../components/chat/ChatRoom';
 import ContactsPanel from '../components/contact/ContactsPanel';
 import ProfileModal from '../components/ProfileModal';
@@ -123,7 +124,20 @@ export default function Dashboard() {
         }
 
         const currentToken = useAuthStore.getState().token;
-        if (!currentToken) return;
+        if (!currentToken) {
+            return;
+        }
+
+        // Cleanup previous
+        if (reconnectTimeout.current) {
+            clearTimeout(reconnectTimeout.current);
+            reconnectTimeout.current = null;
+        }
+        if (globalWs.current) {
+            globalWs.current.onclose = null;
+            globalWs.current.close();
+            globalWs.current = null;
+        }
 
         const wsBaseUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
         const ws = new WebSocket(`${wsBaseUrl}/ws/global?token=${currentToken}`);
@@ -137,7 +151,6 @@ export default function Dashboard() {
         ws.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
-                console.log('[GLOBAL-WS-RECEIVE] Type:', msg.type, 'RoomID:', msg.room_id, 'ID:', msg.id, 'UserID:', msg.user_id);
 
                 if (msg.type === 'chat' || msg.type === 'sticker' || msg.type === 'image') {
                     const { rooms, allRooms } = useDashboardStore.getState();
@@ -194,6 +207,12 @@ export default function Dashboard() {
                     setFriendRequestNotif(prev => prev + 1);
                 } else if (msg.type === 'friend_accepted') {
                     setFriendAcceptedNotif(prev => prev + 1);
+                } else if (msg.type === 'added-to-room') {
+                    apiCall<{ data: Room[] }>('/room').then(resp => {
+                        if (resp.data) {
+                            setAllRoomsRef.current(sortByLatest(resp.data));
+                        }
+                    }).catch(console.error);
                 }
             } catch (e) {
                 console.error('Failed to parse WS message', e);
@@ -278,6 +297,11 @@ export default function Dashboard() {
             // Fallback: fetch from API if allRooms is empty
             const resp = await apiCall<{ data: Room[] }>(`/room?search=${searchTermVal}`);
             const roomsData = resp.data || [];
+
+            console.log('[DEBUG-API-ROOMS] Raw response:', resp.data);
+            if (resp.data && resp.data.length > 0) {
+                console.log('[DEBUG-API-ROOMS] First room last_message sample:', resp.data[0].last_message);
+            }
 
             let filtered = roomsData;
             if (activeNav === 'rooms') {
@@ -693,8 +717,15 @@ export default function Dashboard() {
                                                         <span className="text-xs text-[var(--text-muted)] truncate max-w-[150px]">
                                                             {room.last_message ? (
                                                                 <>
-                                                                    <span className="font-semibold text-[var(--accent-color)]">{room.last_message.username}: </span>
-                                                                    {room.last_message.content}
+                                                                    {room.type !== 'private' && room.last_message.username && (
+                                                                        <span className="font-semibold text-[var(--accent-color)]">{room.last_message.username}: </span>
+                                                                    )}
+                                                                    {room.last_message.type === 'image' ? (
+                                                                        <>
+                                                                            <ImageIcon size={12} className="inline mr-0.5" />
+                                                                            {formatLastMessage(room.last_message, room.type)}
+                                                                        </>
+                                                                    ) : formatLastMessage(room.last_message, room.type)}
                                                                 </>
                                                             ) : (
                                                                 <span className="italic opacity-60">No messages yet</span>

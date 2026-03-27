@@ -112,6 +112,7 @@ export default function Login() {
             bio: resp.data.bio || "",
             profile_picture: resp.data.profile_picture,
             refresh_token: resp.data.refresh_token,
+            created_at: resp.data.created_at,
           } as User);
           navigate(redirectTo);
         } catch (e) {

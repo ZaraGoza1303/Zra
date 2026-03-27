@@ -54,15 +54,11 @@ function App() {
     try {
       const newToken = await apiRefreshToken();
       if (newToken) {
-        console.log('✅ App: Token refreshed at', new Date().toLocaleTimeString());
         return true;
       }
-      // Refresh returned null → refresh_token sudah invalid
-      console.warn('⚠️ App: Refresh token invalid, logging out');
       logoutState();
       return false;
     } catch (error) {
-      console.error('❌ App: Failed to refresh token:', error);
       logoutState();
       return false;
     } finally {
@@ -93,13 +89,10 @@ function App() {
     const msUntilRefresh = msUntilExpiry - REFRESH_BUFFER_MS;
 
     if (msUntilRefresh <= 0) {
-      // Token sudah expired / hampir expired → refresh sekarang
-      console.log('🔄 App: Token near/past expiry, refreshing now...');
       doRefresh().then(ok => { if (ok) scheduleNextRefresh(); });
       return;
     }
 
-    console.log(`⏰ App: Next refresh in ${Math.round(msUntilRefresh / 1000)}s (token expires in ${Math.round(msUntilExpiry / 1000)}s)`);
     refreshTimeoutRef.current = window.setTimeout(async () => {
       const ok = await doRefresh();
       if (ok) scheduleNextRefresh();
