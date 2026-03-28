@@ -204,9 +204,8 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 	}
 
 	var profilePicture string
-
 	if user.ProfilePicture != nil {
-		profilePicture = *user.ProfilePicture
+		profilePicture = helper.NormalizeImagePath(*user.ProfilePicture, s.backendUrl, s.usersPath)
 	}
 
 	response := dto.UserLoginResponse{

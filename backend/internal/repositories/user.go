@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -530,21 +531,33 @@ func (u *userRepositories) UnblockUser(ctx context.Context, userId, blockedId ui
 }
 
 // GetBlockedUsers implements [core.UserRepositories].
-func (u *userRepositories) GetBlockedUsers(ctx context.Context, userId uint) ([]models.User, error) {
+func (u *userRepositories) GetBlockedUsers(ctx context.Context, userId uint, limit, cursor int) ([]models.User, *uint, error) {
 	var blockedUsers []models.User
 
-	result := u.DB.WithContext(ctx).
+	query := u.DB.WithContext(ctx).
 		Model(&models.Block{}).
 		Joins("JOIN users ON users.id = blocks.blocked_id").
 		Where("blocks.user_id = ?", userId).
-		Select("users.id, users.email, users.username, users.name, users.profile_picture, users.bio, users.created_at, users.updated_at").
-		Find(&blockedUsers)
+		Order("blocks.blocked_id DESC").
+		Limit(limit)
 
-	if result.Error != nil {
-		return nil, result.Error
+	if cursor > 0 {
+		query = query.Where("id < ?", cursor)
 	}
 
-	return blockedUsers, nil
+	if err := query.
+		Select("users.id, users.email, users.username, users.name, users.profile_picture, users.bio, users.created_at, users.updated_at").
+		Find(&blockedUsers).Error; err != nil {
+		return nil, nil, err
+	}
+
+	var nextCursor *uint
+	if len(blockedUsers) == limit {
+		last := blockedUsers[len(blockedUsers)-1].ID
+		nextCursor = &last
+	}
+
+	return blockedUsers, nextCursor, nil
 }
 
 // IsBlocked implements [core.UserRepositories].
@@ -583,22 +596,34 @@ func (u *userRepositories) GetSettings(ctx context.Context, userId uint) (*model
 
 // UpsertSettings implements [core.UserRepositories].
 func (u *userRepositories) UpsertSettings(ctx context.Context, settings *models.UserSettings) error {
-	result := u.DB.WithContext(ctx).
-		Where("user_id = ?", settings.UserID).
-		Assign(models.UserSettings{
-			ProfileVisibility: settings.ProfileVisibility,
-			LastSeen:          settings.LastSeen,
-			ReadReceipts:      settings.ReadReceipts,
-			MessageNotif:      settings.MessageNotif,
-			GroupNotif:        settings.GroupNotif,
-			Sound:             settings.Sound,
-			Preview:           settings.Preview,
-		}).
-		FirstOrCreate(settings)
+	log.Printf("[UpsertSettings] userId=%d, ReadReceipts=%v, MessageNotif=%v, GroupNotif=%v, Sound=%v",
+		settings.UserID, settings.ReadReceipts, settings.MessageNotif, settings.GroupNotif, settings.Sound)
+
+	// Check if settings exist for this user
+	var existing models.UserSettings
+	result := u.DB.WithContext(ctx).Where("user_id = ?", settings.UserID).First(&existing)
 
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			// Create new settings
+			log.Printf("[UpsertSettings] Creating new settings for user %d", settings.UserID)
+			result = u.DB.WithContext(ctx).Create(settings)
+		} else {
+			return result.Error
+		}
+	} else {
+		// Update existing settings
+		log.Printf("[UpsertSettings] Updating existing settings for user %d (existing ID: %d)", settings.UserID, existing.ID)
+		settings.ID = existing.ID
+		result = u.DB.WithContext(ctx).Save(settings)
+	}
+
+	if result.Error != nil {
+		log.Printf("[UpsertSettings] Error: %v", result.Error)
 		return result.Error
 	}
+
+	log.Printf("[UpsertSettings] Success!")
 
 	return nil
 }

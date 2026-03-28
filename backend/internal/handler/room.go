@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 	"gorm.io/gorm"
 )
 
@@ -41,7 +42,8 @@ func NewRoom(router fiber.Router, roomService core.RoomServices, cachedRoomServi
 	route.Get("/room/:target_id/mutual", handler.FindMutualRooms)
 	route.Get("/room/:id/private", handler.GetPrivateRoom)
 	route.Post("/room", handler.CreateRoom)
-	route.Post("/room/upload-image", handler.UploadImage)
+	route.Post("/room/upload-images", handler.UploadImages)
+	route.Post("/room/upload-files", handler.UploadFiles)
 	route.Post("/room/:id/private", handler.MakePrivateRoom)
 	route.Post("room/:id/join", handler.JoinRoom)
 	route.Post("room/:id/add-member", handler.AddMember)
@@ -183,41 +185,98 @@ func (h *roomHandler) CreateRoom(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(dto.SendSuccessfulResponse("Room Created", nil))
 }
 
-func (h *roomHandler) UploadImage(c *fiber.Ctx) error {
+func (h *roomHandler) UploadImages(c *fiber.Ctx) error {
 	ctx, cancel := helper.GetCtx(c)
 	defer cancel()
 
-	file, err := c.FormFile("file")
+	form, err := c.MultipartForm()
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	if file.Size > 10*1024*1024 {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("File Too Large"))
+	files := form.File["files"]
+	if len(files) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("No files uploaded"))
 	}
 
-	kind, err := helper.CheckFileType(file)
-	if err != nil || kind == filetype.Unknown {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+	maxFileSize := 10 * 1024 * 1024
+	var imgUrls []string
+
+	for _, file := range files {
+		if file.Size > int64(maxFileSize) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("File Too Large"))
+		}
+
+		kind, err := helper.CheckFileType(file)
+		if err != nil || kind == types.Unknown {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+
+		allowed := map[string]bool{
+			"jpg":  true,
+			"png":  true,
+			"webp": true,
+			"gif":  true,
+		}
+
+		if !allowed[kind.Extension] {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Invalid File Type"))
+		}
+
+		fileUrl, err := h.roomServices.UploadFile(ctx, file)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
+		}
+
+		imgUrls = append(imgUrls, fileUrl)
 	}
+
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Uploaded", imgUrls))
+}
+
+func (h roomHandler) UploadFiles(c *fiber.Ctx) error {
+	ctx, cancel := helper.GetCtx(c)
+	defer cancel()
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Failed to parse form"))
+	}
+
+	files := form.File["files"]
+	if len(files) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("No files uploaded"))
+	}
+
+	maxFileSize := 10 * 1024 * 1024
+	var uploadedUrls []string
 
 	allowed := map[string]bool{
-		"jpg":  true,
-		"png":  true,
-		"webp": true,
-		"gif":  true,
+		"application/pdf": true,
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+		"application/x-7z-compressed": true,
+		"application/zip":             true,
 	}
 
-	if !allowed[kind.Extension] {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Invalid File Type"))
+	for _, file := range files {
+		if file.Size > int64(maxFileSize) {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("File " + file.Filename + " is too large"))
+		}
+
+		kind, err := helper.CheckFileType(file)
+		if err != nil || kind == types.Unknown || !allowed[kind.MIME.Value] {
+			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Invalid file type for: " + file.Filename))
+		}
+
+		fileUrl, err := h.roomServices.UploadFile(ctx, file)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse("Failed to upload: " + file.Filename))
+		}
+
+		uploadedUrls = append(uploadedUrls, fileUrl)
 	}
 
-	fileUrl, err := h.roomServices.SendImage(ctx, file)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse(err.Error()))
-	}
-
-	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Uploaded", fileUrl))
+	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Successfully Uploaded All Files", uploadedUrls))
 }
 
 func (h *roomHandler) GetPrivateRoom(c *fiber.Ctx) error {

@@ -6,6 +6,12 @@ type Response struct {
 	Data    interface{} `json:"data"`
 }
 
+type PaginatedResponse[T any, C any] struct {
+	Message    string `json:"message"`
+	Data       []T    `json:"data"`
+	NextCursor *C     `json:"next_cursor"`
+}
+
 func SendErrorResponse(message string) Response {
 	return Response{
 		Success: false,

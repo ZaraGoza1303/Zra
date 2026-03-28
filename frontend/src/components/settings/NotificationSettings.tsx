@@ -2,45 +2,18 @@ import { useState, useEffect } from 'react';
 import { Bell, MessageSquare, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { apiCall } from '../../services/api';
 import { useToastStore } from '../../store/toastStore';
+import { useSettingsStore } from '../../store/settingsStore';
 
-interface UserSettings {
-    profile_visibility: string;
-    last_seen: string;
-    read_receipts: boolean;
-    message_notif: boolean;
-    group_notif: boolean;
-    sound: boolean;
-    preview: boolean;
-}
 
 export default function NotificationSettings() {
     const { showToast } = useToastStore();
+    const settings = useSettingsStore();
+    const { fetchSettings, updateSettings } = settings;
     const [loading, setLoading] = useState(true);
 
-    const [messageNotifications, setMessageNotifications] = useState(true);
-    const [groupNotifications, setGroupNotifications] = useState(true);
-    const [sound, setSound] = useState(true);
-    const [showPreview, setShowPreview] = useState(true);
-
     useEffect(() => {
-        fetchSettings();
+        fetchSettings().finally(() => setLoading(false));
     }, []);
-
-    const fetchSettings = async () => {
-        try {
-            const res = await apiCall<{ data: UserSettings }>('/user/settings');
-            if (res?.data) {
-                setMessageNotifications(res.data.message_notif);
-                setGroupNotifications(res.data.group_notif);
-                setSound(res.data.sound);
-                setShowPreview(res.data.preview);
-            }
-        } catch (err) {
-            console.error('Failed to fetch settings:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const updateNotificationSettings = async (key: string, value: boolean) => {
         try {
@@ -50,29 +23,23 @@ export default function NotificationSettings() {
                     [key]: value,
                 }),
             });
+            updateSettings({ [key]: value });
+            showToast('Settings saved', 'success');
         } catch (err: any) {
             showToast(err.message || 'Failed to save settings', 'error');
         }
     };
 
     const handleMessageNotifChange = (value: boolean) => {
-        setMessageNotifications(value);
         updateNotificationSettings('message_notif', value);
     };
 
     const handleGroupNotifChange = (value: boolean) => {
-        setGroupNotifications(value);
         updateNotificationSettings('group_notif', value);
     };
 
     const handleSoundChange = (value: boolean) => {
-        setSound(value);
         updateNotificationSettings('sound', value);
-    };
-
-    const handlePreviewChange = (value: boolean) => {
-        setShowPreview(value);
-        updateNotificationSettings('preview', value);
     };
 
     if (loading) {
@@ -106,7 +73,7 @@ export default function NotificationSettings() {
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    checked={messageNotifications}
+                                    checked={settings.message_notif}
                                     onChange={(e) => handleMessageNotifChange(e.target.checked)}
                                     className="sr-only peer"
                                 />
@@ -131,7 +98,7 @@ export default function NotificationSettings() {
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    checked={groupNotifications}
+                                    checked={settings.group_notif}
                                     onChange={(e) => handleGroupNotifChange(e.target.checked)}
                                     className="sr-only peer"
                                 />
@@ -143,7 +110,7 @@ export default function NotificationSettings() {
 
                 <section className="mb-8">
                     <div className="flex items-center gap-3 mb-4">
-                        {sound ? <Volume2 size={20} className="text-[var(--accent-color)]" /> : <VolumeX size={20} className="text-[var(--accent-color)]" />}
+                        {settings.sound ? <Volume2 size={20} className="text-[var(--accent-color)]" /> : <VolumeX size={20} className="text-[var(--accent-color)]" />}
                         <h2 className="text-lg font-semibold">Sound</h2>
                     </div>
 
@@ -156,33 +123,8 @@ export default function NotificationSettings() {
                             <label className="relative inline-flex items-center cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    checked={sound}
+                                    checked={settings.sound}
                                     onChange={(e) => handleSoundChange(e.target.checked)}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-[var(--bg-tertiary)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent-color)]"></div>
-                            </label>
-                        </div>
-                    </div>
-                </section>
-
-                <section className="mb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                        <Bell size={20} className="text-[var(--accent-color)]" />
-                        <h2 className="text-lg font-semibold">Message Preview</h2>
-                    </div>
-
-                    <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--border-color)]">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium">Show message preview</p>
-                                <p className="text-xs text-[var(--text-secondary)]">Show message content in notifications</p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={showPreview}
-                                    onChange={(e) => handlePreviewChange(e.target.checked)}
                                     className="sr-only peer"
                                 />
                                 <div className="w-11 h-6 bg-[var(--bg-tertiary)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--accent-color)]"></div>

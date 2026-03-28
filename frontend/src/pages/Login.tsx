@@ -1,7 +1,7 @@
 // src/pages/Login.tsx
 import React from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, Box } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import { apiCall } from "../services/api";
 import { BACKEND_URL } from "../config";
@@ -151,8 +151,8 @@ export default function Login() {
             <div className="glass-card rounded-[2rem] px-6 md:px-8 py-6 md:py-8 shadow-2xl relative">
               {/* Brand & Header */}
               <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-12 h-12 bg-[#1a3a5f] rounded-2xl mb-5 shadow-lg shadow-[#3b82f6]/10 border border-[#3b82f6]/20">
-                  <Box className="text-[#3b82f6]" size={28} />
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-5 shadow-sm shadow-[#3b82f6]/10 border border-[#3b82f6]/20">
+                  <img src="/zra.svg" alt="Zra" className="w-8 h-8" />
                 </div>
                 <h1 className="text-2xl font-bold tracking-tight text-[#f1f5f9] mb-2 font-headline">Welcome Back</h1>
                 <p className="text-[#94a3b8] text-xs font-medium">Continue your conversations to Zra</p>

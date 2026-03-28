@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useDashboardStore } from '../store/dashboardStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { apiCall, getUserImageUrl } from '../services/api';
 import { formatLastMessage } from '../utils/roomUtils';
 import ChatRoom from '../components/chat/ChatRoom';
@@ -26,6 +27,7 @@ import { useToastStore } from '../store/toastStore';
 import IncomingCallPopup from '../components/call/IncomingCallPopup';
 import CallOverlay from '../components/call/CallOverlay';
 import { useCallManager } from '../hooks/useCallManager';
+import { useNotificationSound } from '../hooks/useNotificationSound';
 import ImageCropModal from '../components/ImageCropModal';
 
 
@@ -68,8 +70,14 @@ export default function Dashboard() {
     const contactsNotif = friendRequestNotif + friendAcceptedNotif;
 
     const { allRooms, setAllRooms } = useDashboardStore();
-    const unreadGroups = allRooms.filter(r => r.type === 'group').reduce((sum, r) => sum + (r.unread_message ?? 0), 0);
-    const unreadPrivate = allRooms.filter(r => r.type === 'private').reduce((sum, r) => sum + (r.unread_message ?? 0), 0);
+    const settings = useSettingsStore();
+    const { playNotificationSound } = useNotificationSound();
+    const unreadGroups = allRooms
+        .filter(r => r.type === 'group' && settings.group_notif)
+        .reduce((sum, r) => sum + (r.unread_message ?? 0), 0);
+    const unreadPrivate = allRooms
+        .filter(r => r.type === 'private' && settings.message_notif)
+        .reduce((sum, r) => sum + (r.unread_message ?? 0), 0);
     const unreadAll = unreadGroups + unreadPrivate;
     const unreadHomeOnly = activeNav === 'rooms' ? unreadPrivate : activeNav === 'chats' ? unreadGroups : unreadAll;
 
@@ -153,46 +161,45 @@ export default function Dashboard() {
                 const msg = JSON.parse(event.data);
 
                 if (msg.type === 'chat' || msg.type === 'sticker' || msg.type === 'image') {
-                    const { rooms, allRooms } = useDashboardStore.getState();
-                    const setAllRooms = setAllRoomsRef.current;
-                    const setRooms = setRoomsRef.current;
-                    const activeNav = activeNavRef.current;
+                    const roomId = String(msg.room_id || msg.RoomID || "");
 
-                    const isSentByMe = msg.user_id === userRef.current?.id;
-                    const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === msg.room_id ||
-                        useDashboardStore.getState().dmRoom?.id === msg.room_id;
+                    const isSentByMe = (msg.user_id || msg.UserID) === userRef.current?.id;
+                    const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === roomId ||
+                        useDashboardStore.getState().dmRoom?.id === roomId;
 
-                    const notificationMsg = {
-                        id: msg.id || `notif-${Date.now()}`,
-                        room_id: msg.room_id,
-                        user_id: msg.user_id,
-                        username: msg.username,
-                        name: msg.name,
-                        profile_picture: msg.profile_picture,
-                        content: msg.content || 'New message',
-                        type: msg.type,
-                        time_stamp: msg.time_stamp || new Date().toISOString(),
-                        sent_at: msg.time_stamp || new Date().toISOString(),
+                    console.log('[DEBUG-WS-MESSAGE] Received message:', {
+                        roomId,
+                        isSentByMe,
+                        isActiveRoom
+                    });
+
+                    const contentMap: Record<string, string> = {
+                        'sticker': '🎭 Sticker',
+                        'image': '📷 Image'
                     };
 
-                    if (!isActiveRoom && !isSentByMe) {
-                        setAllRooms(allRooms.map(r =>
-                            r.id === msg.room_id
-                                ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
-                                : r
-                        ));
-                    } else {
-                        setAllRooms(allRooms.map(r =>
-                            r.id === msg.room_id
-                                ? { ...r, last_message: notificationMsg }
-                                : r
-                        ));
-                    }
+                    const notificationMsg = {
+                        id: msg.id || msg.ID || `notif-${Date.now()}`,
+                        room_id: roomId,
+                        user_id: msg.user_id || msg.UserID,
+                        username: msg.username || msg.Username,
+                        name: msg.name || msg.Name,
+                        profile_picture: msg.profile_picture || msg.ProfilePicture,
+                        content: msg.type === 'chat' ? (msg.content || 'New message') : (contentMap[msg.type] || 'New message'),
+                        type: msg.type,
+                        time_stamp: msg.time_stamp || msg.TimeStamp || new Date().toISOString(),
+                        sent_at: msg.time_stamp || msg.TimeStamp || new Date().toISOString(),
+                    };
 
-                    if (activeNav === 'home' || (activeNav === 'rooms') || (activeNav === 'chats')) {
-                        setRooms(sortByLatest(rooms.map(r =>
-                            r.id === msg.room_id ? { ...r, last_message: notificationMsg } : r
-                        )));
+                    const unreadIncrement = (!isActiveRoom && !isSentByMe) ? 1 : 0;
+                    useDashboardStore.getState().handleNewMessage(roomId, notificationMsg, unreadIncrement, user?.id || 0);
+
+                    if (!isActiveRoom && !isSentByMe) {
+                        const currentRoom = useDashboardStore.getState().allRooms.find(r => r.id === roomId);
+                        const roomType = currentRoom?.type || 'private';
+                        const settings = useSettingsStore.getState();
+                        const shouldNotify = roomType === 'group' ? settings.group_notif : settings.message_notif;
+                        if (shouldNotify) playNotificationSound();
                     }
                 } else if (msg.type === 'call_signal' && handleCallSignalRef.current) {
                     handleCallSignalRef.current(msg);
@@ -204,10 +211,12 @@ export default function Dashboard() {
                         next.delete(msg.user_id);
                         return next;
                     });
-                } else if (msg.type === 'friend_request') {
+                } else if (msg.type === 'friend-request') {
                     setFriendRequestNotif(prev => prev + 1);
-                } else if (msg.type === 'friend_accepted') {
+                    useToastStore.getState().showToast(`New friend request from ${msg.username}`);
+                } else if (msg.type === 'friend-accepted') {
                     setFriendAcceptedNotif(prev => prev + 1);
+                    useToastStore.getState().showToast(`${msg.username} accepted your friend request`);
                 } else if (msg.type === 'added-to-room') {
                     apiCall<{ data: Room[] }>('/room').then(resp => {
                         if (resp.data) {
@@ -236,6 +245,7 @@ export default function Dashboard() {
     useEffect(() => {
         isDashboardMounted.current = true;
         connectGlobalWs();
+        useSettingsStore.getState().fetchSettings();
         return () => {
             // Only cleanup when truly unmounting, not when dependencies change
             isDashboardMounted.current = false;
@@ -497,15 +507,13 @@ export default function Dashboard() {
                     onClick={() => setActiveNav('home')}
                     className={`flex items-center gap-3 mb-2 cursor-pointer group ${activeNav !== 'settings' ? 'justify-center' : 'px-2'}`}
                 >
-                    <div className="w-10 h-10 rounded-xl bg-[var(--accent-color)] flex items-center justify-center shadow-lg shadow-[var(--accent-color)]/20 group-hover:scale-105 transition-transform shrink-0">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                            <path d="M13,2 L3,14 L12,14 L11,22 L21,10 L12,10 L13,2 Z" />
-                        </svg>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center">
+                        <img src="/zra.svg" alt="Zra" className="w-8 h-8 rounded-sm" />
                     </div>
                     {activeNav === 'settings' && (
                         <div className="animate-fade-in whitespace-nowrap overflow-hidden">
-                            <h1 className="text-sm font-bold tracking-tight text-[var(--text-primary)] leading-none">Midnight</h1>
-                            <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase">Cobalt Messenger</p>
+                            <h1 className="text-sm font-bold tracking-tight text-[var(--text-primary)] leading-none">Zra</h1>
+                            <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase">Chat Messenger</p>
                         </div>
                     )}
                 </div>
@@ -755,26 +763,21 @@ export default function Dashboard() {
                                     roomType={dmRoom ? 'private' : (selectedRoom?.type ?? 'group')}
                                     onBack={() => { setSelectedRoom(null); setDmRoom(null); }}
                                     onNewMessage={(msgRoomId: string, message: LastMessage) => {
-                                        const { allRooms, setAllRooms, rooms, setRooms } = useDashboardStore.getState();
                                         const notificationMsg = {
                                             id: `notif-${Date.now()}`,
                                             room_id: msgRoomId,
-                                            user_id: message.user_id || user?.id,
+                                            user_id: message.user_id || userRef.current?.id,
                                             username: message.username,
-                                            name: message.name || (message.user_id === user?.id ? user?.name : undefined),
-                                            profile_picture: message.profile_picture || (message.user_id === user?.id ? user?.profile_picture : undefined),
+                                            name: message.name || (message.user_id === userRef.current?.id ? userRef.current?.name : undefined),
+                                            profile_picture: message.profile_picture || (message.user_id === userRef.current?.id ? userRef.current?.profile_picture : undefined),
                                             content: message.content || 'New message',
                                             type: message.type || 'chat',
                                             time_stamp: message.sent_at,
                                             sent_at: message.sent_at,
                                         };
 
-                                        setAllRooms(allRooms.map(r =>
-                                            r.id === msgRoomId ? { ...r, last_message: notificationMsg } : r
-                                        ));
-                                        setRooms(rooms.map(r =>
-                                            r.id === msgRoomId ? { ...r, last_message: notificationMsg } : r
-                                        ));
+                                        useDashboardStore.getState().markRoomAsRead(msgRoomId);
+                                        useDashboardStore.getState().handleNewMessage(msgRoomId, notificationMsg, 0, userRef.current?.id || 0);
                                     }}
                                     onRoomResolved={(resolvedRoomId: string) => {
                                         fetchRooms();

@@ -551,12 +551,19 @@ func (h *userHandler) GetBlockedUsers(c *fiber.Ctx) error {
 	userId := c.Locals("user_id")
 	ctx = context.WithValue(ctx, "user_id", userId)
 
-	users, err := h.UserServices.GetBlockedUsers(ctx)
+	limit := 10
+	cursor := c.QueryInt("cursor", 0)
+
+	users, nextCursor, err := h.UserServices.GetBlockedUsers(ctx, limit, cursor)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))
 	}
 
-	return c.Status(fiber.StatusOK).JSON(dto.SendSuccessfulResponse("Blocked users list", users))
+	return c.Status(fiber.StatusOK).JSON(dto.PaginatedResponse[dto.UserResponse, uint]{
+		Message:    "Blocked Users List",
+		Data:       users,
+		NextCursor: nextCursor,
+	})
 }
 
 func (h *userHandler) GetSettings(c *fiber.Ctx) error {

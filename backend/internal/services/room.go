@@ -526,7 +526,7 @@ func (r *roomServices) MakePrivateRoom(ctx context.Context, user_id uint, target
 }
 
 // SendImage implements [core.RoomServices].
-func (r *roomServices) SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
+func (r *roomServices) UploadFile(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
 	fileName, err := r.storageServices.UploadFile("uploads", fileHeader)
 	if err != nil {
 		return "", err
@@ -1099,18 +1099,30 @@ func (r *roomServices) UpdateLastReadMessages(ctx context.Context, room_id strin
 		return err
 	}
 
+	settings, err := r.userRepositories.GetSettings(ctx, userId)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	shouldSendReadReceipt := true
+	if settings != nil && !settings.ReadReceipts {
+		shouldSendReadReceipt = false
+	}
+
 	if err := r.roomRepositories.UpdateReadMessages(ctx, room_id, userId, time.Now()); err != nil {
 		return err
 	}
 
-	if err := r.roomRepositories.MarkMessageRead(ctx, room_id, userId); err != nil {
-		return err
-	}
+	if shouldSendReadReceipt {
+		if err := r.roomRepositories.MarkMessageRead(ctx, room_id, userId); err != nil {
+			return err
+		}
 
-	r.hub.Broadcast <- dto.Message{
-		RoomID: room_id,
-		UserID: userId,
-		Type:   "readed",
+		r.hub.Broadcast <- dto.Message{
+			RoomID: room_id,
+			UserID: userId,
+			Type:   "readed",
+		}
 	}
 
 	return nil

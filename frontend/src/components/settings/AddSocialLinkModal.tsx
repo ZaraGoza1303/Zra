@@ -18,6 +18,61 @@ const PLATFORMS: {
         { id: "reddit", name: "Reddit", color: "#FF4500", darkColor: "#FF4500", buttonColor: "#FF4500", placeholder: "https://reddit.com/u/username", domain: "reddit.com" },
     ];
 
+function validateUrl(platform: SocialPlatform, url: string): string | null {
+    let u: URL;
+    try {
+        u = new URL(url);
+    } catch {
+        return "Invalid URL.";
+    }
+
+    const meta = PLATFORMS.find((p) => p.id === platform)!;
+    if (!url.toLowerCase().includes(meta.domain)) {
+        return `URL must be from ${meta.name}.`;
+    }
+
+    const parts = u.pathname.split("/").filter(Boolean);
+
+    switch (platform) {
+        case "youtube": {
+            if (parts.length === 0) return "Enter a valid YouTube channel, e.g., https://youtube.com/@channelname";
+            const first = parts[0];
+            if (first.startsWith("@") && first.length > 1) return null;
+            if (["channel", "c", "user"].includes(first) && parts[1]?.length > 0) return null;
+            return "Invalid format. Example: https://youtube.com/@channelname";
+        }
+
+        case "instagram": {
+            const reserved = new Set(["p", "explore", "reels", "stories", "accounts", "tv"]);
+            if (parts.length === 0 || reserved.has(parts[0])) {
+                return "Enter a valid Instagram username, e.g., https://instagram.com/username";
+            }
+            if (parts[0].length < 1) return "Username cannot be empty.";
+            return null;
+        }
+
+        case "github": {
+            const reserved = new Set(["features", "pricing", "about", "login", "join", "explore", "marketplace", "topics", "trending", "collections"]);
+            if (parts.length === 0 || reserved.has(parts[0])) {
+                return "Enter a valid GitHub username, e.g., https://github.com/username";
+            }
+            return null;
+        }
+
+        case "reddit": {
+            if (
+                parts.length >= 2 &&
+                (parts[0] === "u" || parts[0] === "user") &&
+                parts[1].length > 0
+            ) return null;
+            return "Invalid format. Example: https://reddit.com/u/username";
+        }
+
+        default:
+            return null;
+    }
+}
+
 function parseUsername(platform: SocialPlatform, url: string): string {
     try {
         const u = new URL(url);
@@ -114,19 +169,13 @@ export default function AddSocialLinkModal({ existingLinks, onClose, onSave, loa
         const trimmed = urlInput.trim();
 
         if (!trimmed) {
-            setUrlError("URL tidak boleh kosong.");
-            return;
-        }
-        try {
-            new URL(trimmed);
-        } catch {
-            setUrlError("URL tidak valid.");
+            setUrlError("URL cannot be empty.");
             return;
         }
 
-        const meta = platformMeta(selectedPlatform);
-        if (!trimmed.toLowerCase().includes(meta.domain)) {
-            setUrlError(`URL harus dari ${meta.name}.`);
+        const error = validateUrl(selectedPlatform, trimmed);
+        if (error) {
+            setUrlError(error);
             return;
         }
 

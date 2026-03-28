@@ -194,5 +194,20 @@ export const updateSocialLink = (linkId: number, data: { type?: string; url?: st
 export const deleteSocialLink = (linkId: number) =>
   apiCall(`/user/social-link/${linkId}`, { method: 'DELETE' });
 
-export const getBlockedUsers = () =>
-  apiCall<{ data: { id: number }[] }>('/user/blocked-list', { method: 'GET' });
+export interface BlockedUser {
+  id: number;
+  name: string;
+  username: string;
+  profile_picture?: string;
+}
+
+export const getBlockedUsers = (cursor?: number, limit?: number) => {
+  const params = new URLSearchParams();
+  if (cursor !== undefined) params.set('cursor', cursor.toString());
+  if (limit !== undefined) params.set('limit', limit.toString());
+  const query = params.toString();
+  return apiCall<{ data: BlockedUser[], next_cursor: number | null }>(
+    `/user/blocked-list${query ? `?${query}` : ''}`,
+    { method: 'GET' }
+  );
+};

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Shield, Users, Eye, EyeOff, UserX, Loader2 } from 'lucide-react';
-import { apiCall } from '../../services/api';
+import { Shield, Users, Eye, EyeOff, UserX, Loader2, User, ChevronRight } from 'lucide-react';
+import { apiCall, getBlockedUsers, getUserImageUrl } from '../../services/api';
 import { useToastStore } from '../../store/toastStore';
+import { useSettingsStore } from '../../store/settingsStore';
+import BlockedUsersModal from './BlockedUsersModal';
+import ConfirmDialog from '../ui/ConfirmDialog';
 
 interface BlockedUser {
     id: number;
@@ -10,70 +13,84 @@ interface BlockedUser {
     profile_picture?: string;
 }
 
-interface UserSettings {
-    profile_visibility: string;
-    last_seen: string;
-    read_receipts: boolean;
-    message_notif: boolean;
-    group_notif: boolean;
-    sound: boolean;
-    preview: boolean;
-}
-
-interface PrivacySettingsProps {
-}
-
-export default function PrivacySettings({ }: PrivacySettingsProps) {
+export default function PrivacySettings() {
     const { showToast } = useToastStore();
+    const settings = useSettingsStore();
+    const { fetchSettings, updateSettings } = settings;
     const [loading, setLoading] = useState(true);
 
     const [profileVisibility, setProfileVisibility] = useState<'public' | 'friends' | 'private'>('public');
     const [lastSeen, setLastSeen] = useState<'everyone' | 'friends' | 'nobody'>('everyone');
-    const [readReceipts, setReadReceipts] = useState(true);
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+    const [hasMoreBlocked, setHasMoreBlocked] = useState(false);
+    const [showAllModal, setShowAllModal] = useState(false);
     const [unblockingId, setUnblockingId] = useState<number | null>(null);
 
     useEffect(() => {
-        fetchSettings();
+        fetchSettings().finally(() => setLoading(false));
         fetchBlockedUsers();
     }, []);
 
-    const fetchSettings = async () => {
-        try {
-            const res = await apiCall<{ data: UserSettings }>('/user/settings');
-            if (res?.data) {
-                setProfileVisibility(res.data.profile_visibility as 'public' | 'friends' | 'private');
-                setLastSeen(res.data.last_seen as 'everyone' | 'friends' | 'nobody');
-                setReadReceipts(res.data.read_receipts);
-            }
-        } catch (err) {
-            console.error('Failed to fetch settings:', err);
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (!settings.isLoading) {
+            setProfileVisibility(settings.profile_visibility as any || 'public');
+            setLastSeen(settings.last_seen as any || 'everyone');
         }
-    };
+    }, [settings.profile_visibility, settings.last_seen, settings.isLoading]);
 
     const fetchBlockedUsers = async () => {
         try {
-            const res = await apiCall<{ data: BlockedUser[] }>('/user/blocked-list');
+            const res = await getBlockedUsers(0, 5);
             if (res?.data) {
                 setBlockedUsers(res.data);
+                setHasMoreBlocked(res.data.length > 5);
             }
         } catch (err) {
             console.error('Failed to fetch blocked users:', err);
         }
     };
 
-    const updatePrivacySettings = async () => {
+    const handleUnblockFromModal = (userId: number) => {
+        setBlockedUsers(prev => prev.filter(u => u.id !== userId));
+    };
+
+    const [confirmUnblock, setConfirmUnblock] = useState<number | null>(null);
+
+    const handleUnblockClick = (userId: number) => {
+        setConfirmUnblock(userId);
+    };
+
+    const userToUnblock = confirmUnblock !== null ? blockedUsers.find(u => u.id === confirmUnblock) : null;
+
+    const confirmHandleUnblock = async () => {
+        if (confirmUnblock === null) return;
+        setUnblockingId(confirmUnblock);
+        try {
+            await apiCall(`/user/block/${confirmUnblock}`, { method: 'DELETE' });
+            setBlockedUsers(prev => prev.filter(u => u.id !== confirmUnblock));
+            showToast('User unblocked');
+        } catch (err: any) {
+            showToast(err.message || 'Failed to unblock user', 'error');
+        } finally {
+            setUnblockingId(null);
+            setConfirmUnblock(null);
+        }
+    };
+
+    const updatePrivacySettings = async (updates?: { profile_visibility?: string; last_seen?: string; read_receipts?: boolean }) => {
         try {
             await apiCall('/user/settings', {
                 method: 'PUT',
                 body: JSON.stringify({
-                    profile_visibility: profileVisibility,
-                    last_seen: lastSeen,
-                    read_receipts: readReceipts,
+                    profile_visibility: updates?.profile_visibility ?? profileVisibility,
+                    last_seen: updates?.last_seen ?? lastSeen,
+                    read_receipts: updates?.read_receipts ?? settings.read_receipts,
                 }),
             });
+
+            if (updates) {
+                updateSettings(updates as any);
+            }
         } catch (err: any) {
             showToast(err.message || 'Failed to save settings', 'error');
         }
@@ -81,30 +98,16 @@ export default function PrivacySettings({ }: PrivacySettingsProps) {
 
     const handleVisibilityChange = (value: 'public' | 'friends' | 'private') => {
         setProfileVisibility(value);
-        updatePrivacySettings();
+        updatePrivacySettings({ profile_visibility: value });
     };
 
     const handleLastSeenChange = (value: 'everyone' | 'friends' | 'nobody') => {
         setLastSeen(value);
-        updatePrivacySettings();
+        updatePrivacySettings({ last_seen: value });
     };
 
     const handleReadReceiptsChange = (value: boolean) => {
-        setReadReceipts(value);
-        updatePrivacySettings();
-    };
-
-    const handleUnblock = async (userId: number) => {
-        setUnblockingId(userId);
-        try {
-            await apiCall(`/user/block/${userId}`, { method: 'DELETE' });
-            setBlockedUsers(prev => prev.filter(u => u.id !== userId));
-            showToast('User unblocked');
-        } catch (err: any) {
-            showToast(err.message || 'Failed to unblock user', 'error');
-        } finally {
-            setUnblockingId(null);
-        }
+        updatePrivacySettings({ read_receipts: value });
     };
 
     if (loading) {
@@ -221,7 +224,7 @@ export default function PrivacySettings({ }: PrivacySettingsProps) {
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={readReceipts}
+                                checked={settings.read_receipts}
                                 onChange={(e) => handleReadReceiptsChange(e.target.checked)}
                                 className="sr-only peer"
                             />
@@ -231,9 +234,19 @@ export default function PrivacySettings({ }: PrivacySettingsProps) {
                 </section>
 
                 <section className="mb-10">
-                    <div className="flex items-center gap-3 mb-6">
-                        <UserX size={20} className="text-[var(--accent-color)]" />
-                        <h2 className="text-lg font-semibold">Blocked Users</h2>
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <UserX size={20} className="text-[var(--accent-color)]" />
+                            <h2 className="text-lg font-semibold">Blocked Users</h2>
+                        </div>
+                        {hasMoreBlocked && (
+                            <button
+                                onClick={() => setShowAllModal(true)}
+                                className="text-sm text-[var(--accent-color)] hover:underline flex items-center gap-1"
+                            >
+                                View all <ChevronRight size={16} />
+                            </button>
+                        )}
                     </div>
 
                     <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--border-color)]">
@@ -250,12 +263,25 @@ export default function PrivacySettings({ }: PrivacySettingsProps) {
                                         key={user.id}
                                         className="flex items-center justify-between p-3 bg-[var(--bg-primary)] rounded-xl"
                                     >
-                                        <div>
-                                            <p className="text-sm font-medium">{user.name}</p>
-                                            <p className="text-xs text-[var(--text-muted)]">@{user.username}</p>
+                                        <div className="flex items-center gap-3">
+                                            {user.profile_picture ? (
+                                                <img
+                                                    src={getUserImageUrl(user.profile_picture)}
+                                                    alt={user.name}
+                                                    className="w-10 h-10 rounded-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
+                                                    <User size={20} className="text-[var(--text-muted)]" />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <p className="text-sm font-medium">{user.name}</p>
+                                                <p className="text-xs text-[var(--text-muted)]">@{user.username}</p>
+                                            </div>
                                         </div>
                                         <button
-                                            onClick={() => handleUnblock(user.id)}
+                                            onClick={() => handleUnblockClick(user.id)}
                                             disabled={unblockingId === user.id}
                                             className="text-xs text-[var(--accent-color)] hover:underline disabled:opacity-50"
                                         >
@@ -267,6 +293,24 @@ export default function PrivacySettings({ }: PrivacySettingsProps) {
                         )}
                     </div>
                 </section>
+
+                <BlockedUsersModal
+                    isOpen={showAllModal}
+                    onClose={() => setShowAllModal(false)}
+                    onUnblock={handleUnblockFromModal}
+                />
+
+                <ConfirmDialog
+                    isOpen={confirmUnblock !== null}
+                    title="Unblock User"
+                    description={`Are you sure you want to unblock @${userToUnblock?.username}?`}
+                    confirmLabel="Unblock"
+                    cancelLabel="Cancel"
+                    variant="warning"
+                    loading={unblockingId !== null}
+                    onConfirm={confirmHandleUnblock}
+                    onCancel={() => setConfirmUnblock(null)}
+                />
 
                 <section>
                     <div className="bg-[var(--bg-secondary)] rounded-2xl p-6 border border-[var(--border-color)] flex items-center gap-4">

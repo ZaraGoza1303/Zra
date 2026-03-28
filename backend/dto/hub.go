@@ -110,19 +110,6 @@ func (h *Hub) handleSignal(message Message) {
 		return
 	}
 
-	// Skip kalau target lagi aktif di room yang sama (udah nerima dari Broadcast)
-	if message.Type == "chat" || message.Type == "message_notification" {
-		h.RoomMu.RLock()
-		roomClients := h.Rooms[message.RoomID]
-		for client := range roomClients {
-			if client.UserID == message.ToID {
-				h.RoomMu.RUnlock()
-				return // udah nerima dari broadcast, skip
-			}
-		}
-		h.RoomMu.RUnlock()
-	}
-
 	select {
 	case target.Send <- message:
 		if message.Type == "user-offline" || message.Type == "user-online" || message.Type == "call-busy" {

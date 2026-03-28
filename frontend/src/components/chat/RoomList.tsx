@@ -1,5 +1,6 @@
 import { useAuthStore } from '../../store/authStore';
 import { useDashboardStore } from '../../store/dashboardStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { formatTime } from '../../utils/dateUtils';
 import { formatLastMessage } from '../../utils/roomUtils';
 import { MessageSquare, User, Users } from 'lucide-react';
@@ -14,6 +15,14 @@ interface RoomListProps {
 export default function RoomList({ activeNav, onSelectRoom, onlineUserIds }: RoomListProps) {
     const { user } = useAuthStore();
     const { rooms, selectedRoom, searchTerm, setSearchTerm } = useDashboardStore();
+    const settings = useSettingsStore();
+
+    const shouldShowBadge = (room: Room) => {
+        if (!room.unread_message || room.unread_message <= 0) return false;
+        if (room.type === 'group' && !settings.group_notif) return false;
+        if (room.type === 'private' && !settings.message_notif) return false;
+        return true;
+    };
 
     return (
         <div className="flex flex-col w-[300px] min-w-[260px] bg-[var(--bg-primary)] border-r border-[var(--border-color)]">
@@ -72,9 +81,9 @@ export default function RoomList({ activeNav, onSelectRoom, onlineUserIds }: Roo
                                         </div>
                                     )}
 
-                                    {room.unread_message && room.unread_message > 0 ? (
+                                    {shouldShowBadge(room) ? (
                                         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent-color)] text-white text-[10px] font-bold flex items-center justify-center border-2 border-[var(--bg-primary)]">
-                                            {room.unread_message > 99 ? '99+' : room.unread_message}
+                                            {(room.unread_message ?? 0) > 99 ? '99+' : room.unread_message}
                                         </span>
                                     ) : isPrivate && otherMember && onlineUserIds.has(otherMember.user_id) ? (
                                         <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[var(--bg-primary)]" />

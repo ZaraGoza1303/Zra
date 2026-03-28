@@ -527,6 +527,7 @@ func (r *roomRepositories) GetMediaMessages(ctx context.Context, roomId string, 
 func (r *roomRepositories) MarkMessageRead(ctx context.Context, room_id string, user_id uint) error {
 	result := r.DB.WithContext(ctx).Model(&models.Message{}).
 		Where("room_id = ? AND user_id != ? AND is_read = false", room_id, user_id).
+		Where("user_id IN (SELECT user_id FROM user_settings WHERE read_receipts = ?)", true).
 		Update("is_read", true)
 
 	if result.Error != nil {

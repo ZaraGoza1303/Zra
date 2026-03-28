@@ -36,9 +36,18 @@ export default function SettingsView() {
     const isDark = mode === 'dark';
     const { showToast } = useToastStore();
 
-    const [previewUrl] = useState<string>(
+    const [previewUrl, setPreviewUrl] = useState<string>(
         user?.profile_picture ? getUserImageUrl(user.profile_picture) : ""
     );
+
+    // Sync previewUrl when user profile picture changes
+    useEffect(() => {
+        if (user?.profile_picture) {
+            setPreviewUrl(getUserImageUrl(user.profile_picture));
+        } else {
+            setPreviewUrl("");
+        }
+    }, [user?.profile_picture]);
 
     // Social links state
     const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);

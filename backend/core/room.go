@@ -60,7 +60,7 @@ type RoomServices interface {
 	GetMemberCount(ctx context.Context, room_id string) (int64, error)
 	GetPrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
 	MakePrivateRoom(ctx context.Context, user_id uint, target_id uint) (string, error)
-	SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error)
+	UploadFile(ctx context.Context, fileHeader *multipart.FileHeader) (string, error)
 	TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error)
 	TakeMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) (*dto.MediaResponse, error)
 	JoinRoom(ctx context.Context, room_id string) error

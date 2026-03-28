@@ -245,7 +245,8 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 		h.hub.Broadcast <- msg
 
 		go func(msg dto.Message) {
-			room, err := h.roomService.FindById(context.Background(), msg.RoomID)
+			ctx := context.WithValue(context.Background(), "user_id", msg.UserID)
+			room, err := h.roomService.FindById(ctx, msg.RoomID)
 			if err != nil {
 				log.Printf("Failed to get room: %v", err)
 				return

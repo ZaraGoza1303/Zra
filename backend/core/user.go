@@ -45,7 +45,7 @@ type UserRepositories interface {
 	// Block
 	BlockUser(ctx context.Context, block *models.Block) error
 	UnblockUser(ctx context.Context, userId, blockedId uint) error
-	GetBlockedUsers(ctx context.Context, userId uint) ([]models.User, error)
+	GetBlockedUsers(ctx context.Context, userId uint, limit, cursor int) ([]models.User, *uint, error)
 	IsBlocked(ctx context.Context, userId, blockedId uint) (bool, error)
 
 	// Settings
@@ -74,7 +74,7 @@ type UserServices interface {
 	UpdateSocialLink(ctx context.Context, linkId uint, req *dto.UpdateSocialLinkRequest) error
 	Delete(ctx context.Context, id uint) error
 	RemoveSocialLink(ctx context.Context, linkId uint) error
-	Unfriend(ctx context.Context, target_id uint) error
+	Unfriend(ctx2 context.Context, target_id uint) error
 	RejectFriendRequest(ctx context.Context, target_id uint) error
 	CancelFriendRequest(ctx context.Context, target_id uint) error
 	GetFriendshipStatus(ctx context.Context, target_id uint) (*dto.FriendshipStatusResponse, error)
@@ -93,7 +93,7 @@ type UserServices interface {
 	// Block
 	BlockUser(ctx context.Context, targetId uint) error
 	UnblockUser(ctx context.Context, targetId uint) error
-	GetBlockedUsers(ctx context.Context) ([]dto.UserResponse, error)
+	GetBlockedUsers(ctx context.Context, limit, cursor int) ([]dto.UserResponse, *uint, error)
 	IsBlocked(ctx context.Context, targetId uint) (bool, error)
 
 	// Settings

@@ -4,6 +4,7 @@ import { useChatStore } from '../store/chatStore';
 import { apiCall } from '../services/api';
 import { useDashboardStore } from '../store/dashboardStore';
 import { useToastStore } from '../store/toastStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { BACKEND_URL } from '../config';
 
 export interface ChatWebSocketCallbacks {
@@ -57,7 +58,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
 
                 if (msg.type === 'chat') {
                     if (msg.user_id !== user?.id) {
-                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        const settings = useSettingsStore.getState();
+                        if (settings.read_receipts) {
+                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        }
                         setMessages(prev => {
                             if (prev.some(m => m.id === msg.id)) return prev;
                             return [...prev, { ...msg, status: 'sent' }];
@@ -110,7 +114,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
 
                 if (msg.type === 'sticker') {
                     if (msg.user_id !== user?.id) {
-                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        const settings = useSettingsStore.getState();
+                        if (settings.read_receipts) {
+                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        }
                         setMessages(prev => {
                             if (prev.some(m => m.id === msg.id)) return prev;
                             return [...prev, { ...msg, status: 'sent' }];
@@ -127,7 +134,10 @@ export function useChatWebSocket({ roomId, callbacks }: UseChatWebSocketOptions)
 
                 if (msg.type === 'image') {
                     if (msg.user_id !== user?.id) {
-                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        const settings = useSettingsStore.getState();
+                        if (settings.read_receipts) {
+                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        }
                         setMessages(prev => {
                             if (prev.some(m => m.id === msg.id)) return prev;
                             return [...prev, { ...msg, status: 'sent' }];

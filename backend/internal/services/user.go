@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -63,7 +64,7 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 
 		item := dto.UserResponse{
 			ID:             user.ID,
-			Email:          user.Email,
+			Email:          "", // Email hidden by default
 			Provider:       provider,
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
@@ -72,10 +73,15 @@ func (u *userServices) FindAll(ctx context.Context, filter string) ([]dto.UserRe
 			CreatedAt:      user.CreatedAt,
 		}
 
+		if user.ID == currentUserId {
+			item.Email = user.Email
+		}
+
 		if !visible {
 			item.Name = ""
 			item.Bio = ""
 			item.ProfilePicture = ""
+			item.Email = ""
 		}
 
 		response = append(response, item)
@@ -110,7 +116,7 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 	response := dto.UserResponse{
 		ID:             user.ID,
 		ProfilePicture: profilePicture,
-		Email:          user.Email,
+		Email:          "", // Email hidden by default
 		Provider:       provider,
 		Username:       user.Username,
 		Name:           user.Name,
@@ -119,7 +125,16 @@ func (u *userServices) FindByUsername(ctx context.Context, username string) (*dt
 		CreatedAt:      user.CreatedAt,
 	}
 
-	if visible {
+	if user.ID == currentUserId {
+		response.Email = user.Email
+	}
+
+	if !visible {
+		response.Name = ""
+		response.Bio = ""
+		response.ProfilePicture = ""
+		response.Email = ""
+	} else {
 		response.Bio = user.Bio
 	}
 
@@ -244,7 +259,7 @@ func (u *userServices) FindListFriendRequest(ctx context.Context, filter string)
 
 		item := dto.UserResponse{
 			ID:             user.ID,
-			Email:          user.Email,
+			Email:          "", // Email never exposed in friend request lists
 			Provider:       provider,
 			ProfilePicture: profilePicture,
 			Username:       user.Username,
@@ -1221,15 +1236,15 @@ func (u *userServices) UnblockUser(ctx context.Context, targetId uint) error {
 }
 
 // GetBlockedUsers implements [core.UserServices].
-func (u *userServices) GetBlockedUsers(ctx context.Context) ([]dto.UserResponse, error) {
+func (u *userServices) GetBlockedUsers(ctx context.Context, limit, cursor int) ([]dto.UserResponse, *uint, error) {
 	userId, ok := ctx.Value("user_id").(uint)
 	if !ok {
-		return nil, fmt.Errorf("user_id not found")
+		return nil, nil, fmt.Errorf("user_id not found")
 	}
 
-	users, err := u.UserRepositories.GetBlockedUsers(ctx, userId)
+	users, nextCursor, err := u.UserRepositories.GetBlockedUsers(ctx, userId, limit, cursor)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var response []dto.UserResponse
@@ -1253,7 +1268,7 @@ func (u *userServices) GetBlockedUsers(ctx context.Context) ([]dto.UserResponse,
 		response = append(response, item)
 	}
 
-	return response, nil
+	return response, nextCursor, nil
 }
 
 // IsBlocked implements [core.UserServices].
@@ -1311,6 +1326,10 @@ func (u *userServices) UpdateSettings(ctx context.Context, req *dto.UpdateUserSe
 	userId, ok := ctx.Value("user_id").(uint)
 	if !ok {
 		return nil, fmt.Errorf("user_id not found")
+	}
+
+	if req.ReadReceipts != nil {
+		log.Printf("[UpdateSettings] userId=%d, req.ReadReceipts=%v", userId, *req.ReadReceipts)
 	}
 
 	settings, err := u.UserRepositories.GetSettings(ctx, userId)

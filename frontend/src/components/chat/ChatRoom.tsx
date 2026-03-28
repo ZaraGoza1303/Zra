@@ -13,6 +13,7 @@ import MembersModal from './MembersModal';
 import type { Message, ChatRoomProps, RoomMember, RoomResponse, UserProfile, SocialLink } from '../../types/chat';
 import { useDashboardStore } from '../../store/dashboardStore';
 import { useToastStore } from '../../store/toastStore';
+import { useSettingsStore } from '../../store/settingsStore';
 
 export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBack, onNewMessage, onRoomResolved, onlineUserIds, privatePartnerInfo, onOpenDM }: ChatRoomProps) {
     const isPrivate = roomType === 'private';
@@ -456,11 +457,15 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 if (msg.type === 'chat') {
                     if (msg.user_id !== user?.id) {
-                        console.log('[WS-RECEIVE] Adding chat message to list, current count:', messages.length);
-                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        const settings = useSettingsStore.getState();
+                        const isActive = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
+                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
+
+                        if (settings.read_receipts && isActive) {
+                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        }
                         setMessages(prev => {
                             if (prev.some(m => m.id === msg.id)) {
-                                console.log('[WS-RECEIVE] Duplicate message detected, skipping:', msg.id);
                                 return prev;
                             }
                             return [...prev, { ...msg, status: 'sent' }];
@@ -473,28 +478,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             profile_picture: msg.profile_picture,
                             sent_at: msg.time_stamp,
                         });
-
-                        const { allRooms, setAllRooms } = useDashboardStore.getState();
-                        const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
-                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
-                        if (!isActiveRoom) {
-                            const notificationMsg = {
-                                id: msg.id || `notif-${Date.now()}`,
-                                room_id: actualRoomId,
-                                user_id: msg.user_id,
-                                username: msg.username,
-                                profile_picture: msg.profile_picture,
-                                content: msg.content || 'New message',
-                                type: msg.type,
-                                time_stamp: msg.time_stamp || new Date().toISOString(),
-                                sent_at: msg.time_stamp || new Date().toISOString(),
-                            };
-                            setAllRooms(allRooms.map(r =>
-                                r.id === actualRoomId
-                                    ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
-                                    : r
-                            ));
-                        }
                     }
                     return;
                 }
@@ -516,15 +499,17 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 }
 
                 if (msg.type === 'readed') {
-                    // msg.user_id = yang sudah baca (bukan pengirim)
-                    if (msg.user_id !== user?.id) {
-                        setMessages(prev =>
-                            prev.map(m =>
-                                m.user_id === user?.id && m.status === 'sent'
-                                    ? { ...m, status: 'read' }
-                                    : m
-                            )
-                        );
+                    const settings = useSettingsStore.getState();
+                    if (settings.read_receipts) {
+                        if (msg.user_id !== user?.id) {
+                            setMessages(prev =>
+                                prev.map(m =>
+                                    m.user_id === user?.id && m.status === 'sent'
+                                        ? { ...m, status: 'read' }
+                                        : m
+                                )
+                            );
+                        }
                     }
                     return;
                 }
@@ -543,7 +528,13 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 if (msg.type === 'sticker') {
                     if (msg.user_id !== user?.id) {
-                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        const settings = useSettingsStore.getState();
+                        const isActive = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
+                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
+
+                        if (settings.read_receipts && isActive) {
+                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        }
                         setMessages(prev => {
                             if (prev.some(m => m.id === msg.id)) return prev;
                             return [...prev, { ...msg, status: 'sent' }];
@@ -557,35 +548,19 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             sent_at: msg.time_stamp,
                             type: 'sticker'
                         });
-
-                        const { allRooms, setAllRooms } = useDashboardStore.getState();
-                        const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
-                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
-                        if (!isActiveRoom) {
-                            const notificationMsg = {
-                                id: msg.id || `notif-${Date.now()}`,
-                                room_id: actualRoomId,
-                                user_id: msg.user_id,
-                                username: msg.username,
-                                profile_picture: msg.profile_picture,
-                                content: '🎭 Sticker',
-                                type: msg.type,
-                                time_stamp: msg.time_stamp || new Date().toISOString(),
-                                sent_at: msg.time_stamp || new Date().toISOString(),
-                            };
-                            setAllRooms(allRooms.map(r =>
-                                r.id === actualRoomId
-                                    ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
-                                    : r
-                            ));
-                        }
                     }
                     return;
                 }
 
                 if (msg.type === 'image') {
                     if (msg.user_id !== user?.id) {
-                        apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        const settings = useSettingsStore.getState();
+                        const isActive = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
+                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
+
+                        if (settings.read_receipts && isActive) {
+                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
+                        }
                         setMessages(prev => {
                             if (prev.some(m => m.id === msg.id)) return prev;
                             return [...prev, { ...msg, status: 'sent' }];
@@ -599,28 +574,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             sent_at: msg.time_stamp,
                             type: 'image',
                         });
-
-                        const { allRooms, setAllRooms } = useDashboardStore.getState();
-                        const isActiveRoom = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
-                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
-                        if (!isActiveRoom) {
-                            const notificationMsg = {
-                                id: msg.id || `notif-${Date.now()}`,
-                                room_id: actualRoomId,
-                                user_id: msg.user_id,
-                                username: msg.username,
-                                profile_picture: msg.profile_picture,
-                                content: '📷 Image',
-                                type: msg.type,
-                                time_stamp: msg.time_stamp || new Date().toISOString(),
-                                sent_at: msg.time_stamp || new Date().toISOString(),
-                            };
-                            setAllRooms(allRooms.map(r =>
-                                r.id === actualRoomId
-                                    ? { ...r, unread_message: (r.unread_message || 0) + 1, last_message: notificationMsg }
-                                    : r
-                            ));
-                        }
                     }
                     return;
                 }
@@ -696,6 +649,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             return;
         }
 
+        // Set active room WS status handled in connectWs onopen
         if (isPendingRoom) {
             console.log('[DEBUG-USEFFECT] Pending room branch, resolvedRoomId.current:', resolvedRoomId.current, 'roomId:', roomId);
 
@@ -799,8 +753,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
         return () => {
             isInitializing.current = false;
-
             if (ws.current) {
+                ws.current.onmessage = null;
                 ws.current.close();
                 ws.current = null;
             }
@@ -845,7 +799,13 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         if (!roomId || isPendingRoom) return;
         const markAsRead = async () => {
             try {
-                await apiCall(`/room/${roomId}/read`, { method: 'PUT' });
+                const settings = useSettingsStore.getState();
+                const isActive = useDashboardStore.getState().selectedRoom?.id === roomId ||
+                    useDashboardStore.getState().dmRoom?.id === roomId;
+
+                if (settings.read_receipts && isActive) {
+                    await apiCall(`/room/${roomId}/read`, { method: 'PUT' });
+                }
                 updateRoom(roomId, { unread_message: 0 });
             } catch (e) {
                 console.error('Failed to mark as read', e);

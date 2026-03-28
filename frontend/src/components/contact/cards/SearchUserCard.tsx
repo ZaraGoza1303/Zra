@@ -27,7 +27,7 @@ export default function SearchUserCard({ user, onViewDetail, onDirectMessage, dm
                 <p className="text-xs text-[var(--text-muted)] truncate">@{user.username}</p>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-                {!isSelf ? (
+                {!isSelf && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -39,17 +39,13 @@ export default function SearchUserCard({ user, onViewDetail, onDirectMessage, dm
                     >
                         {dmLoading ? <Loader2 size={15} className="animate-spin" /> : <MessageSquare size={15} />}
                     </button>
-                ) : (
-                    <button disabled className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] opacity-30 cursor-not-allowed">
-                        <MessageSquare size={15} />
-                    </button>
                 )}
 
-                {!isSelf && onViewDetail && (
+                {!isSelf && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            onViewDetail();
+                            onViewDetail?.();
                         }}
                         title="View Profile"
                         className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:bg-[var(--accent-color)]/15 hover:text-[var(--accent-color)] transition-colors"

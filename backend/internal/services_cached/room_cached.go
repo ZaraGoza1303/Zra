@@ -102,8 +102,8 @@ func (r *cachedRoomServices) MakePrivateRoom(ctx context.Context, user_id uint, 
 }
 
 // SendImage implements [core.RoomServices].
-func (r *cachedRoomServices) SendImage(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
-	return r.roomServices.SendImage(ctx, fileHeader)
+func (r *cachedRoomServices) UploadFile(ctx context.Context, fileHeader *multipart.FileHeader) (string, error) {
+	return r.roomServices.UploadFile(ctx, fileHeader)
 }
 
 // TakeChatHistory implements [core.RoomServices].
