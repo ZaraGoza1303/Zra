@@ -2,10 +2,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     LogOut, Plus, Search, MessageSquare, Image as ImageIcon,
-    Settings, Home, Users, Bell, X,
+    Settings, Home, Users, Bell, X, Smile,
     User as UserIcon,
     Grid2x2,
-    Shield
+    Shield,
+    FileText
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useDashboardStore } from '../store/dashboardStore';
@@ -160,7 +161,7 @@ export default function Dashboard() {
             try {
                 const msg = JSON.parse(event.data);
 
-                if (msg.type === 'chat' || msg.type === 'sticker' || msg.type === 'image') {
+                if (['chat', 'sticker', 'image', 'file'].includes(msg.type)) {
                     const roomId = String(msg.room_id || msg.RoomID || "");
 
                     const isSentByMe = (msg.user_id || msg.UserID) === userRef.current?.id;
@@ -174,8 +175,9 @@ export default function Dashboard() {
                     });
 
                     const contentMap: Record<string, string> = {
-                        'sticker': '🎭 Sticker',
-                        'image': '📷 Image'
+                        'sticker': 'Sticker',
+                        'image': 'Image',
+                        'file': 'Document'
                     };
 
                     const notificationMsg = {
@@ -732,6 +734,16 @@ export default function Dashboard() {
                                                                     {room.last_message.type === 'image' ? (
                                                                         <>
                                                                             <ImageIcon size={12} className="inline mr-0.5" />
+                                                                            {formatLastMessage(room.last_message, room.type)}
+                                                                        </>
+                                                                    ) : room.last_message.type === 'file' ? (
+                                                                        <>
+                                                                            <FileText size={12} className="inline mr-0.5 text-[var(--accent-color)]" />
+                                                                            {formatLastMessage(room.last_message, room.type)}
+                                                                        </>
+                                                                    ) : room.last_message.type === 'sticker' ? (
+                                                                        <>
+                                                                            <Smile size={12} className="inline mr-0.5 text-yellow-500" />
                                                                             {formatLastMessage(room.last_message, room.type)}
                                                                         </>
                                                                     ) : formatLastMessage(room.last_message, room.type)}

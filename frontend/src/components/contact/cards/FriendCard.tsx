@@ -2,6 +2,7 @@ import { MessageSquare, MoreVertical, Star, UserX } from 'lucide-react';
 import Avatar from '../Avatar';
 import type { SearchedUser } from '../../../types/contacts';
 import { useToastStore } from '../../../store/toastStore';
+import { formatLastSeen } from '../../../utils/dateUtils';
 
 interface Props {
     user: SearchedUser;
@@ -25,16 +26,12 @@ export default function FriendCard({ user, onViewDetail, onStartChat, onUnfriend
                 <div className="flex-1 min-w-0">
                     <h3 className="text-base font-semibold text-[var(--text-primary)] truncate">{user.name}</h3>
                     <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-xs font-medium ${isOnline ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`}>
-                            {isOnline ? 'Online' : 'Offline'}
-                        </span>
                         {isOnline ? (
-                            <span className="w-1 h-1 rounded-full bg-emerald-500/50" />
+                            <span className="text-xs font-medium text-emerald-500">Online</span>
                         ) : (
-                            <>
-                                <span className="w-1 h-1 rounded-full bg-[var(--text-muted)]/30" />
-                                <span className="text-[10px] text-[var(--text-muted)]">Away</span>
-                            </>
+                            <span className={`text-xs font-medium ${isOnline ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`}>
+                                {formatLastSeen(user.last_seen_at)}
+                            </span>
                         )}
                     </div>
                 </div>

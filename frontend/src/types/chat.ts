@@ -14,6 +14,7 @@ export interface Message {
     status?: MessageStatus;
     is_read?: boolean;
     caption?: string;
+    file_name?: string;
     edited_message_id?: string;
     reply_to_id?: string;
     reply_to?: Message;
@@ -29,6 +30,7 @@ export interface LastMessage {
     sent_at: string;
     type?: string;
     caption?: string;
+    file_name?: string;
 }
 
 export interface ChatRoomProps {
@@ -58,6 +60,7 @@ export interface RoomMember {
     name?: string;
     user_bio?: string;
     role?: string;
+    last_seen_at?: string;
     is_verified?: boolean;
     created_at?: string;
 }

@@ -37,5 +37,9 @@ export const formatLastMessage = (msg?: LastMessage, _roomType?: string): string
         return 'Sticker';
     }
 
+    if (msg.type === 'file') {
+        return msg.file_name || msg.caption || 'Document';
+    }
+
     return msg.content;
 };

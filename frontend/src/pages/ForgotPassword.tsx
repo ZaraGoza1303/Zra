@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, KeyRound, ArrowLeft } from 'lucide-react';
 import { apiCall } from '../services/api';
+import { isValidEmail } from '../utils/validationUtils';
 
 export default function ForgotPassword() {
     const [email, setEmail] = React.useState('');
@@ -14,6 +15,11 @@ export default function ForgotPassword() {
         e.preventDefault();
         if (!email) {
             setError('Please fill in your email address');
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            setError('Please enter a valid email address');
             return;
         }
 
@@ -83,7 +89,7 @@ export default function ForgotPassword() {
                                     type="email"
                                     className="input-field"
                                     style={{ paddingLeft: '40px' }}
-                                    placeholder="you@example.com"
+                                    placeholder="Enter Email Adress"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                 />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ImageOff } from 'lucide-react';
+import { X, ImageOff, FileText } from 'lucide-react';
 import { apiCall } from '../../services/api';
 import { getRoomImageUrl } from '../../utils/imageUtils';
 
@@ -8,6 +8,8 @@ interface MediaMessage {
     content: string;
     time_stamp: string;
     username: string;
+    type: string;
+    file_name?: string;
 }
 
 interface SharedImagesGalleryProps {
@@ -23,6 +25,7 @@ export default function SharedImagesGallery({ roomId, onClose }: SharedImagesGal
     const [cursor, setCursor] = useState<string | null>(null);
     const [visible, setVisible] = useState(false);
     const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+    const [filter, setFilter] = useState<'all' | 'image' | 'file'>('all');
     const observerRef = useRef<IntersectionObserver | null>(null);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -109,72 +112,147 @@ export default function SharedImagesGallery({ roomId, onClose }: SharedImagesGal
                 }}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)] shrink-0">
-                    <div>
-                        <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase mb-0.5">Gallery</p>
-                        <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Shared Photos</h2>
+                <div className="flex flex-col border-b border-[var(--border-color)] shrink-0">
+                    <div className="flex items-center justify-between px-5 py-4">
+                        <div>
+                            <p className="text-[10px] font-bold text-[var(--accent-color)] tracking-widest uppercase mb-0.5">Gallery</p>
+                            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Shared Media</h2>
+                        </div>
+                        <button
+                            onClick={handleClose}
+                            className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                        >
+                            <X size={18} />
+                        </button>
                     </div>
-                    <button
-                        onClick={handleClose}
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-                    >
-                        <X size={18} />
-                    </button>
+                    {/* Filter Tabs */}
+                    <div className="flex px-5 pb-3 gap-2">
+                        <button
+                            onClick={() => setFilter('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                filter === 'all'
+                                    ? 'bg-[var(--accent-color)] text-white'
+                                    : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                            }`}
+                        >
+                            All
+                        </button>
+                        <button
+                            onClick={() => setFilter('image')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                filter === 'image'
+                                    ? 'bg-[var(--accent-color)] text-white'
+                                    : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                            }`}
+                        >
+                            Images
+                        </button>
+                        <button
+                            onClick={() => setFilter('file')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                filter === 'file'
+                                    ? 'bg-[var(--accent-color)] text-white'
+                                    : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                            }`}
+                        >
+                            Files
+                        </button>
+                    </div>
                 </div>
 
                 {/* Grid */}
                 <div className="flex-1 overflow-y-auto p-4">
-                    {loading ? (
-                        <div className="flex flex-col gap-3">
-                            <div className="grid grid-cols-3 gap-2">
-                                {Array.from({ length: 9 }).map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="aspect-square rounded-xl bg-[var(--bg-tertiary)] animate-pulse"
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    ) : images.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full gap-3 text-[var(--text-muted)]">
-                            <ImageOff size={40} strokeWidth={1.5} />
-                            <p className="text-sm">No shared photos yet</p>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="grid grid-cols-3 gap-2">
-                                {images.map((img) => (
-                                    <button
-                                        key={img.id}
-                                        onClick={() => setLightboxSrc(getRoomImageUrl(img.content))}
-                                        className="aspect-square rounded-xl overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-90 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)]/50"
-                                    >
-                                        <img
-                                            src={getRoomImageUrl(img.content)}
-                                            alt="shared"
-                                            className="w-full h-full object-cover"
-                                            loading="lazy"
-                                        />
-                                    </button>
-                                ))}
-                            </div>
+                    {(() => {
+                        const filteredImages = filter === 'all' 
+                            ? images 
+                            : images.filter(img => img.type === filter);
+                        const imageCount = images.filter(img => img.type === 'image').length;
+                        const fileCount = images.filter(img => img.type === 'file').length;
 
-                            {/* Sentinel for infinite scroll */}
-                            <div ref={sentinelRef} className="h-4" />
-
-                            {loadingMore && (
-                                <div className="flex justify-center py-4">
-                                    <div className="w-5 h-5 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
+                        if (loading) {
+                            return (
+                                <div className="flex flex-col gap-3">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {Array.from({ length: 9 }).map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className="aspect-square rounded-xl bg-[var(--bg-tertiary)] animate-pulse"
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                            )}
+                            );
+                        }
 
-                            {!hasMore && images.length > 0 && (
-                                <p className="text-center text-xs text-[var(--text-muted)] py-4">
-                                    All {images.length} photo{images.length !== 1 ? 's' : ''} loaded
-                                </p>
-                            )}
-                        </>
-                    )}
+                        if (filteredImages.length === 0) {
+                            return (
+                                <div className="flex flex-col items-center justify-center h-full gap-3 text-[var(--text-muted)]">
+                                    <ImageOff size={40} strokeWidth={1.5} />
+                                    <p className="text-sm">
+                                        {filter === 'all' 
+                                            ? 'No shared media yet' 
+                                            : filter === 'image' 
+                                                ? 'No shared images yet' 
+                                                : 'No shared files yet'}
+                                    </p>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {filteredImages.map((item) => (
+                                        item.type === 'image' ? (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => setLightboxSrc(getRoomImageUrl(item.content))}
+                                                className="aspect-square rounded-xl overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-90 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)]/50"
+                                            >
+                                                <img
+                                                    src={getRoomImageUrl(item.content)}
+                                                    alt="shared"
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            </button>
+                                        ) : (
+                                            <a
+                                                href={item.content}
+                                                download={item.file_name || 'file'}
+                                                key={item.id}
+                                                className="aspect-square rounded-xl overflow-hidden bg-[var(--bg-tertiary)] hover:opacity-90 active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--accent-color)]/50 flex flex-col items-center justify-center p-2"
+                                            >
+                                                <FileText size={28} className="text-[var(--text-muted)] mb-1" />
+                                                <span className="text-[9px] text-[var(--text-muted)] text-center truncate w-full">
+                                                    {item.file_name || 'File'}
+                                                </span>
+                                            </a>
+                                        )
+                                    ))}
+                                </div>
+
+                                {/* Sentinel for infinite scroll */}
+                                <div ref={sentinelRef} className="h-4" />
+
+                                {loadingMore && (
+                                    <div className="flex justify-center py-4">
+                                        <div className="w-5 h-5 border-2 border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
+                                    </div>
+                                )}
+
+                                {!hasMore && filteredImages.length > 0 && (
+                                    <p className="text-center text-xs text-[var(--text-muted)] py-4">
+                                        {filter === 'all' 
+                                            ? `All ${imageCount} image${imageCount !== 1 ? 's' : ''}, ${fileCount} file${fileCount !== 1 ? 's' : ''} loaded`
+                                            : filter === 'image'
+                                                ? `All ${filteredImages.length} image${filteredImages.length !== 1 ? 's' : ''} loaded`
+                                                : `All ${filteredImages.length} file${filteredImages.length !== 1 ? 's' : ''} loaded`}
+                                    </p>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>
             </div>
 

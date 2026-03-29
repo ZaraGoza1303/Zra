@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useChatStore } from '../../store/chatStore';
 import { getUserImageUrl, apiCall } from '../../services/api';
-import { User, Pencil, Trash2, Check, X as XIcon } from 'lucide-react';
+import { User, Pencil, Trash2, Check, X as XIcon, FileText } from 'lucide-react';
 import type { Message } from '../../types/chat';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import ReplyPreview from './ReplyPreview';
@@ -291,6 +291,7 @@ export default function MessageList({
             const isMe = msg.user_id === user?.id;
             const isSticker = msg.type === 'sticker';
             const isImage = msg.type === 'image';
+            const isFile = msg.type === 'file';
             const isEditingThis = editingId === msg.id;
 
             elements.push(
@@ -429,8 +430,99 @@ export default function MessageList({
                             </div>
                         )}
 
+                        {/* ── FILE ── */}
+                        {isFile && (
+                            <div className="relative group max-w-[280px]">
+                                <ActionBtns msg={msg} isMe={isMe} />
+                                <div className={`flex flex-col gap-2 p-3 rounded-2xl
+                                    ${isMe ? 'bg-[var(--accent-color)] rounded-br-sm' : 'bg-[var(--message-received)] rounded-bl-sm border border-[var(--border-color)]'}`}>
+
+                                    {msg.reply_to && (
+                                        <ReplyPreview replyTo={msg.reply_to} isMe={isMe} />
+                                    )}
+
+                                    {(() => {
+const handleDownload = (e: React.MouseEvent) => {
+                                            e.preventDefault();
+                                            const link = document.createElement('a');
+                                            link.href = msg.content;
+                                            link.download = msg.file_name || 'file';
+                                            link.target = '_blank';
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        };
+
+                                        return (
+                                            <>
+                                                <div className="flex items-center gap-3 p-3 bg-black/10 rounded-xl hover:bg-black/20 transition-all cursor-pointer"
+                                                    onClick={handleDownload}>
+                                                    <div className="p-2.5 bg-white/20 text-white rounded-lg flex items-center justify-center shrink-0">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`text-sm font-medium truncate ${isMe ? 'text-white' : 'text-[var(--text-primary)]'}`}>
+                                                            {msg.file_name || 'Document'}
+                                                        </p>
+                                                        <p className="text-[10px] text-white/80 font-light mt-0.5">
+                                                            Click to download file
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Caption */}
+                                                {isEditingThis ? (
+                                                    <div className="px-1 py-1 flex items-center gap-2">
+                                                        <input
+                                                            ref={editInputRef}
+                                                            value={editCaption}
+                                                            onChange={e => setEditCaption(e.target.value)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') submitEdit(msg);
+                                                                if (e.key === 'Escape') cancelEdit();
+                                                            }}
+                                                            placeholder="Edit caption..."
+                                                            className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none border-b border-[var(--accent-color)]/50"
+                                                        />
+                                                        <button onClick={() => submitEdit(msg)} disabled={actionLoading}
+                                                            className="text-[var(--accent-color)] hover:text-blue-300 disabled:opacity-40 shrink-0">
+                                                            <Check size={14} />
+                                                        </button>
+                                                        <button onClick={cancelEdit} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0">
+                                                            <XIcon size={14} />
+                                                        </button>
+                                                    </div>
+                                                ) : msg.caption ? (
+                                                    (() => {
+                                                        const captionKey = `caption_${msg.local_id || msg.id || idx}`;
+                                                        const isExpanded = expandedMessages.has(captionKey);
+                                                        const isLong = msg.caption.length > 300;
+                                                        const displayCaption = isLong && !isExpanded ? msg.caption.slice(0, 300) + '...' : msg.caption;
+                                                        return (
+                                                            <div className="px-1 mt-1">
+                                                                <p className={`leading-relaxed break-words whitespace-pre-wrap message-content text-sm
+                                                                ${isMe ? 'text-white' : 'text-[var(--text-primary)]'}`}>
+                                                                    {displayCaption}
+                                                                </p>
+                                                                {isLong && (
+                                                                    <button onClick={() => toggleExpand(captionKey)}
+                                                                        className={`text-xs mt-1 font-medium hover:underline ${isMe ? 'text-blue-300' : 'text-[var(--accent-color)]'}`}>
+                                                                        {isExpanded ? 'Show less' : 'Read more'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()
+                                                ) : null}
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        )}
+
                         {/* ── CHAT (text) ── */}
-                        {!isSticker && !isImage && (
+                        {!isSticker && !isImage && !isFile && (
                             <div className={`relative group px-4 pt-2.5 pb-2.5 rounded-2xl leading-relaxed break-words message-content
                                 ${isMe ? 'bg-[var(--accent-color)] text-white rounded-br-sm' : 'bg-[var(--message-received)] text-[var(--text-primary)] rounded-bl-sm border border-[var(--border-color)]'}`}>
                                 <ActionBtns msg={msg} isMe={isMe} />

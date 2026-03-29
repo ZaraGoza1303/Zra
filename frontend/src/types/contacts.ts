@@ -4,6 +4,7 @@ export interface SearchedUser {
     name: string;
     bio?: string;
     profile_picture?: string;
+    last_seen_at?: string;
     friendship_status?: 'none' | 'pending_sent' | 'pending_received' | 'friend';
 }
 

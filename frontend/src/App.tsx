@@ -9,6 +9,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import JoinRoom from './pages/JoinRoom';
+import Landing from './pages/Landing';
 import ResetPassword from './pages/ResetPassword';
 import Toast from './components/Toast';
 
@@ -130,9 +131,7 @@ function App() {
         <Route
           path="/"
           element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
+            token ? <Dashboard /> : <Landing />
           }
         />
 

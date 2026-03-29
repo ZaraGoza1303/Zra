@@ -2,6 +2,7 @@
 import { ArrowLeft, User, Users, Video, Phone, MoreHorizontal } from 'lucide-react';
 import { useChatStore } from '../../store/chatStore';
 import { getRoomImageUrl } from '../../utils/imageUtils';
+import { formatLastSeen } from '../../utils/dateUtils';
 
 interface ChatHeaderProps {
     roomId: string;
@@ -24,7 +25,7 @@ export default function ChatHeader({
     onStartCall,
     onlineUserIds
 }: ChatHeaderProps) {
-    const { totalMemberCount, roomDetails, privatePartner, typingUsers } = useChatStore();
+    const { totalMemberCount, roomDetails, privatePartner, typingUsers, loadingPartnerInfo } = useChatStore();
     const isPrivate = roomType === 'private';
     const partnerTyping = isPrivate
         && privatePartner
@@ -63,9 +64,11 @@ export default function ChatHeader({
                             {isPrivate
                                 ? partnerTyping
                                     ? <span className="text-[var(--accent-color)] animate-pulse">typing...</span>
-                                    : onlineUserIds?.has(Number(privatePartner?.user_id))
-                                        ? <span className="text-green-400">● Online</span>
-                                        : <span>● Offline</span>
+                                    : loadingPartnerInfo
+                                        ? <span>Loading...</span>
+                                        : onlineUserIds?.has(Number(privatePartner?.user_id))
+                                            ? <span className="text-green-400">● Online</span>
+                                            : <span>● {formatLastSeen(privatePartner?.last_seen_at)}</span>
                                 : totalMemberCount !== null
                                     ? `${totalMemberCount > 999 ? '999+' : totalMemberCount} members`
                                     : 'Click to view info'

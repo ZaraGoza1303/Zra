@@ -24,3 +24,23 @@ export const formatMsgTime = (timestamp: string): string => {
     const d = new Date(timestamp);
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 };
+
+export const formatLastSeen = (dateStr?: string): string => {
+    if (!dateStr) return 'Offline';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) return 'Away';
+    if (minutes < 60) return `Last seen ${minutes}m ago`;
+    if (hours < 24) return `Last seen ${hours}h ago`;
+    if (days === 1) return 'Last seen yesterday';
+    if (days < 7) return `Last seen ${days}d ago`;
+
+    return `Last seen ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+};

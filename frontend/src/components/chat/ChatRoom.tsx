@@ -57,6 +57,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setTargetUserId,
         setActionLoading,
         setPrivatePartner,
+        setLoadingPartnerInfo,
         setEditingName,
         setEditingDesc,
         setEditLoading,
@@ -176,6 +177,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
     };
 
     const fetchPartnerInfo = async () => {
+        setLoadingPartnerInfo(true);
         try {
             const resp = await apiCall<{ data: RoomMember[] }>(`/room/${roomId}/members`, { method: 'GET' });
             const members = resp.data || [];
@@ -194,6 +196,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     username: partner.username,
                     user_profile_picture: partner.user_profile_picture,
                     user_bio: partner.user_bio,
+                    last_seen_at: partner.last_seen_at,
                     is_verified: partner.is_verified,
                     created_at: partner.created_at,
                     social_links: socialLinks,
@@ -201,6 +204,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
             }
         } catch (e) {
             console.error("Failed to fetch partner info", e);
+        } finally {
+            setLoadingPartnerInfo(false);
         }
     };
 
@@ -421,6 +426,59 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
         setReplyTo(null);
     };
 
+    const sendFile = (fileUrl: string, fileName: string, caption?: string) => {
+        const localId = `local_${Date.now()}_${Math.random()}`;
+
+        const optimisticMsg: Message = {
+            id: '',
+            room_id: roomId,
+            local_id: localId,
+            content: fileUrl,
+            file_name: fileName,
+            caption: caption,
+            username: user?.username || '',
+            user_id: user?.id,
+            time_stamp: new Date().toISOString(),
+            type: 'file',
+            status: 'pending',
+            reply_to: replyTo ?? undefined,
+            reply_to_id: replyTo?.id || '',
+        };
+
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        if (ws.current?.readyState !== WebSocket.OPEN) {
+            setMessages(prev =>
+                prev.map(m => m.local_id === localId ? { ...m, status: 'failed' } : m)
+            );
+            showToast('Connection lost. Please retry.', 'error');
+            return;
+        }
+
+        ws.current.send(JSON.stringify({
+            content: fileUrl,
+            file_name: fileName,
+            caption: caption,
+            local_id: localId,
+            type: 'file',
+            reply_to_id: replyTo?.id || '',
+        }));
+
+        onNewMessage?.(roomId, {
+            content: caption ? `📁 ${caption}` : `📁 ${fileName}`,
+            username: user?.username || '',
+            name: user?.name,
+            user_id: user?.id,
+            profile_picture: user?.profile_picture,
+            sent_at: new Date().toISOString(),
+            type: 'file',
+            caption: caption,
+            file_name: fileName
+        });
+
+        setReplyTo(null);
+    };
+
     const retryMessage = (localId: string, content: string) => {
         if (ws.current?.readyState !== WebSocket.OPEN) {
             showToast('Still disconnected.', 'error');
@@ -455,7 +513,8 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                 const msg: any = JSON.parse(event.data);
                 console.log('[WS-RECEIVE] Room:', actualRoomId, 'Type:', msg.type, 'ID:', msg.id, 'UserID:', msg.user_id);
 
-                if (msg.type === 'chat') {
+                const messageTypes = ['chat', 'sticker', 'image', 'file', 'join', 'leave', 'system'];
+                if (messageTypes.includes(msg.type)) {
                     if (msg.user_id !== user?.id) {
                         const settings = useSettingsStore.getState();
                         const isActive = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
@@ -465,18 +524,30 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                             apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
                         }
                         setMessages(prev => {
-                            if (prev.some(m => m.id === msg.id)) {
+                            if (prev.some(m => (m.id && m.id === msg.id) || (m.local_id && m.local_id === msg.local_id))) {
                                 return prev;
                             }
                             return [...prev, { ...msg, status: 'sent' }];
                         });
+
+                        let dashboardContent = msg.content;
+                        if (msg.type === 'sticker') dashboardContent = '🎭 Sticker';
+                        else if (msg.type === 'image') dashboardContent = msg.caption ? `📷 ${msg.caption}` : '📷 Image';
+                        else if (msg.type === 'file') dashboardContent = `📄 ${msg.file_name || msg.caption || 'File'}`;
+                        else if (msg.type === 'join' || msg.type === 'leave' || msg.type === 'system') {
+                            // System messages handled in renderMessages usually but onNewMessage needs them for preview
+                        }
+
                         onNewMessage?.(actualRoomId, {
-                            content: msg.content,
+                            content: dashboardContent,
                             username: msg.username,
                             name: msg.name,
                             user_id: msg.user_id,
                             profile_picture: msg.profile_picture,
-                            sent_at: msg.time_stamp,
+                            sent_at: msg.time_stamp || msg.created_at || new Date().toISOString(),
+                            type: msg.type,
+                            caption: msg.caption,
+                            file_name: msg.file_name
                         });
                     }
                     return;
@@ -484,12 +555,13 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 if (msg.type === 'sent') {
                     if (msg.user_id !== user?.id) return;
-
                     setMessages(prev => {
-                        let updated = false;
                         return prev.map(m => {
-                            if (!updated && m.local_id && m.status === 'pending' && m.user_id === user?.id) {
-                                updated = true;
+                            if (m.local_id && msg.local_id && m.local_id === msg.local_id) {
+                                return { ...m, status: 'sent', id: msg.id };
+                            }
+                            // Fallback if local_id missing somehow
+                            if (!msg.local_id && m.status === 'pending' && m.user_id === user?.id) {
                                 return { ...m, status: 'sent', id: msg.id };
                             }
                             return m;
@@ -500,81 +572,20 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
 
                 if (msg.type === 'readed') {
                     const settings = useSettingsStore.getState();
-                    if (settings.read_receipts) {
-                        if (msg.user_id !== user?.id) {
-                            setMessages(prev =>
-                                prev.map(m =>
-                                    m.user_id === user?.id && m.status === 'sent'
-                                        ? { ...m, status: 'read' }
-                                        : m
-                                )
-                            );
-                        }
+                    if (settings.read_receipts && msg.user_id !== user?.id) {
+                        setMessages(prev =>
+                            prev.map(m =>
+                                m.user_id === user?.id && m.status === 'sent'
+                                    ? { ...m, status: 'read' }
+                                    : m
+                            )
+                        );
                     }
                     return;
                 }
 
                 if (msg.type === 'update-room') {
                     refreshRoomData();
-                }
-
-                if (msg.type === 'leave' && msg.user_id === user?.id) {
-                    setIsKicked(true);
-                    showToast('You have been removed from this room.', 'error');
-                    const { rooms, setRooms, allRooms, setAllRooms } = useDashboardStore.getState();
-                    setRooms(rooms.filter(r => r.id !== actualRoomId));
-                    setAllRooms(allRooms.filter(r => r.id !== actualRoomId));
-                }
-
-                if (msg.type === 'sticker') {
-                    if (msg.user_id !== user?.id) {
-                        const settings = useSettingsStore.getState();
-                        const isActive = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
-                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
-
-                        if (settings.read_receipts && isActive) {
-                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        }
-                        setMessages(prev => {
-                            if (prev.some(m => m.id === msg.id)) return prev;
-                            return [...prev, { ...msg, status: 'sent' }];
-                        });
-                        onNewMessage?.(actualRoomId, {
-                            content: '🎭 Sticker',
-                            username: msg.username,
-                            name: msg.name,
-                            user_id: msg.user_id,
-                            profile_picture: msg.profile_picture,
-                            sent_at: msg.time_stamp,
-                            type: 'sticker'
-                        });
-                    }
-                    return;
-                }
-
-                if (msg.type === 'image') {
-                    if (msg.user_id !== user?.id) {
-                        const settings = useSettingsStore.getState();
-                        const isActive = useDashboardStore.getState().selectedRoom?.id === actualRoomId ||
-                            useDashboardStore.getState().dmRoom?.id === actualRoomId;
-
-                        if (settings.read_receipts && isActive) {
-                            apiCall(`/room/${actualRoomId}/read`, { method: 'PUT' }).catch(console.error);
-                        }
-                        setMessages(prev => {
-                            if (prev.some(m => m.id === msg.id)) return prev;
-                            return [...prev, { ...msg, status: 'sent' }];
-                        });
-                        onNewMessage?.(actualRoomId, {
-                            content: '📷 Image',
-                            username: msg.username,
-                            name: msg.name,
-                            user_id: msg.user_id,
-                            profile_picture: msg.profile_picture,
-                            sent_at: msg.time_stamp,
-                            type: 'image',
-                        });
-                    }
                     return;
                 }
 
@@ -586,10 +597,6 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     return;
                 }
 
-                if (msg.type === 'update-message') {
-                    return;
-                }
-
                 if (msg.type === 'typing') {
                     if (msg.user_id !== user?.id) {
                         const isTyping = msg.content === 'true';
@@ -598,15 +605,18 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                     return;
                 }
 
-                if (msg.type !== 'chat' && msg.type !== 'readed' && msg.type !== 'sticker'
-                    && msg.type !== 'image' && msg.type !== 'delete-message' && msg.type !== 'update-message'
-                    && msg.type !== 'typing') {
-                    setMessages(prev => {
-                        if (msg.id && prev.some(m => m.id === msg.id)) return prev;
-                        return [...prev, msg];
-                    });
+                if (msg.type === 'signal') {
+                    if (msg.user_id !== user?.id) {
+                        window.dispatchEvent(new CustomEvent('webrtc-signal', {
+                            detail: {
+                                from: msg.user_id,
+                                signal: msg.content,
+                                type: msg.caption // caption used as signal type
+                            }
+                        }));
+                    }
+                    return;
                 }
-
             } catch (e) {
                 console.error("Failed to parse message", e);
             }
@@ -1047,6 +1057,7 @@ export default function ChatRoom({ roomId, roomName, roomPicture, roomType, onBa
                         sendMessage={sendMessage}
                         onSendSticker={sendSticker}
                         onSendImage={sendImage}
+                        onSendFile={sendFile}
                     />
                 )}
             </div>

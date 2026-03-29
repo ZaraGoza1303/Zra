@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, UserPlus, User, Eye, EyeOff } from 'lucide-react';
 import { apiCall } from '../services/api';
+import { isValidEmail } from '../utils/validationUtils';
 
 // Reusable input field with icon
 const IconInput = ({
@@ -104,19 +105,6 @@ export default function Register() {
         }
     };
 
-    const isValidEmail = (email: string) => {
-        // Harus ada @, domain minimal 2 karakter, TLD minimal 2 karakter (com, id, net, dll)
-        const regex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
-        if (!regex.test(email)) return false;
-
-        // Blacklist TLD yang tidak valid / typo umum
-        const invalidTLDs = ['.co', '.c', '.om', '.cm'];
-        const lower = email.toLowerCase();
-        if (invalidTLDs.some(tld => lower.endsWith(tld))) return false;
-
-        return true;
-    };
-
     const handleVerifyOtp = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!otp || otp.length < 6) { setError('Please enter a valid 6-digit OTP'); return; }
@@ -150,11 +138,11 @@ export default function Register() {
         <div className="flex-center w-full h-full animate-fade-in">
             {!isOtpStep ? (
                 /* STEP 1: REGISTER FORM */
-                <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '1.5rem' }}>
                     {/* Header */}
-                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                        <div className="flex-center" style={{ marginBottom: '1rem', color: 'var(--success)' }}>
-                            <UserPlus size={48} />
+                    <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                        <div className="flex-center" style={{ marginBottom: '0.75rem', color: 'var(--success)' }}>
+                            <UserPlus size={40} />
                         </div>
                         <h2>Create Account</h2>
                         <p style={{ color: 'var(--text-muted)' }}>Join the chat today</p>
@@ -164,8 +152,8 @@ export default function Register() {
                     {error && (
                         <div style={{
                             background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)',
-                            padding: '12px', borderRadius: '8px',
-                            marginBottom: '16px', fontSize: '0.875rem',
+                            padding: '10px', borderRadius: '8px',
+                            marginBottom: '12px', fontSize: '0.875rem',
                         }}>
                             {error}
                         </div>
@@ -178,7 +166,7 @@ export default function Register() {
                             <IconInput
                                 icon={<User size={18} />}
                                 type="text"
-                                placeholder="John Doe"
+                                placeholder="Enter Username"
                                 value={username}
                                 onChange={setUsername}
                                 fieldError={getFieldError('username')}
@@ -196,7 +184,7 @@ export default function Register() {
                             <IconInput
                                 icon={<Mail size={18} />}
                                 type="email"
-                                placeholder="you@example.com"
+                                placeholder="Enter Email Address"
                                 value={email}
                                 onChange={setEmail}
                                 fieldError={getFieldError('email')}
@@ -254,24 +242,24 @@ export default function Register() {
                             type="submit"
                             className="btn btn-primary w-full"
                             disabled={loading}
-                            style={{ marginTop: '16px' }}
+                            style={{ marginTop: '12px' }}
                         >
                             {loading ? 'Registering...' : 'Sign Up'}
                         </button>
                     </form>
 
-                    <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                    <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                         Already have an account?{' '}
                         <Link to="/login" style={{ color: 'var(--primary)', fontWeight: 600 }}>Login</Link>
                     </div>
                 </div>
             ) : (
                 /* STEP 2: OTP VERIFICATION */
-                <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }}>
+                <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '1.5rem' }}>
                     {/* Header */}
-                    <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                        <div className="flex-center" style={{ marginBottom: '1rem', color: 'var(--primary)' }}>
-                            <Mail size={48} />
+                    <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+                        <div className="flex-center" style={{ marginBottom: '0.75rem', color: 'var(--primary)' }}>
+                            <Mail size={40} />
                         </div>
                         <h2>Verify Email</h2>
                         <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
@@ -284,8 +272,8 @@ export default function Register() {
                     {error && (
                         <div style={{
                             background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)',
-                            padding: '12px', borderRadius: '8px',
-                            marginBottom: '16px', fontSize: '0.875rem',
+                            padding: '10px', borderRadius: '8px',
+                            marginBottom: '12px', fontSize: '0.875rem',
                         }}>
                             {error}
                         </div>
@@ -295,8 +283,8 @@ export default function Register() {
                     {success && !error && (
                         <div style={{
                             background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)',
-                            padding: '12px', borderRadius: '8px',
-                            marginBottom: '16px', fontSize: '0.875rem',
+                            padding: '10px', borderRadius: '8px',
+                            marginBottom: '12px', fontSize: '0.875rem',
                         }}>
                             Registration successful! Please verify your email.
                         </div>
@@ -323,13 +311,13 @@ export default function Register() {
                             type="submit"
                             className="btn btn-primary w-full"
                             disabled={loading || otp.length < 6}
-                            style={{ marginTop: '16px' }}
+                            style={{ marginTop: '12px' }}
                         >
                             {loading ? 'Verifying...' : 'Verify OTP'}
                         </button>
                     </form>
 
-                    <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                    <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                         <button
                             type="button"
                             onClick={() => setIsOtpStep(false)}

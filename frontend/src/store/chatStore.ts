@@ -23,6 +23,7 @@ interface ChatState {
     addingMember: boolean;
     activeMembers: number[];
     typingUsers: Record<string, Record<number, string>>;
+    loadingPartnerInfo: boolean;
 
     // Edit states
     editingName: boolean;
@@ -37,6 +38,7 @@ interface ChatState {
         user_bio?: string;
         user_profile_picture?: string;
         user_id: number;
+        last_seen_at?: string;
         is_verified?: boolean;
         created_at?: string;
         social_links?: SocialLink[];
@@ -58,6 +60,7 @@ interface ChatState {
     setTargetUserId: (id: number | null) => void;
     setActionLoading: (isLoading: boolean) => void;
     setAddingMember: (isAdding: boolean) => void;
+    setLoadingPartnerInfo: (isLoading: boolean) => void;
     setShowUsersModal: (show: boolean) => void;
     setShowInfoModal: (show: boolean) => void;
     setActiveMembers: (ids: number[]) => void;
@@ -76,6 +79,7 @@ interface ChatState {
         user_bio?: string;
         user_profile_picture?: string;
         user_id: number;
+        last_seen_at?: string;
         is_verified?: boolean;
         created_at?: string;
         social_links?: SocialLink[];
@@ -109,6 +113,7 @@ export const useChatStore = create<ChatState>((set) => ({
     activeMembers: [],
     mutualRooms: [],
     typingUsers: {},
+    loadingPartnerInfo: false,
 
     editingName: false,
     editingDesc: false,
@@ -137,6 +142,7 @@ export const useChatStore = create<ChatState>((set) => ({
     setTargetUserId: (targetUserId) => set({ targetUserId }),
     setActionLoading: (actionLoading) => set({ actionLoading }),
     setAddingMember: (addingMember) => set({ addingMember }),
+    setLoadingPartnerInfo: (loadingPartnerInfo: boolean) => set({ loadingPartnerInfo }),
     setShowUsersModal: (showUsersModal) => set({ showUsersModal }),
     setShowInfoModal: (showInfoModal) => set({ showInfoModal }),
     setActiveMembers: (ids: number[]) => set({ activeMembers: ids }),
