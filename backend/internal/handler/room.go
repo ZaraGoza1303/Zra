@@ -213,13 +213,13 @@ func (h *roomHandler) UploadImages(c *fiber.Ctx) error {
 		}
 
 		allowed := map[string]bool{
-			"jpg":  true,
-			"png":  true,
-			"webp": true,
-			"gif":  true,
+			"image/jpeg": true,
+			"image/png":  true,
+			"image/webp": true,
+			"image/gif":  true,
 		}
 
-		if !allowed[kind.Extension] {
+		if !allowed[kind.MIME.Value] {
 			return c.Status(fiber.StatusBadRequest).JSON(dto.SendErrorResponse("Invalid File Type"))
 		}
 
@@ -523,6 +523,9 @@ func (h *roomHandler) GetAllRoomMember(c *fiber.Ctx) error {
 	defer cancel()
 
 	roomId := c.Params("id")
+	userId := c.Locals("user_id")
+	ctx = context.WithValue(ctx, "user_id", userId)
+
 	members, err := h.roomServices.GetAllRoomMembers(ctx, roomId)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.SendErrorResponse(err.Error()))

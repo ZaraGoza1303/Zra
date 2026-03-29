@@ -4,6 +4,7 @@ import (
 	"chatapp/core"
 	"fmt"
 	"mime/multipart"
+	"net/url"
 	"os"
 	"strings"
 
@@ -14,7 +15,6 @@ import (
 type supabaseStorage struct {
 	storageClient *storage_go.Client
 }
-
 
 func NewSupabaseStorage() core.StorageService {
 	secretKey := os.Getenv("SUPABASE_SECRET_KEY")
@@ -43,7 +43,12 @@ func (s *supabaseStorage) UploadFile(typePath string, fileHeader *multipart.File
 	}
 	defer file.Close()
 
-	if res, err := s.storageClient.UploadFile(typePath, fileName, file); err != nil {
+	contentType := fileHeader.Header.Get("Content-Type")
+	opts := storage_go.FileOptions{
+		ContentType: &contentType,
+	}
+
+	if res, err := s.storageClient.UploadFile(typePath, fileName, file, opts); err != nil {
 		fmt.Printf("DEBUG: Supabase response: %+v, err: %v\n", res, err)
 		return "", err
 	}
@@ -88,6 +93,11 @@ func (s *supabaseStorage) RemoveFile(typePath string, fileName string) error {
 		if len(parts) > 0 {
 			fileName = strings.Split(parts[len(parts)-1], "?")[0]
 		}
+	}
+
+	decodedName, err := url.QueryUnescape(fileName)
+	if err == nil {
+		fileName = decodedName
 	}
 
 	if _, err := s.storageClient.RemoveFile(typePath, []string{fileName}); err != nil {

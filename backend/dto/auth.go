@@ -36,6 +36,7 @@ type UserLoginResponse struct {
 	ProfilePicture string `json:"profile_picture"`
 	AccessToken    string `json:"access_token"`
 	RefreshToken   string `json:"refresh_token"`
+	CreatedAt      string `json:"created_at"`
 }
 
 type ForgotPasswordRequest struct {

@@ -21,6 +21,7 @@ type roomServices struct {
 	hub              *dto.Hub
 	roomRepositories core.RoomRepositories
 	userRepositories core.UserRepositories
+	userServices     core.UserServices
 	storageServices  core.StorageService
 	frontendUrl      string
 	backendUrl       string
@@ -31,11 +32,12 @@ type roomServices struct {
 	uploadsPath      string
 }
 
-func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories, storageServices core.StorageService) core.RoomServices {
+func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories, userServices core.UserServices, storageServices core.StorageService) core.RoomServices {
 	return &roomServices{
 		hub:              hub,
 		roomRepositories: roomRepo,
 		userRepositories: userRepo,
+		userServices:     userServices,
 		storageServices:  storageServices,
 		frontendUrl:      os.Getenv("FRONTEND_URL"),
 		backendUrl:       os.Getenv("BACKEND_URL"),
@@ -379,22 +381,18 @@ func (r *roomServices) Delete(ctx context.Context, room_id string) error {
 		return helper.ErrNotAllowed
 	}
 
-	existsMessage, err := r.roomRepositories.GetImageMessageByRoomID(ctx, room_id)
+	existsMessage, err := r.roomRepositories.GetUploadMessageByRoomID(ctx, room_id)
 	if err != nil {
 		return err
 	}
 
-	// hapus exists upload gambar di room
+	// hapus exists upload files di room
 	for _, message := range existsMessage {
-		decryptContent, err := helper.Decrypt(message.Content)
-		if err != nil {
-			return err
-		}
 
-		if message.ReplyTo != nil {
+		if message.ReplyTo != nil && (message.ReplyTo.Type == "image" || message.ReplyTo.Type == "file") {
 			decryptReplyContent, err := helper.Decrypt(message.ReplyTo.Content)
 			if err != nil {
-				return err
+				log.Printf("failed to decrypt reply message content :%v", err)
 			}
 
 			if err := r.storageServices.RemoveFile("uploads", decryptReplyContent); err != nil {
@@ -402,10 +400,16 @@ func (r *roomServices) Delete(ctx context.Context, room_id string) error {
 			}
 		}
 
-		if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
-			log.Printf("failed to remove image message :%v", err)
-		}
+		if message.Type == "image" || message.Type == "file" {
+			decryptContent, err := helper.Decrypt(message.Content)
+			if err != nil {
+				log.Printf("failed to decrypt image message content :%v", err)
+			}
 
+			if err := r.storageServices.RemoveFile("uploads", decryptContent); err != nil {
+				log.Printf("failed to remove image message :%v", err)
+			}
+		}
 	}
 
 	if err := r.roomRepositories.Delete(ctx, room_id); err != nil {
@@ -450,6 +454,8 @@ func (r *roomServices) FindAllStickers(ctx context.Context, filter string, categ
 
 // GetAllRoomMembers implements [core.RoomServices].
 func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error) {
+	userId, _ := ctx.Value("user_id").(uint)
+
 	_, err := r.roomRepositories.GetById(ctx, room_id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -471,12 +477,36 @@ func (r *roomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([
 			userProfilePicture = helper.NormalizeImagePath(*room.User.ProfilePicture, r.backendUrl, r.usersPath)
 		}
 
+		var lastSeenAt *time.Time
+		if room.UserID == userId {
+			lastSeenAt = room.User.LastSeenAt
+		} else {
+			settings, err := r.userServices.GetSettingsByUserId(room.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			switch settings.LastSeen {
+			case "everyone":
+				lastSeenAt = room.User.LastSeenAt
+			case "friends":
+				isFriend, _ := r.userRepositories.GetFriendship(context.Background(), room.UserID, userId)
+				if isFriend {
+					lastSeenAt = room.User.LastSeenAt
+				}
+				lastSeenAt = nil
+			default:
+				lastSeenAt = nil
+			}
+		}
+
 		item := dto.RoomMemberResponse{
 			UserID:             room.UserID,
 			UserProfilePicture: userProfilePicture,
 			Username:           room.User.Username,
 			UserBio:            room.User.Bio,
 			Role:               room.Role,
+			LastSeenAt:         lastSeenAt,
 			IsVerified:         room.User.IsVerified,
 			CreatedAt:          room.User.CreatedAt,
 		}
@@ -559,9 +589,20 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			decryptedContent = ""
 		}
 
-		decryptedCaption, err := helper.Decrypt(msg.Caption)
-		if err != nil {
-			decryptedCaption = "Failed to load messages..."
+		decryptedCaption := ""
+		if msg.Caption != "" {
+			decryptedCaption, err = helper.Decrypt(msg.Caption)
+			if err != nil {
+				decryptedCaption = "Failed to load messages..."
+			}
+		}
+
+		decryptedFileName := ""
+		if msg.FileName != "" {
+			decryptedFileName, err = helper.Decrypt(msg.FileName)
+			if err != nil {
+				decryptedFileName = msg.FileName
+			}
 		}
 
 		item := dto.Message{
@@ -574,6 +615,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			Type:           msg.Type,
 			IsRead:         msg.IsRead,
 			Caption:        decryptedCaption,
+			FileName:       decryptedFileName,
 			TimeStamp:      msg.CreatedAt,
 		}
 
@@ -583,9 +625,20 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 				replyContent = "Failed to load message..."
 			}
 
-			replyCaption, err := helper.Decrypt(msg.ReplyTo.Caption)
-			if err != nil {
-				replyCaption = "Failed to load message..."
+			replyCaption := ""
+			if msg.ReplyTo.Caption != "" {
+				replyCaption, err = helper.Decrypt(msg.ReplyTo.Caption)
+				if err != nil {
+					replyCaption = "Failed to load message..."
+				}
+			}
+
+			replyFileName := ""
+			if msg.ReplyTo.FileName != "" {
+				replyFileName, err = helper.Decrypt(msg.ReplyTo.FileName)
+				if err != nil {
+					replyFileName = msg.ReplyTo.FileName
+				}
 			}
 
 			item.ReplyTo = &dto.Message{
@@ -596,6 +649,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 				Content:        replyContent,
 				Type:           msg.ReplyTo.Type,
 				Caption:        replyCaption,
+				FileName:       replyFileName,
 			}
 		}
 		msgResponse = append(msgResponse, item)
@@ -629,6 +683,14 @@ func (r *roomServices) TakeMediaMessages(ctx context.Context, roomId string, lim
 			}
 		}
 
+		decryptedFileName := msg.FileName
+		if msg.FileName != "" {
+			decryptedFileName, err = helper.Decrypt(msg.FileName)
+			if err != nil {
+				decryptedFileName = msg.FileName
+			}
+		}
+
 		item := dto.Message{
 			ID:             msg.ID,
 			RoomID:         msg.RoomID,
@@ -638,6 +700,7 @@ func (r *roomServices) TakeMediaMessages(ctx context.Context, roomId string, lim
 			ProfilePicture: msg.ProfilePicture,
 			Type:           msg.Type,
 			Caption:        decryptedCaption,
+			FileName:       decryptedFileName,
 			TimeStamp:      msg.CreatedAt,
 		}
 
@@ -739,7 +802,7 @@ func (r *roomServices) RemoveMessage(ctx context.Context, msgId string) error {
 	}
 
 	for _, replyMsg := range replyMsgs {
-		if replyMsg.Type == "image" && replyMsg.Content != "" {
+		if replyMsg.Type == "image" || replyMsg.Type == "file" && replyMsg.Content != "" {
 			decryptContent, err := helper.Decrypt(replyMsg.Content)
 			if err != nil {
 				return err
@@ -751,7 +814,7 @@ func (r *roomServices) RemoveMessage(ctx context.Context, msgId string) error {
 		}
 	}
 
-	if existsMsg.Type == "image" && existsMsg.Content != "" {
+	if existsMsg.Type == "image" || existsMsg.Type == "file" && existsMsg.Content != "" {
 		decryptContent, err := helper.Decrypt(existsMsg.Content)
 		if err != nil {
 			return err
@@ -1301,13 +1364,30 @@ func (r *roomServices) FindMessageByID(ctx context.Context, message_id string) (
 		message.Content = decrypt
 	}
 
+	if message.Caption != "" {
+		decryptCaption, err := helper.Decrypt(message.Caption)
+		if err == nil {
+			message.Caption = decryptCaption
+		}
+	}
+
+	if message.FileName != "" {
+		decryptFileName, err := helper.Decrypt(message.FileName)
+		if err == nil {
+			message.FileName = decryptFileName
+		}
+	}
+
 	response := dto.Message{
-		ID:       message.ID,
-		RoomID:   message.RoomID,
-		UserID:   message.UserID,
-		Username: message.Username,
-		Content:  message.Content,
-		Type:     message.Type,
+		ID:             message.ID,
+		RoomID:         message.RoomID,
+		UserID:         message.UserID,
+		Username:       message.Username,
+		Content:        message.Content,
+		Type:           message.Type,
+		Caption:        message.Caption,
+		FileName:       message.FileName,
+		ProfilePicture: message.ProfilePicture,
 	}
 
 	return &response, nil
@@ -1412,6 +1492,7 @@ func (r *roomServices) SaveMessage(msg dto.Message) error {
 		Type:           msg.Type,
 		ReplyToID:      replyToID,
 		Caption:        msg.Caption,
+		FileName:       msg.FileName,
 		CreatedAt:      time.Now(),
 	}
 

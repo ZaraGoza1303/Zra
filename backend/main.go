@@ -115,7 +115,7 @@ func main() {
 	cachedAuthService := services_cached.NewCachedAuthServices(authService, authRepository, rdb)
 
 	roomRepository := repositories.NewRoom(db)
-	roomService := services.NewRoomServices(hub, roomRepository, userRepository, storageService)
+	roomService := services.NewRoomServices(hub, roomRepository, userRepository, userService, storageService)
 	cachedRoomServices := services_cached.NewCachedRoomServices(roomService, rdb)
 
 	handler.NewAuth(app, cachedAuthService, userService, jwtWare)

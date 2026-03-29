@@ -4,7 +4,6 @@ import (
 	"chatapp/core"
 	"chatapp/dto"
 	"context"
-	"encoding/json"
 	"log"
 	"mime/multipart"
 	"time"
@@ -71,24 +70,8 @@ func (r *cachedRoomServices) FindAllStickers(ctx context.Context, filter string,
 
 // GetAllRoomMembers implements [core.RoomServices].
 func (r *cachedRoomServices) GetAllRoomMembers(ctx context.Context, room_id string) ([]dto.RoomMemberResponse, error) {
-	cacheKey := "room:members:" + room_id
-
-	val, err := r.rdb.Get(ctx, cacheKey).Result()
-	if err == nil {
-		var members []dto.RoomMemberResponse
-		json.Unmarshal([]byte(val), &members)
-		return members, nil
-	}
-
-	members, err := r.roomServices.GetAllRoomMembers(ctx, room_id)
-	if err != nil {
-		return nil, err
-	}
-
-	data, _ := json.Marshal(members)
-	r.rdb.Set(ctx, cacheKey, data, 5*time.Minute)
-
-	return members, nil
+	// Don't cache - last_seen_at depends on viewer's relationship with each member
+	return r.roomServices.GetAllRoomMembers(ctx, room_id)
 }
 
 // GetPrivateRoom implements [core.RoomServices].

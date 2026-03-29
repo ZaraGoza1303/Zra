@@ -313,13 +313,14 @@ func (r *roomRepositories) GetIdPrivateRoom(ctx context.Context, userID uint, ta
 }
 
 // GetImageMessageByRoomID implements [core.RoomRepositories].
-func (r *roomRepositories) GetImageMessageByRoomID(ctx context.Context, roomId string) ([]models.Message, error) {
+func (r *roomRepositories) GetUploadMessageByRoomID(ctx context.Context, roomId string) ([]models.Message, error) {
 	var messages []models.Message
+	types := []string{"image", "file"}
 
 	result := r.DB.WithContext(ctx).
 		Preload("ReplyTo").
 		Model(&models.Message{}).
-		Where("room_id = ? AND type = ?", roomId, "image").
+		Where("room_id = ? AND type IN ?", roomId, types).
 		Find(&messages)
 
 	if result.Error != nil {
@@ -500,9 +501,10 @@ func (r *roomRepositories) GetLastMessages(ctx context.Context, roomIds []string
 // GetMediaMessages implements [core.RoomRepositories].
 func (r *roomRepositories) GetMediaMessages(ctx context.Context, roomId string, limit int, cursor time.Time) ([]models.Message, *time.Time, error) {
 	var messages []models.Message
+	types := []string{"image", "file"}
 
 	query := r.DB.WithContext(ctx).
-		Where("room_id = ? AND type = ?", roomId, "image").
+		Where("room_id = ? AND type IN ?", roomId, types).
 		Order("created_at DESC").
 		Limit(limit)
 

@@ -138,6 +138,10 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 		h.hub.Leave <- client
 		client.Conn.Close()
 
+		if err := h.userService.UpdateLastSeen(client.UserID); err != nil {
+			log.Printf("Failed to update last seen on disconnect: %v", err)
+		}
+
 		go func() {
 			time.Sleep(2000 * time.Millisecond)
 
@@ -199,6 +203,10 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 	defer func() {
 		h.hub.Leave <- client
 		client.Conn.Close()
+
+		if err := h.userService.UpdateLastSeen(client.UserID); err != nil {
+			log.Printf("Failed to update last seen on disconnect: %v", err)
+		}
 	}()
 
 	client.Conn.SetReadLimit(65536)
@@ -292,20 +300,33 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 				return
 			}
 
-			encryptedCaption, err := helper.Encrypt(msg.Caption)
-			if err != nil {
-				log.Printf("Gagal enkripsi: %v", err)
-				return
+			msg.Content = encryptedContent
+
+			if msg.Caption != "" {
+				encryptedCaption, err := helper.Encrypt(msg.Caption)
+				if err != nil {
+					log.Printf("Gagal enkripsi caption: %v", err)
+					return
+				}
+				msg.Caption = encryptedCaption
 			}
 
-			msg.Content = encryptedContent
-			msg.Caption = encryptedCaption
+			if msg.FileName != "" {
+				encryptedFileName, err := helper.Encrypt(msg.FileName)
+				if err != nil {
+					log.Printf("Gagal enkripsi file name: %v", err)
+					return
+				}
+				msg.FileName = encryptedFileName
+			}
+
 			if err := h.roomService.SaveMessage(msg); err != nil {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
 			}
 
 			h.hub.Broadcast <- dto.Message{
 				ID:       msg.ID,
+				LocalID:  msg.LocalID,
 				RoomID:   msg.RoomID,
 				UserID:   msg.UserID,
 				Username: msg.Username,

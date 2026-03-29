@@ -6,6 +6,7 @@ import (
 
 type Message struct {
 	ID              string      `json:"id"`
+	LocalID         string      `json:"local_id,omitempty"`
 	RoomID          string      `json:"room_id"`
 	UserID          uint        `json:"user_id"`
 	ToID            uint        `json:"to_id,omitempty"`
@@ -16,6 +17,7 @@ type Message struct {
 	Type            string      `json:"type"`
 	IsRead          bool        `json:"is_read"`
 	Caption         string      `json:"caption,omitempty"`
+	FileName        string      `json:"file_name,omitempty"`
 	ReplyToID       string      `json:"reply_to_id,omitempty"`
 	ReplyTo         *Message    `json:"reply_to,omitempty"`
 	SDP             interface{} `json:"sdp,omitempty"`

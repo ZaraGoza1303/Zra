@@ -9,13 +9,14 @@ type RoomMemberRequest struct {
 }
 
 type RoomMemberResponse struct {
-	UserID             uint      `json:"user_id"`
-	UserProfilePicture string    `json:"user_profile_picture"`
-	Username           string    `json:"username"`
-	Name               string    `json:"name"`
-	UserBio            string    `json:"user_bio"`
-	Role               string    `json:"role"`
-	LastReadAt         time.Time `json:"last_read_at"`
-	IsVerified         bool      `json:"is_verified"`
-	CreatedAt          time.Time `json:"created_at"`
+	UserID             uint       `json:"user_id"`
+	UserProfilePicture string     `json:"user_profile_picture"`
+	Username           string     `json:"username"`
+	Name               string     `json:"name"`
+	UserBio            string     `json:"user_bio"`
+	Role               string     `json:"role"`
+	LastReadAt         time.Time  `json:"last_read_at"`
+	LastSeenAt         *time.Time `json:"last_seen_at,omitempty"`
+	IsVerified         bool       `json:"is_verified"`
+	CreatedAt          time.Time  `json:"created_at"`
 }

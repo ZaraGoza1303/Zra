@@ -216,6 +216,7 @@ func (s *authService) Login(ctx context.Context, req dto.UserLoginRequest) (*dto
 		ProfilePicture: profilePicture,
 		AccessToken:    genToken.SignedAccessKey,
 		RefreshToken:   genToken.SignedRefreshKey,
+		CreatedAt:      user.CreatedAt.Format(time.RFC3339),
 	}
 
 	return &response, nil
