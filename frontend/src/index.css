@@ -366,31 +366,36 @@ h4 {
 
 /* --- Landing Page Custom Variables & Utilities --- */
 :root {
-  --l-bg: #0e0e0e;
-  --l-surface: #141414;
-  --l-surface-2: #1a1919;
-  --l-surface-high: #201f1f;
-  --l-border: rgba(255, 255, 255, 0.05);
-  --l-border-hover: rgba(255, 255, 255, 0.13);
-  --l-text: #ffffff;
-  --l-text-muted: #adaaaa;
-  --l-accent: #85adff;
-  --l-accent-glow: rgba(133, 173, 255, 0.18);
-  --l-secondary: #8097ff;
-  --l-tertiary: #fbabff;
-  --color-secondary-container: #213da1;
-  --color-on-secondary-container: #c5ceff;
-  --color-primary-container: #6e9fff;
-  --color-on-primary-container: #002150;
-  --color-on-primary: #002c66;
+  --l-bg: #080808;
+  --l-surface: #111111;
+  --l-surface-2: #161616;
+  --l-surface-high: #1c1c1c;
+  --l-border: rgba(255, 255, 255, 0.07);
+  --l-border-hover: rgba(255, 255, 255, 0.15);
+  --l-text: #f5f5f5;
+  --l-text-muted: #737373;
+  --l-accent: #3b82f6;
+  --l-accent-2: #8b5cf6;
+  --l-accent-glow: rgba(59, 130, 246, 0.2);
+  --l-accent-glow-2: rgba(139, 92, 246, 0.15);
+  --l-secondary: #a78bfa;
+  --l-tertiary: #34d399;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
+/* ---- Typography utilities ---- */
 .text-gradient {
-  background: linear-gradient(135deg, var(--l-accent) 0%, #6e9fff 100%);
+  background: linear-gradient(160deg, #ffffff 30%, rgba(255, 255, 255, 0.35) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-accent {
+  background: linear-gradient(135deg, var(--l-accent) 0%, var(--l-secondary) 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -400,14 +405,37 @@ html {
   font-variation-settings: 'FILL' 1;
 }
 
+/* ---- Buttons ---- */
 .btn-gradient {
-  background: linear-gradient(135deg, var(--l-accent) 0%, #6e9fff 100%);
+  background: linear-gradient(135deg, var(--l-accent) 0%, var(--l-accent-2) 100%);
 }
 
+.landing-btn-primary {
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  color: white !important;
+}
+
+.landing-btn-primary:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 32px rgba(59, 130, 246, 0.45);
+  transform: translateY(-1px);
+}
+
+.landing-btn-ghost {
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.landing-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  transform: translateY(-1px);
+}
+
+/* ---- Reveal animation (logic unchanged) ---- */
 .reveal {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(28px);
+  transition: opacity 0.75s cubic-bezier(0.16, 1, 0.3, 1), transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .reveal.visible {
@@ -431,15 +459,16 @@ html {
   transition-delay: 320ms;
 }
 
+/* ---- Navbar ---- */
 .landing-nav {
   border-bottom: 1px solid transparent;
-  background: rgba(14, 14, 14, 0.8);
+  background: rgba(8, 8, 8, 0.75);
   transition: border-bottom-color 0.3s ease, background 0.3s ease;
 }
 
 .landing-nav.scrolled {
   border-bottom-color: var(--l-border);
-  background: rgba(14, 14, 14, 0.92);
+  background: rgba(8, 8, 8, 0.95);
 }
 
 .nav-link {
@@ -448,6 +477,7 @@ html {
   color: var(--l-text-muted);
   transition: color 0.2s;
   text-decoration: none;
+  font-size: 0.875rem;
 }
 
 .nav-link::after {
@@ -456,7 +486,7 @@ html {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 2px;
+  height: 1.5px;
   background: var(--l-accent);
   border-radius: 2px;
   transform: scaleX(0);
@@ -465,75 +495,108 @@ html {
 }
 
 .nav-link:hover {
-  color: var(--l-accent);
+  color: var(--l-text);
 }
 
 .nav-link.active {
-  color: var(--l-accent);
+  color: var(--l-text);
 }
 
 .nav-link.active::after {
   transform: scaleX(1);
 }
 
-.feature-card {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+/* ---- Bento / Feature Cards ---- */
+.bento-card {
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
+  border-radius: 20px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
 }
 
-.feature-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--l-border-hover) !important;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+.bento-card:hover {
+  border-color: var(--l-border-hover);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.06);
+  transform: translateY(-3px);
 }
 
-.landing-btn-primary {
-  transition: filter 0.2s ease, box-shadow 0.2s ease;
-  color: white !important;
+/* ---- Marquee / Ticker ---- */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
-.landing-btn-primary:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 0 28px rgba(133, 173, 255, 0.4);
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 30s linear infinite;
 }
 
-.landing-btn-ghost {
-  transition: background 0.2s ease, border-color 0.2s ease;
+.marquee-wrapper {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
 }
 
-.landing-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.15);
+/* ---- Hero Glow ---- */
+.hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 30%, rgba(59, 130, 246, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 70% 60%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
 }
 
+/* ---- Section divider ---- */
 .section-divider {
   width: 100%;
   height: 1px;
   background: linear-gradient(to right, transparent, var(--l-border), transparent);
 }
 
-.cta-box {
+/* ---- CTA Card ---- */
+.cta-glow-card {
   position: relative;
   overflow: hidden;
+  border-radius: 24px;
+  background: var(--l-surface);
+  border: 1px solid var(--l-border);
 }
 
-.cta-box::before,
-.cta-box::after {
+.cta-glow-card::before {
   content: '';
   position: absolute;
-  width: 360px;
-  height: 240px;
-  border-radius: 50%;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 0%, rgba(59, 130, 246, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 100%, rgba(139, 92, 246, 0.12) 0%, transparent 60%);
   pointer-events: none;
 }
 
-.cta-box::before {
-  top: -80px;
-  left: -80px;
-  background: radial-gradient(ellipse at top left, rgba(133, 173, 255, 0.2) 0%, transparent 65%);
+/* ---- Icon glow chips ---- */
+.icon-chip-blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
 }
 
-.cta-box::after {
-  bottom: -80px;
-  right: -80px;
-  background: radial-gradient(ellipse at bottom right, rgba(133, 173, 255, 0.2) 0%, transparent 65%);
+.icon-chip-purple {
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+}
+
+.icon-chip-teal {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+
+.icon-chip-rose {
+  background: rgba(251, 113, 133, 0.12);
+  color: #fb7185;
 }

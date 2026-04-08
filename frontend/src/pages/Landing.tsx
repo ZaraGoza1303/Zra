@@ -1,18 +1,108 @@
+// Landing.tsx
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Database } from 'lucide-react';
+import { Shield, Database, MessageSquare, Users, Paperclip, User } from 'lucide-react';
+import Lenis from 'lenis';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const NAV_LINKS = [
     { label: 'Features', href: '#features', id: 'features' },
     { label: 'Philosophy', href: '#community', id: 'community' },
     { label: 'Security', href: '#security', id: 'security' },
     { label: 'Join', href: '#join', id: 'join' },
+] as const;
+
+const MARQUEE_ITEMS = [
+    'Real-time Messaging', 'End-to-end Encryption', 'Group Rooms',
+    'File Sharing', 'User Profiles', 'Read Receipts',
+    'Instant Delivery', 'Private Chats', 'Reactions & Replies', 'Always Online',
 ];
+
+const BENTO_CARDS = [
+    {
+        span: 'lg:col-span-7',
+        chipClass: 'icon-chip-blue',
+        Icon: MessageSquare,
+        label: 'Messaging',
+        title: 'Fast messaging',
+        desc: 'Messages are delivered quickly using WebSocket. No manual refresh needed. Supports text, replies, reactions, and file attachments in private or group chats',
+        accent: 'rgba(59,130,246,0.07)',
+        large: true,
+    },
+    {
+        span: 'lg:col-span-5',
+        chipClass: 'icon-chip-purple',
+        Icon: Users,
+        label: 'Rooms',
+        title: 'Rooms and groups',
+        desc: 'Create rooms for your team or friends. Manage members, assign roles, and keep conversations organized',
+        accent: 'rgba(139,92,246,0.07)',
+        large: false,
+    },
+    {
+        span: 'lg:col-span-5',
+        chipClass: 'icon-chip-teal',
+        Icon: Paperclip,
+        label: 'Files',
+        title: 'File sharing',
+        desc: 'Send images, documents, or other files directly in chat. Files stay linked to the conversation',
+        accent: 'rgba(52,211,153,0.07)',
+        large: false,
+    },
+    {
+        span: 'lg:col-span-7',
+        chipClass: 'icon-chip-rose',
+        Icon: User,
+        label: 'Profiles',
+        title: 'User profiles',
+        desc: 'Set a display name, avatar, and basic info. See user status and last activity',
+        accent: 'rgba(251,113,133,0.07)',
+        large: true,
+    },
+] as const;
+
+const SECURITY_ITEMS = [
+    {
+        Icon: Shield,
+        chipClass: 'icon-chip-blue',
+        title: 'AES Encryption at Rest',
+        desc: 'Messages are stored in encrypted form in the database',
+    },
+    {
+        Icon: Database,
+        chipClass: 'icon-chip-purple',
+        title: 'No Data Selling',
+        desc: 'We do not share your data with third parties',
+    },
+] as const;
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Landing() {
     const navRef = useRef<HTMLElement>(null);
-    const [activeSection, setActiveSection] = useState<string>('');
+    const lenisRef = useRef<Lenis | null>(null);
+    const [activeSection, setActiveSection] = useState('');
 
+    // Smooth scroll (Lenis)
+    useEffect(() => {
+        const lenis = new Lenis({ lerp: 0.08, smoothWheel: true });
+        lenisRef.current = lenis;
+
+        let raf: number;
+        const tick = (time: number) => {
+            lenis.raf(time);
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+
+        return () => {
+            cancelAnimationFrame(raf);
+            lenis.destroy();
+        };
+    }, []);
+
+    // Reset scroll position on mount
     useEffect(() => {
         if ('scrollRestoration' in window.history) {
             window.history.scrollRestoration = 'manual';
@@ -20,25 +110,21 @@ export default function Landing() {
         window.scrollTo(0, 0);
     }, []);
 
-    // Reveal animation observer
+    // Reveal animation on scroll into view
     useEffect(() => {
         const observer = new IntersectionObserver(
-            (entries) => {
-                entries.forEach((entry) => {
-                    if (entry.isIntersecting) entry.target.classList.add('visible');
-                });
-            },
-            { threshold: 0.08 }
+            (entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add('visible')),
+            { threshold: 0.08 },
         );
         const els = document.querySelectorAll('.reveal');
         els.forEach((el) => observer.observe(el));
         return () => els.forEach((el) => observer.unobserve(el));
     }, []);
 
-    // Scroll-based active section — reliable regardless of section height
+    // Active nav link based on scroll position
     useEffect(() => {
-        const getActive = () => {
-            const scrollY = window.scrollY + 120; // offset for fixed navbar height
+        const update = () => {
+            const scrollY = window.scrollY + 120;
             let current = '';
             for (const { id } of NAV_LINKS) {
                 const el = document.getElementById(id);
@@ -46,128 +132,189 @@ export default function Landing() {
             }
             setActiveSection(current);
         };
-        getActive();
-        window.addEventListener('scroll', getActive, { passive: true });
-        return () => window.removeEventListener('scroll', getActive);
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+        return () => window.removeEventListener('scroll', update);
     }, []);
 
-    // Scrolled navbar style
+    // Scrolled navbar border/bg
     useEffect(() => {
-        const handleScroll = () => {
-            if (navRef.current) {
-                navRef.current.classList.toggle('scrolled', window.scrollY > 20);
-            }
-        };
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
+        const handle = () =>
+            navRef.current?.classList.toggle('scrolled', window.scrollY > 20);
+        window.addEventListener('scroll', handle, { passive: true });
+        return () => window.removeEventListener('scroll', handle);
     }, []);
+
+    // Smooth anchor scroll via Lenis
+    const scrollTo = (id: string) => {
+        lenisRef.current?.scrollTo(`#${id}`, { offset: -68 });
+    };
+
+    // ─── Render ───────────────────────────────────────────────────────────────
 
     return (
         <>
-            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-            <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+            <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+                rel="stylesheet"
+            />
 
-            <div className="landing-root min-h-screen bg-[var(--l-bg)] text-[var(--l-text)] font-['var(--font-headline)',sans-serif]">
-
+            <div
+                className="min-h-screen text-[var(--l-text)]"
+                style={{ background: 'var(--l-bg)', fontFamily: "'Inter', sans-serif" }}
+            >
                 {/* NAVBAR */}
-                <nav ref={navRef} className="landing-nav fixed top-0 w-full z-50 backdrop-blur-xl shadow-[0px_10px_30px_rgba(133,173,255,0.08)]">
-                    <div className="flex justify-between items-center max-w-7xl mx-auto px-6 h-20">
-                        <div className="flex items-center gap-2 text-2xl font-black text-[var(--l-accent)] tracking-widest">
-                            <img src="/zra.svg" alt="Zra Logo" className="w-8 h-8" />
-                            Zra
+                <nav ref={navRef} className="landing-nav fixed top-0 w-full z-50 backdrop-blur-2xl">
+                    <div className="flex justify-between items-center max-w-7xl mx-auto px-6 h-[68px]">
+                        <div className="flex items-center gap-2.5">
+                            <img src="/zra.svg" alt="Zra" className="w-7 h-7" />
+                            <span
+                                className="text-[15px] font-black tracking-widest uppercase"
+                                style={{ color: 'var(--l-text)' }}
+                            >
+                                Zra
+                            </span>
                         </div>
-                        <div className="hidden md:flex items-center gap-8 font-bold">
-                            {NAV_LINKS.map(({ label, href, id }) => (
-                                <a
+
+                        <div className="hidden md:flex items-center gap-7">
+                            {NAV_LINKS.map(({ label, id }) => (
+                                <button
                                     key={id}
-                                    href={href}
+                                    onClick={() => scrollTo(id)}
                                     className={`nav-link${activeSection === id ? ' active' : ''}`}
                                 >
                                     {label}
-                                </a>
+                                </button>
                             ))}
                         </div>
-                        <Link to="/login" className="btn-gradient landing-btn-primary px-6 py-2.5 rounded-full !text-white font-bold inline-block">
+
+                        <Link
+                            to="/login"
+                            className="landing-btn-primary btn-gradient text-white text-sm font-semibold px-5 py-2 rounded-full"
+                        >
                             Get Started
                         </Link>
                     </div>
                 </nav>
 
-                {/* HERO */}
-                <main className="pt-20">
-                    <section className="reveal d1 relative min-h-[85vh] flex flex-col items-center justify-center overflow-hidden pt-12 px-6">
-                        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(133,173,255,0.08)_0%,transparent_50%)]" />
-                        <div className="relative z-10 max-w-4xl text-center">
-                            <div className="inline-block px-4 py-1.5 rounded-full bg-[var(--l-surface-high)] border border-[var(--l-border)] mb-6">
-                                <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[var(--l-accent)]">Open Beta</span>
-                            </div>
-                            <div className="mb-6">
-                                <h1 className="font-['var(--font-headline)'] text-[clamp(72px,12vw,160px)] font-black tracking-[-0.04em] leading-[0.85] text-[var(--l-text)]">
-                                    Zra
-                                </h1>
-                                <h2 className="font-['var(--font-headline)'] text-[clamp(28px,4vw,48px)] font-extrabold tracking-[-0.025em] text-[var(--l-text)] mt-2">
-                                    Chat, share, and <span className="text-gradient">connect.</span>
-                                </h2>
-                            </div>
-                            <p className="text-[clamp(16px,2vw,20px)] text-[var(--l-text-muted)] leading-relaxed max-w-2xl mx-auto mb-8">
-                                A focused chat app for your group or community. Send messages, share files, and stay connected — all in one place.
+                <main className="pt-[68px]">
+                    {/* HERO */}
+                    <section className="reveal d1 relative min-h-[92vh] flex flex-col items-center justify-center overflow-hidden px-6 pt-10 pb-8">
+                        <div className="hero-glow" />
+                        <div
+                            className="absolute inset-0 pointer-events-none opacity-[0.025]"
+                            style={{
+                                backgroundImage:
+                                    'linear-gradient(var(--l-border) 1px, transparent 1px), linear-gradient(90deg, var(--l-border) 1px, transparent 1px)',
+                                backgroundSize: '60px 60px',
+                            }}
+                        />
+
+                        <div className="relative z-10 max-w-5xl text-center">
+
+                            <h1
+                                className="font-black leading-[0.9] tracking-[-0.04em] mb-6"
+                                style={{ fontSize: 'clamp(64px, 11vw, 10px)' }}
+                            >
+                                <span className="text-gradient block">Simple messaging for every day</span>
+                            </h1>
+
+                            <p
+                                className="leading-relaxed max-w-xl mx-auto mb-10"
+                                style={{ fontSize: 'clamp(15px, 1.8vw, 18px)', color: 'var(--l-text-muted)' }}
+                            >
+                                Zra is a messaging app for everyday use.
+                                Send messages, share files, and stay connected in one place
                             </p>
-                            <div className="flex flex-wrap gap-4 justify-center">
-                                <Link to="/login" className="btn-gradient landing-btn-primary px-8 py-4 rounded-full !text-white font-bold text-lg flex items-center">Log In</Link>
-                                <Link to="/register" className="landing-btn-ghost px-8 py-4 rounded-full font-bold text-lg flex items-center bg-[var(--l-surface-high)] text-[var(--l-text)] border border-[var(--l-border)]">Create Account</Link>
+
+                            <div className="flex flex-wrap gap-3 justify-center">
+                                <Link
+                                    to="/register"
+                                    className="landing-btn-primary btn-gradient !text-white font-semibold px-7 py-3 rounded-full text-sm"
+                                >
+                                    Start for free →
+                                </Link>
+                                <button
+                                    onClick={() => scrollTo('features')}
+                                    className="landing-btn-ghost text-sm font-semibold px-7 py-3 rounded-full border border-[var(--l-border)]"
+                                    style={{ color: 'var(--l-text-muted)' }}
+                                >
+                                    See features
+                                </button>
                             </div>
+                        </div>
+
+                        <div
+                            className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1.5 animate-bounce"
+                            style={{ color: 'var(--l-text-muted)', opacity: 0.4 }}
+                        >
+                            <div className="w-px h-8 rounded-full" style={{ background: 'var(--l-text-muted)' }} />
                         </div>
                     </section>
 
-                    <div className="section-divider max-w-7xl mx-auto" />
+                    {/* MARQUEE */}
+                    <div
+                        className="marquee-wrapper py-5 border-y border-[var(--l-border)]"
+                        style={{ background: 'var(--l-surface)' }}
+                    >
+                        <div className="marquee-track">
+                            {[...MARQUEE_ITEMS, ...MARQUEE_ITEMS].map((item, i) => (
+                                <span
+                                    key={i}
+                                    className="flex items-center gap-5 px-6 text-[13px] font-medium whitespace-nowrap"
+                                    style={{ color: 'var(--l-text-muted)' }}
+                                >
+                                    {item}
+                                    <span
+                                        className="w-1 h-1 rounded-full shrink-0"
+                                        style={{ background: 'var(--l-border-hover)' }}
+                                    />
+                                </span>
+                            ))}
+                        </div>
+                    </div>
 
                     {/* FEATURES */}
-                    <section id="features" className="reveal d2 py-32 px-6 max-w-6xl mx-auto">
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                            <div className="col-span-full mb-12">
-                                <h2 className="font-['var(--font-headline)'] text-[clamp(32px,5vw,60px)] font-bold tracking-[-0.03em] text-[var(--l-text)]">
-                                    Built for <span className="text-[var(--l-text-muted)]">everyday use.</span>
-                                </h2>
-                            </div>
+                    <section id="features" className="reveal d2 py-28 px-6 max-w-6xl mx-auto">
+                        <div className="mb-14">
+                            <span
+                                className="text-[11px] font-semibold tracking-[0.2em] uppercase block mb-4"
+                                style={{ color: 'var(--l-accent)' }}
+                            >
+                                Features
+                            </span>
+                            <h2
+                                className="font-black tracking-[-0.035em] leading-[0.95]"
+                                style={{ fontSize: 'clamp(36px, 5vw, 64px)', color: 'var(--l-text)' }}
+                            >
+                                Made for {' '}
+                                <span style={{ color: 'var(--l-text-muted)' }}>daily communication.</span>
+                            </h2>
+                        </div>
 
-                            {[
-                                {
-                                    spanClass: 'lg:col-span-8',
-                                    icon: 'chat_bubble',
-                                    iconColorClass: 'text-[var(--l-accent)]',
-                                    title: 'Real-time Messaging',
-                                    titleSizeClass: 'text-3xl',
-                                    desc: 'Send and receive messages instantly with WebSocket-powered delivery. Supports text, reactions, and replies — whether in a private chat or a group room.',
-                                },
-                                {
-                                    spanClass: 'lg:col-span-4',
-                                    icon: 'groups',
-                                    iconColorClass: 'text-[var(--l-secondary)]',
-                                    title: 'Rooms & Groups',
-                                    titleSizeClass: 'text-2xl',
-                                    desc: 'Create rooms for your team, circle, or project. Manage members and keep conversations organized.',
-                                },
-                                {
-                                    spanClass: 'lg:col-span-4',
-                                    icon: 'attach_file',
-                                    iconColorClass: 'text-[var(--l-tertiary)]',
-                                    title: 'File Sharing',
-                                    titleSizeClass: 'text-2xl',
-                                    desc: 'Attach and share files directly in chat. Images, documents, and more — sent alongside your messages.',
-                                },
-                                {
-                                    spanClass: 'lg:col-span-8',
-                                    icon: 'badge',
-                                    iconColorClass: 'text-[var(--l-accent)]',
-                                    title: 'User Profiles',
-                                    titleSizeClass: 'text-3xl',
-                                    desc: 'Set a display name, avatar, bio, and social links. See who you\'re talking to at a glance with presence and last-seen status.',
-                                },
-                            ].map((card) => (
-                                <div key={card.title} className={`feature-card bg-[var(--l-surface)] p-10 rounded-3xl border border-[var(--l-border)] ${card.spanClass}`}>
-                                    <span className={`material-symbols-outlined text-4xl mb-6 block fill-icon ${card.iconColorClass}`}>{card.icon}</span>
-                                    <h3 className={`font-['var(--font-headline)'] ${card.titleSizeClass} font-bold mb-4 text-[var(--l-text)]`}>{card.title}</h3>
-                                    <p className="text-[var(--l-text-muted)] leading-relaxed max-w-lg">{card.desc}</p>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                            {BENTO_CARDS.map((card) => (
+                                <div
+                                    key={card.title}
+                                    className={`bento-card p-8 ${card.span}`}
+                                    style={{ background: card.accent }}
+                                >
+                                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide uppercase mb-6 ${card.chipClass}`}>
+                                        <card.Icon size={13} />
+                                        {card.label}
+                                    </div>
+                                    <h3
+                                        className={`font-black tracking-[-0.03em] mb-3 leading-tight ${card.large ? 'text-3xl' : 'text-2xl'}`}
+                                        style={{ color: 'var(--l-text)' }}
+                                    >
+                                        {card.title}
+                                    </h3>
+                                    <p
+                                        className="leading-relaxed text-[14px] max-w-md"
+                                        style={{ color: 'var(--l-text-muted)' }}
+                                    >
+                                        {card.desc}
+                                    </p>
                                 </div>
                             ))}
                         </div>
@@ -177,49 +324,89 @@ export default function Landing() {
                 <div className="section-divider" />
 
                 {/* PHILOSOPHY */}
-                <section id="community" className="py-[108px] px-6 bg-[var(--l-surface)] border-y border-[var(--l-border)]">
-                    <div className="reveal max-w-[780px] mx-auto">
-                        <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[var(--l-accent)] block mb-8">Our Philosophy</span>
-                        <blockquote className="text-[clamp(26px,3.5vw,44px)] font-bold leading-tight tracking-[-0.02em] mb-11 text-[var(--l-text)]">
-                            "Chat should feel like a place, not a product. We build Zra to be{' '}
-                            <span className="text-[var(--l-accent)]">simple</span>
-                            {' '}enough to disappear into the background, and solid enough to rely on."
+                <section
+                    id="community"
+                    className="py-28 px-6 border-y border-[var(--l-border)]"
+                    style={{ background: 'var(--l-surface)' }}
+                >
+                    <div className="reveal max-w-3xl mx-auto">
+                        <span
+                            className="text-[11px] font-semibold tracking-[0.2em] uppercase block mb-8"
+                            style={{ color: 'var(--l-accent)' }}
+                        >
+                            Our Philosophy
+                        </span>
+                        <blockquote
+                            className="font-black tracking-[-0.03em] leading-[1.1] mb-8"
+                            style={{ fontSize: 'clamp(28px, 4vw, 52px)', color: 'var(--l-text)' }}
+                        >
+                            "We focus on simple and usable chat"
                         </blockquote>
+                        <p className="text-sm font-medium" style={{ color: 'var(--l-text-muted)' }}>
+                            — Zra Team
+                        </p>
                     </div>
                 </section>
 
                 {/* SECURITY */}
-                <section id="security" className="py-[100px] px-6 max-w-7xl mx-auto">
+                <section id="security" className="py-24 px-6 max-w-7xl mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
-                        <div className="reveal relative h-[480px] bg-[var(--l-surface)] rounded-2xl border border-[var(--l-border)] overflow-hidden flex items-center justify-center">
-                            <div className="text-center">
-                                <Shield size={48} className="text-[var(--l-accent)] opacity-30 mb-3 mx-auto" />
-                                <span className="text-[var(--l-text-muted)] text-sm">Security illustration</span>
+                        <div
+                            className="reveal relative h-[420px] bento-card flex items-center justify-center"
+                            style={{ background: 'var(--l-surface)' }}
+                        >
+                            <div
+                                className="absolute w-48 h-48 rounded-full blur-3xl opacity-20"
+                                style={{ background: 'var(--l-accent)' }}
+                            />
+                            <div className="relative z-10 text-center">
+                                <div
+                                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                                    style={{
+                                        background: 'rgba(59,130,246,0.1)',
+                                        border: '1px solid rgba(59,130,246,0.2)',
+                                    }}
+                                >
+                                    <Shield size={28} style={{ color: 'var(--l-accent)' }} />
+                                </div>
+                                <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--l-text-muted)' }}>
+                                    Protected
+                                </p>
                             </div>
                         </div>
 
-                        <div className="reveal d2 flex flex-col gap-9">
+                        <div className="reveal d2 flex flex-col gap-8">
                             <div>
-                                <h2 className="text-[clamp(30px,3.5vw,46px)] font-extrabold tracking-[-0.025em] leading-snug mb-5">
-                                    Security by{' '}
-                                    <span className="text-[var(--l-accent)]">design.</span>
+                                <span
+                                    className="text-[11px] font-semibold tracking-[0.2em] uppercase block mb-5"
+                                    style={{ color: 'var(--l-accent)' }}
+                                >
+                                    Security
+                                </span>
+                                <h2
+                                    className="font-black tracking-[-0.03em] leading-[0.95] mb-4"
+                                    style={{ fontSize: 'clamp(32px, 4vw, 52px)', color: 'var(--l-text)' }}
+                                >
+                                    Basic security
                                 </h2>
-                                <p className="text-[15px] text-[var(--l-text-muted)] leading-relaxed">
-                                    Message content is encrypted at rest with AES. Your data stays on our servers and is never shared or sold to third parties.
+                                <p className="text-[14px] leading-relaxed" style={{ color: 'var(--l-text-muted)' }}>
+                                    Your data is stored on our servers and protected. Messages are encrypted, and we do not sell your data
                                 </p>
                             </div>
-                            <div className="flex flex-col gap-6">
-                                {[
-                                    { icon: <Shield size={15} />, title: 'AES Encryption at Rest', desc: 'Message content is stored encrypted. Even with database access, messages are not readable in plain text.' },
-                                    { icon: <Database size={15} />, title: 'No Data Selling', desc: 'We do not sell or share your data. Your conversations are yours.' },
-                                ].map((item) => (
-                                    <div key={item.title} className="flex gap-3.5">
-                                        <div className="w-8 h-8 rounded-lg bg-[var(--l-accent-glow)] text-[var(--l-accent)] flex items-center justify-center shrink-0 mt-0.5">
-                                            {item.icon}
+
+                            <div className="flex flex-col gap-5">
+                                {SECURITY_ITEMS.map((item) => (
+                                    <div key={item.title} className="flex gap-4">
+                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${item.chipClass}`}>
+                                            <item.Icon size={15} />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-bold mb-1">{item.title}</h4>
-                                            <p className="text-[13px] text-[var(--l-text-muted)] leading-relaxed">{item.desc}</p>
+                                            <h4 className="text-sm font-bold mb-1" style={{ color: 'var(--l-text)' }}>
+                                                {item.title}
+                                            </h4>
+                                            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--l-text-muted)' }}>
+                                                {item.desc}
+                                            </p>
                                         </div>
                                     </div>
                                 ))}
@@ -230,21 +417,40 @@ export default function Landing() {
 
                 <div className="section-divider" />
 
-                {/* CTA / JOIN */}
-                <section id="join" className="py-[100px] px-6">
-                    <div className="reveal cta-box max-w-[720px] mx-auto text-center bg-[var(--l-surface)] border border-[var(--l-border)] rounded-[20px] py-[72px] px-12">
+                {/* JOIN / CTA */}
+                <section id="join" className="py-24 px-6">
+                    <div className="reveal cta-glow-card max-w-[680px] mx-auto py-20 px-10 text-center">
                         <div className="relative z-10">
-                            <h2 className="text-[clamp(32px,4vw,48px)] font-extrabold tracking-[-0.025em] mb-4">
-                                Give it a try.
+                            <span
+                                className="text-[11px] font-semibold tracking-[0.2em] uppercase block mb-6"
+                                style={{ color: 'var(--l-accent)' }}
+                            >
+                                Get Started
+                            </span>
+                            <h2
+                                className="font-black tracking-[-0.035em] leading-[0.95] mb-4"
+                                style={{ fontSize: 'clamp(36px, 5vw, 60px)', color: 'var(--l-text)' }}
+                            >
+                                Start using Zra
                             </h2>
-                            <p className="text-[15px] text-[var(--l-text-muted)] leading-relaxed max-w-[400px] mx-auto mb-9">
-                                Create an account and start chatting. It's free, no setup required.
+                            <p
+                                className="text-[14px] leading-relaxed mx-auto mb-10 max-w-sm"
+                                style={{ color: 'var(--l-text-muted)' }}
+                            >
+                                Create an account to start chatting
                             </p>
                             <div className="flex flex-wrap gap-3 justify-center">
-                                <Link to="/register" className="btn-gradient landing-btn-primary !text-white px-7 py-3.5 rounded-full text-sm font-bold no-underline shadow-[0_0_24px_var(--l-accent-glow)]">
+                                <Link
+                                    to="/register"
+                                    className="landing-btn-primary btn-gradient !text-white font-semibold px-7 py-3 rounded-full text-sm"
+                                >
                                     Create Account
                                 </Link>
-                                <Link to="/login" className="landing-btn-ghost border border-[var(--l-border)] text-[var(--l-text)] px-7 py-3.5 rounded-full text-sm font-bold no-underline bg-transparent">
+                                <Link
+                                    to="/login"
+                                    className="landing-btn-ghost text-sm font-semibold px-7 py-3 rounded-full border border-[var(--l-border)]"
+                                    style={{ color: 'var(--l-text-muted)' }}
+                                >
                                     Log In
                                 </Link>
                             </div>
@@ -253,25 +459,37 @@ export default function Landing() {
                 </section>
 
                 {/* FOOTER */}
-                <footer className="border-t border-[var(--l-border)] p-6">
+                <footer className="border-t border-[var(--l-border)] py-7 px-6">
                     <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
-                        <div className="flex items-center gap-2 font-black text-[15px] tracking-widest text-[var(--l-accent)]">
-                            <img src="/zra.svg" alt="Zra Logo" className="w-5 h-5" />
-                            Zra
+                        <div className="flex items-center gap-2">
+                            <img src="/zra.svg" alt="Zra" className="w-4 h-4 opacity-60" />
+                            <span
+                                className="text-[13px] font-black tracking-widest uppercase opacity-60"
+                                style={{ color: 'var(--l-text)' }}
+                            >
+                                Zra
+                            </span>
                         </div>
-                        <div className="flex flex-wrap gap-7">
+
+                        <div className="flex flex-wrap gap-6">
                             {['Privacy Policy', 'Terms of Service', 'Status'].map((link) => (
-                                <span key={link} className="text-xs text-[var(--l-text-muted)] cursor-pointer transition-colors duration-200 hover:text-[var(--l-text)]">
+                                <span
+                                    key={link}
+                                    className="text-xs cursor-pointer transition-colors duration-200"
+                                    style={{ color: 'var(--l-text-muted)' }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--l-text)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--l-text-muted)')}
+                                >
                                     {link}
                                 </span>
                             ))}
                         </div>
-                        <div className="text-[11px] text-[var(--l-text-muted)]">
-                            &copy; {new Date().getFullYear()} Zra
+
+                        <div className="text-[11px]" style={{ color: 'var(--l-text-muted)' }}>
+                            © {new Date().getFullYear()} Zra
                         </div>
                     </div>
                 </footer>
-
             </div>
         </>
     );
