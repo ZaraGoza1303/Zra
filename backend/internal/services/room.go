@@ -1333,7 +1333,10 @@ func (r *roomServices) FindMutualRooms(ctx context.Context, target_id uint) ([]d
 			picture = helper.NormalizeImagePath(*room.Picture, r.backendUrl, r.roomsPath)
 		}
 
-		roomLink := fmt.Sprintf("%s/%s", r.frontendJoinUrl, room.RoomLink)
+		roomLink := ""
+		if room.RoomLink != nil {
+			roomLink = fmt.Sprintf("%s/%s", r.frontendJoinUrl, *room.RoomLink)
+		}
 
 		item := dto.RoomResponse{
 			ID:          room.ID,

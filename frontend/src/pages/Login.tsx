@@ -19,7 +19,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
-  const [rememberMe, setRememberMe] = React.useState(false);
+  const [rememberMe] = React.useState(false);
 
   React.useEffect(() => {
     const oauth = searchParams.get("oauth");
@@ -49,7 +49,6 @@ export default function Login() {
 
           apiCall<{ data: User }>(`/user/${userId}`, { method: "GET" })
             .then((res) => {
-              console.log("Profile API response:", res);
               if (res.data) {
                 loginState(accessToken, {
                   ...res.data,
@@ -130,146 +129,130 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen font-sans text-[#f1f5f9] relative overflow-hidden selection:bg-[#3b82f6]/30">
+    <div className="min-h-screen font-sans bg-[#0c0c0e] text-[#f1f5f9] flex flex-col items-center justify-center w-full relative">
+      {/* Header */}
+      <div className="absolute top-0 left-0 w-full p-6 md:p-10 flex justify-between items-center z-20">
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <img src="/zra.svg" alt="Zra" className="w-7 h-7" />
+          <span className="font-bold text-[19px] text-white tracking-tight">Zra</span>
+        </Link>
+      </div>
 
-      <div className="flex flex-col min-h-screen">
-        <main className="flex-1 w-full flex items-center justify-start flex-col pt-4 md:pt-10 p-4 md:p-8 z-10 animate-fade-in">
-          <div className="w-full max-w-[450px]">
-            {/* Back to Home Link */}
-            <Link to="/" className="inline-flex items-center gap-2 text-[#94a3b8] hover:text-[#f1f5f9] transition-colors mb-4 text-xs font-bold ml-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back to Home
-            </Link>
+      {/* Form Container */}
+      <div className="flex flex-col justify-center w-full max-w-[420px] mx-auto px-6 py-12 relative z-10 my-auto">
+        <div className="mb-8">
+          <p className="text-[10px] uppercase font-bold tracking-[0.16em] text-[#7fa6ff] mb-3">
+            Authentication
+          </p>
+          <h1 className="text-[34px] md:text-[38px] font-extrabold tracking-tight text-white mb-2.5 leading-[1.1]">
+            Welcome!
+          </h1>
+          <p className="text-[#a1a1aa] text-[14px] font-medium tracking-tight">
+            Log in to your account to continue.
+          </p>
+        </div>
 
-            {/*Login Card */}
-            <div className="glass-card rounded-[2rem] px-6 md:px-8 py-6 md:py-8 shadow-2xl relative">
-              {/* Brand & Header */}
-              <div className="text-center mb-7">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl mb-4  border border-[#3b82f6]/20">
-                  <img src="/zra.svg" alt="Zra" className="w-8 h-8" />
-                </div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#f1f5f9] mb-2 font-headline">Welcome Back</h1>
-                <p className="text-[#94a3b8] text-xs font-medium">Continue your conversations to Zra</p>
-              </div>
-
-              {/* Error Alert */}
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2.5 rounded-xl mb-5 text-[13px] text-center animate-shake">
-                  {error}
-                </div>
-              )}
-
-              {/* Login Form */}
-              <form className="space-y-2" onSubmit={handleSubmit}>
-                {/* Email Field */}
-                <div className="space-y-2.5">
-                  <label className="text-[10px] uppercase tracking-widest font-bold text-[#94a3b8] ml-1" htmlFor="email">Email Address</label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748b] group-focus-within:text-[#3b82f6] transition-colors">
-                      <Mail size={17} />
-                    </div>
-                    <input
-                      id="email"
-                      type="email"
-                      className="w-full bg-[#0f1114] border border-[#1e293b] text-[#f1f5f9] text-sm rounded-xl block py-3 pl-11 pr-3.5 placeholder:text-[#475569] focus:border-[#3b82f6]/50 focus:ring-0 transition-all duration-200 outline-none"
-                      placeholder="Enter Email Adress"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Password Field */}
-                <div className="space-y-2.5 mt-4">
-                  <div className="flex justify-between items-end ml-1">
-                    <label className="text-[10px] uppercase tracking-widest font-bold text-[#94a3b8]" htmlFor="password">Password</label>
-                    <Link className="text-[10px] font-bold text-[#3b82f6] hover:text-[#3b82f6]/80 transition-colors uppercase tracking-tight" to="/forgot-password">Forgot Password?</Link>
-                  </div>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748b] group-focus-within:text-[#3b82f6] transition-colors">
-                      <Lock size={17} />
-                    </div>
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      className="w-full bg-[#0f1114] border border-[#1e293b] text-[#f1f5f9] text-sm rounded-xl block py-3 pl-11 pr-10 placeholder:text-[#475569] focus:border-[#3b82f6]/50 focus:ring-0 transition-all duration-200 outline-none"
-                      placeholder="Enter Password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#64748b] hover:text-[#f1f5f9] transition-colors"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Remember Me */}
-                <div className="flex items-center my-3 px-1">
-                  <input
-                    id="remember-me"
-                    type="checkbox"
-                    className="w-3.5 h-3.5 text-[#3b82f6] bg-[#0f1114] border-[#1e293b] rounded focus:ring-[#3b82f6] focus:ring-offset-[#0b0e11] cursor-pointer"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                  />
-                  <label className="ml-2 text-xs font-medium text-[#94a3b8] cursor-pointer" htmlFor="remember-me">Remember Me</label>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-[#3b82f6] cursor-pointer text-white font-bold py-3 rounded-xl text-[12px] tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? "Signing In..." : "Sign In To Zra"}
-                </button>
-              </form>
-
-              {/* Divider */}
-              <div className="relative my-3.5">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/5"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-[0.2em] text-[#64748b]">
-                  <span className="bg-[#0b0e11]/50 backdrop-blur-md px-3">or sign in using</span>
-                </div>
-              </div>
-
-              {/* Social Logins */}
-              <div className="mt-1.5 text-center">
-                <button
-                  type="button"
-                  className="w-full cursor-pointer flex items-center justify-center gap-2 py-2.5 px-3 bg-[#0f1114] border border-[#1e293b] rounded-xl hover:bg-[#1d283a] transition-colors duration-200 group active:scale-95"
-                  onClick={handleGoogleLogin}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                  </svg>
-                  <span className="text-[11px] font-bold text-[#f1f5f9]">Google</span>
-                </button>
-              </div>
-
-              {/* Footer Link */}
-              <div className="mt-5 text-center border-t border-white/5 pt-6">
-                <p className="text-[12px] text-[#94a3b8] font-medium">
-                  Don't have an account?
-                  <Link className="text-[#3b82f6] font-bold hover:underline underline-offset-4 ml-1.5 transition-all" to="/register">Create an account</Link>
-                </p>
-              </div>
-            </div>
-
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl mb-6 text-[13px] text-center font-medium animate-fade-in shadow-lg">
+            {error}
           </div>
-        </main>
+        )}
 
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-3 py-[14px] px-4 bg-[#131316] hover:bg-[#1a1a1d] border border-white/5 rounded-xl transition-all duration-200 group active:scale-[0.98] mb-7 shadow-sm"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+          </svg>
+          <span className="text-[13px] font-bold text-[#e4e4e7] group-hover:text-white transition-colors">
+            Continue with Google
+          </span>
+        </button>
+
+        <div className="relative mb-4 flex items-center">
+          <div className="flex-1 border-t border-white/5"></div>
+          <span className="px-5 text-[10px] uppercase font-bold tracking-[0.2em] text-[#52525b]">or</span>
+          <div className="flex-1 border-t border-white/5"></div>
+        </div>
+
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          {/* Email Field */}
+          <div className="space-y-2.5">
+            <label className="text-[10px] uppercase tracking-[0.1em] font-bold text-[#d4d4d8] ml-0.5" htmlFor="email">
+              Email Address
+            </label>
+            <div className="relative group mt-2">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#52525b] group-focus-within:text-[#e4e4e7] transition-colors">
+                <Mail size={16} className="stroke-[2.5]" />
+              </div>
+              <input
+                id="email"
+                type="email"
+                className="w-full bg-[#131316] border border-transparent text-[#f1f5f9] text-[13.5px] rounded-xl block py-[14px] pl-[38px] pr-3.5 placeholder:text-[#52525b] focus:border-white/10 focus:bg-[#18181b] focus:ring-0 transition-all duration-300 outline-none placeholder:font-medium shadow-sm"
+                placeholder="Enter your email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Password Field */}
+          <div className="space-y-2.5">
+            <div className="flex justify-between items-end ml-0.5">
+              <label className="text-[10px] uppercase tracking-[0.1em] font-bold text-[#d4d4d8]" htmlFor="password">
+                Password
+              </label>
+              <Link className="text-[11px] font-bold text-[#7fa6ff] hover:text-[#9bb7ff] transition-colors tracking-tight" to="/forgot-password">
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#52525b] group-focus-within:text-[#e4e4e7] transition-colors">
+                <Lock size={16} className="stroke-[2.5]" />
+              </div>
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                className="w-full bg-[#131316] border border-transparent text-[#f1f5f9] text-[13.5px] rounded-xl block py-[14px] pl-[38px] pr-10 placeholder:text-[#52525b] focus:border-white/10 focus:bg-[#18181b] focus:ring-0 transition-all duration-300 outline-none placeholder:font-medium tracking-tight shadow-sm"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#52525b] hover:text-[#a1a1aa] transition-colors"
+                onClick={() => setShowPassword(!showPassword)}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} className="stroke-[2.5]" /> : <Eye size={16} className="stroke-[2.5]" />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#82a3fb] hover:bg-[#92b0fc] active:scale-[0.98] text-[#0c0c0e] font-bold py-[14px] rounded-xl text-[14px] transition-all duration-200 mt-4 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_14px_rgba(130,163,251,0.15)]"
+          >
+            {loading ? "Logging in..." : "Log in"}
+          </button>
+        </form>
+      </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-5 left-0 w-full text-center pb-8 z-20">
+        <p className="text-[13px] text-[#71717a] font-medium tracking-tight">
+          Don't have an account?
+          <Link className="text-[#f1f5f9] font-bold hover:underline ml-1.5 transition-all" to="/register">
+            Sign up
+          </Link>
+        </p>
       </div>
     </div>
   );

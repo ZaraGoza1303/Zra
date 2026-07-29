@@ -6,6 +6,6 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    allowedHosts: ['stylar-nonseverable-denver.ngrok-free.dev'],
+    allowedHosts: true,
   }
 })

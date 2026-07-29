@@ -86,7 +86,7 @@ func main() {
 				c.Locals("refresh_uuid", refreshUUID)
 			}
 
-			accessUUID := claims["access_uuid"].(string)
+			accessUUID, _ := claims["access_uuid"].(string)
 
 			key := "access:" + accessUUID
 			val, err := rdb.Exists(c.Context(), key).Result()
@@ -118,7 +118,11 @@ func main() {
 	roomService := services.NewRoomServices(hub, roomRepository, userRepository, userService, storageService)
 	cachedRoomServices := services_cached.NewCachedRoomServices(roomService, rdb)
 
-	handler.NewAuth(app, cachedAuthService, userService, jwtWare)
+	// Rate limiter
+	authLimiter := middleware.NewAuthRateLimiter()
+	loginLimiter := middleware.NewLoginRateLimiter()
+
+	handler.NewAuth(app, cachedAuthService, userService, jwtWare, authLimiter, loginLimiter)
 	handler.NewUser(app, userService, storageService, jwtWare)
 	handler.NewRoom(app, roomService, cachedRoomServices, storageService, jwtWare)
 	handler.NewWebSocket(app, hub, roomService, cachedRoomServices, userService, middleware.WebsocketMiddleware(rdb))

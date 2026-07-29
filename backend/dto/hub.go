@@ -4,7 +4,8 @@ import (
 	"log"
 	"math/rand"
 	"sync"
-	"time"
+
+	"github.com/google/uuid"
 )
 
 type Hub struct {
@@ -52,12 +53,10 @@ func (h *Hub) Run() {
 
 func (h *Hub) handleJoin(client *Client) {
 	if client.RoomID == "global" {
-		// Hanya global WS yang masuk GlobalClients
 		h.ClientMu.Lock()
 		h.GlobalClients[client.UserID] = client
 		h.ClientMu.Unlock()
 	} else {
-		// Room WS hanya masuk Rooms map
 		h.RoomMu.Lock()
 		if h.Rooms[client.RoomID] == nil {
 			h.Rooms[client.RoomID] = make(map[*Client]bool)
@@ -76,16 +75,22 @@ func (h *Hub) handleLeave(client *Client) {
 		h.ClientMu.Unlock()
 	} else {
 		h.RoomMu.Lock()
-		delete(h.Rooms[client.RoomID], client)
+		if _, ok := h.Rooms[client.RoomID]; ok {
+			delete(h.Rooms[client.RoomID], client)
+		}
 		h.RoomMu.Unlock()
 	}
-	close(client.Send)
+
+	// Close channel dengan safe — pastikan cuma sekali
+	client.CloseOnce.Do(func() {
+		close(client.Send)
+	})
 }
 
 func (h *Hub) handleBroadcast(message Message) {
-	h.RoomMu.Lock()
+	h.RoomMu.RLock()
 	roomClients, ok := h.Rooms[message.RoomID]
-	h.RoomMu.Unlock()
+	h.RoomMu.RUnlock()
 	if !ok {
 		return
 	}
@@ -93,7 +98,8 @@ func (h *Hub) handleBroadcast(message Message) {
 	for client := range roomClients {
 		select {
 		case client.Send <- message:
-
+		default:
+			// skip kalo buffer penuh, gak usah ngeprint biar gak spam log
 		}
 	}
 }
@@ -112,9 +118,6 @@ func (h *Hub) handleSignal(message Message) {
 
 	select {
 	case target.Send <- message:
-		if message.Type == "user-offline" || message.Type == "user-online" || message.Type == "call-busy" {
-			log.Printf("handleSignal [%s] successfully put in channel target.Send for user %d", message.Type, message.ToID)
-		}
 	default:
 		log.Printf("Skip signal %s for user %d: buffer full", message.Type, message.ToID)
 	}
@@ -142,11 +145,12 @@ func (h *Hub) OnlineMembers() ([]uint, error) {
 	return onlineMember, nil
 }
 
+// Fix: Clients map gak pernah diisi, ganti pake GlobalClients
 func (h *Hub) GetClientById(user_id uint) (*Client, bool) {
 	h.ClientMu.RLock()
 	defer h.ClientMu.RUnlock()
 
-	client, ok := h.Clients[user_id]
+	client, ok := h.GlobalClients[user_id]
 	if !ok {
 		return nil, false
 	}
@@ -173,8 +177,9 @@ func (h *Hub) GetActiveMemberCount(room_id string) (int64, error) {
 	return count, nil
 }
 
+// Pake UUID biar gak ada collision
 func GenerateId() string {
-	return time.Now().Format("20060102150405") + RandomString(4)
+	return uuid.New().String()
 }
 
 func RandomString(n int) string {

@@ -351,28 +351,13 @@ export default function Landing() {
                 {/* SECURITY */}
                 <section id="security" className="py-24 px-6 max-w-7xl mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+
                         <div
-                            className="reveal relative h-[420px] bento-card flex items-center justify-center"
-                            style={{ background: 'var(--l-surface)' }}
-                        >
-                            <div
-                                className="absolute w-48 h-48 rounded-full blur-3xl opacity-20"
-                                style={{ background: 'var(--l-accent)' }}
-                            />
-                            <div className="relative z-10 text-center">
-                                <div
-                                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                                    style={{
-                                        background: 'rgba(59,130,246,0.1)',
-                                        border: '1px solid rgba(59,130,246,0.2)',
-                                    }}
-                                >
-                                    <Shield size={28} style={{ color: 'var(--l-accent)' }} />
-                                </div>
-                                <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--l-text-muted)' }}>
-                                    Protected
-                                </p>
-                            </div>
+                            className="absolute w-48 h-48 rounded-full blur-3xl opacity-20"
+                            style={{ background: 'var(--l-accent)' }}
+                        />
+                        <div className="relative z-10 reveal d1 flex justify-center items-center">
+                            <img src="/secure.avif" alt="Security" className="w-full max-w-sm h-auto object-contain drop-shadow-2xl" />
                         </div>
 
                         <div className="reveal d2 flex flex-col gap-8">

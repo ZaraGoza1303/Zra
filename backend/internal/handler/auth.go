@@ -21,7 +21,7 @@ type authHandler struct {
 	UserServices core.UserServices
 }
 
-func NewAuth(router fiber.Router, authServices core.AuthServices, userServices core.UserServices, middleware fiber.Handler) {
+func NewAuth(router fiber.Router, authServices core.AuthServices, userServices core.UserServices, middleware fiber.Handler, authLimiter fiber.Handler, loginLimiter fiber.Handler) {
 	handler := authHandler{
 		AuthServices: authServices,
 		UserServices: userServices,
@@ -37,17 +37,17 @@ func NewAuth(router fiber.Router, authServices core.AuthServices, userServices c
 	)
 
 	route := router.Group("/api")
-	route.Post("/auth/register", handler.Register)
-	route.Post("/auth/login", handler.Login)
+	route.Post("/auth/register", authLimiter, handler.Register)
+	route.Post("/auth/login", loginLimiter, handler.Login)
 	route.Get("/auth/me", middleware, handler.Me)
 	router.Get("/auth/:provider", handler.BeginLoginProvider)
 	router.Get("/auth/:provider/callback", handler.LoginProvider)
-	route.Post("/auth/forgot-password", handler.ForgotPassword)
+	route.Post("/auth/forgot-password", authLimiter, handler.ForgotPassword)
 	route.Get("/auth/verify-reset", handler.VerifyResetPassword)
-	route.Post("/auth/reset-password", handler.ResetPassword)
-	route.Post("/auth/verify-email", handler.VerifyEmail)
+	route.Post("/auth/reset-password", authLimiter, handler.ResetPassword)
+	route.Post("/auth/verify-email", authLimiter, handler.VerifyEmail)
 
-	route.Post("/auth/refresh", handler.Refresh)
+	route.Post("/auth/refresh", loginLimiter, handler.Refresh)
 	route.Post("/auth/logout", middleware, handler.Logout)
 	router.Get("/auth/logout/:provider", middleware, handler.LogoutProvider)
 }
