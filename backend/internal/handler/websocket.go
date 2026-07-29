@@ -2,7 +2,7 @@ package handler
 
 import (
 	"chatapp/core"
-	"chatapp/dto"
+	"chatapp/hub"
 	"chatapp/internal/helper"
 	"context"
 	"log"
@@ -13,14 +13,14 @@ import (
 )
 
 type webSocketHandler struct {
-	hub                *dto.Hub
+	hub                *hub.Hub
 	roomService        core.RoomServices
 	cachedRoomServices core.RoomServices
 	userService        core.UserServices
 	saveSem            chan struct{}
 }
 
-func NewWebSocket(router fiber.Router, hub *dto.Hub, roomService core.RoomServices, cachedRoomServices core.RoomServices, userService core.UserServices, middleware fiber.Handler) {
+func NewWebSocket(router fiber.Router, hub *hub.Hub, roomService core.RoomServices, cachedRoomServices core.RoomServices, userService core.UserServices, middleware fiber.Handler) {
 	handler := webSocketHandler{
 		hub:                hub,
 		roomService:        roomService,
@@ -43,14 +43,14 @@ func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
 		return
 	}
 
-	client := dto.Client{
+	client := hub.Client{
 		Conn:           c,
 		UserID:         userId,
 		Username:       user.Username,
 		Name:           user.Name,
 		ProfilePicture: user.ProfilePicture,
 		RoomID:         "global",
-		Send:           make(chan dto.Message, 256),
+		Send:           make(chan hub.Message, 256),
 	}
 
 	h.hub.Join <- &client
@@ -72,7 +72,7 @@ func (h *webSocketHandler) HandleGlobalWebSocket(c *websocket.Conn) {
 
 		for _, memberId := range members {
 			if memberId != userId {
-				h.hub.Signal <- dto.Message{
+				h.hub.Signal <- hub.Message{
 					Type:   "user-online",
 					UserID: userId,
 					ToID:   memberId,
@@ -112,14 +112,14 @@ func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
 		return
 	}
 
-	client := dto.Client{
+	client := hub.Client{
 		Conn:           c,
 		UserID:         userId,
 		Username:       user.Username,
 		Name:           user.Name,
 		ProfilePicture: user.ProfilePicture,
 		RoomID:         roomId,
-		Send:           make(chan dto.Message, 256),
+		Send:           make(chan hub.Message, 256),
 	}
 
 	h.hub.Join <- &client
@@ -127,7 +127,7 @@ func (h *webSocketHandler) HandleWebSocket(c *websocket.Conn) {
 	h.readPump(&client)
 }
 
-func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
+func (h *webSocketHandler) readPumpGlobal(client *hub.Client) {
 	defer func() {
 		h.hub.ClientMu.Lock()
 		if existing, ok := h.hub.GlobalClients[client.UserID]; ok && existing == client {
@@ -156,7 +156,7 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 
 			for _, memberId := range members {
 				if memberId != client.UserID {
-					h.hub.Signal <- dto.Message{
+					h.hub.Signal <- hub.Message{
 						Type:   "user-offline",
 						UserID: client.UserID,
 						ToID:   memberId,
@@ -174,7 +174,7 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 	})
 
 	for {
-		var msg dto.Message
+		var msg hub.Message
 		err := client.Conn.ReadJSON(&msg)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -199,7 +199,7 @@ func (h *webSocketHandler) readPumpGlobal(client *dto.Client) {
 	}
 }
 
-func (h *webSocketHandler) readPump(client *dto.Client) {
+func (h *webSocketHandler) readPump(client *hub.Client) {
 	defer func() {
 		h.hub.Leave <- client
 		client.Conn.Close()
@@ -217,7 +217,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 	})
 
 	for {
-		var msg dto.Message
+		var msg hub.Message
 		err := client.Conn.ReadJSON(&msg)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -226,7 +226,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 			break
 		}
 
-		msg.ID = dto.GenerateId()
+		msg.ID = hub.GenerateId()
 		msg.RoomID = client.RoomID
 		msg.UserID = client.UserID
 		msg.Username = client.Username
@@ -252,7 +252,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 
 		h.hub.Broadcast <- msg
 
-		go func(msg dto.Message) {
+		go func(msg hub.Message) {
 			ctx := context.WithValue(context.Background(), "user_id", msg.UserID)
 			room, err := h.roomService.FindById(ctx, msg.RoomID)
 			if err != nil {
@@ -284,7 +284,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 			}
 		}(msg)
 
-		go func(msg dto.Message) {
+		go func(msg hub.Message) {
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Panic saat save message: %v", r)
@@ -324,7 +324,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 				log.Printf("Gagal simpan chat ke DB: %v", err)
 			}
 
-			h.hub.Broadcast <- dto.Message{
+			h.hub.Broadcast <- hub.Message{
 				ID:       msg.ID,
 				LocalID:  msg.LocalID,
 				RoomID:   msg.RoomID,
@@ -336,7 +336,7 @@ func (h *webSocketHandler) readPump(client *dto.Client) {
 	}
 }
 
-func (h *webSocketHandler) writePump(client *dto.Client) {
+func (h *webSocketHandler) writePump(client *hub.Client) {
 	ticker := time.NewTicker(25 * time.Second)
 	defer func() {
 		if r := recover(); r != nil {

@@ -2,12 +2,9 @@ package dto
 
 import (
 	"time"
-)
 
-// type RoomBaseResponse[T any] struct {
-// 	Success bool   `json:"success"`
-// 	Message string `json:"message"`
-// }
+	"chatapp/hub"
+)
 
 type RoomResponse struct {
 	ID            string               `json:"id"`
@@ -55,6 +52,6 @@ type StickerResponse struct {
 }
 
 type MediaResponse struct {
-	Media      []Message  `json:"message"`
-	NextCursor *time.Time `json:"next_cursor"`
+	Media      []hub.Message `json:"message"`
+	NextCursor *time.Time    `json:"next_cursor"`
 }

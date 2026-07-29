@@ -2,6 +2,7 @@ package services
 
 import (
 	"chatapp/core"
+	"chatapp/hub"
 	"chatapp/dto"
 	"chatapp/internal/helper"
 	"chatapp/internal/models"
@@ -18,7 +19,7 @@ import (
 )
 
 type roomServices struct {
-	hub              *dto.Hub
+	hub              *hub.Hub
 	roomRepositories core.RoomRepositories
 	userRepositories core.UserRepositories
 	userServices     core.UserServices
@@ -32,7 +33,7 @@ type roomServices struct {
 	uploadsPath      string
 }
 
-func NewRoomServices(hub *dto.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories, userServices core.UserServices, storageServices core.StorageService) core.RoomServices {
+func NewRoomServices(hub *hub.Hub, roomRepo core.RoomRepositories, userRepo core.UserRepositories, userServices core.UserServices, storageServices core.StorageService) core.RoomServices {
 	return &roomServices{
 		hub:              hub,
 		roomRepositories: roomRepo,
@@ -332,8 +333,8 @@ func (r *roomServices) Update(ctx context.Context, room_id string, roomReq *dto.
 		username = user.Username
 	}
 
-	updateMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	updateMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		RoomID:    room_id,
 		UserID:    userId,
 		Username:  username,
@@ -567,7 +568,7 @@ func (r *roomServices) UploadFile(ctx context.Context, fileHeader *multipart.Fil
 }
 
 // TakeChatHistory implements [core.RoomServices].
-func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error) {
+func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]hub.Message, error) {
 	_, err := r.roomRepositories.GetById(ctx, room_id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -581,7 +582,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 		return nil, err
 	}
 
-	msgResponse := make([]dto.Message, 0, len(messages))
+	msgResponse := make([]hub.Message, 0, len(messages))
 
 	for _, msg := range messages {
 		decryptedContent, err := helper.Decrypt(msg.Content)
@@ -605,7 +606,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 			}
 		}
 
-		item := dto.Message{
+		item := hub.Message{
 			ID:             msg.ID,
 			RoomID:         msg.RoomID,
 			UserID:         msg.UserID,
@@ -641,7 +642,7 @@ func (r *roomServices) TakeChatHistory(ctx context.Context, room_id string, limi
 				}
 			}
 
-			item.ReplyTo = &dto.Message{
+			item.ReplyTo = &hub.Message{
 				ID:             msg.ReplyTo.ID,
 				UserID:         msg.ReplyTo.UserID,
 				Username:       msg.ReplyTo.Username,
@@ -665,7 +666,7 @@ func (r *roomServices) TakeMediaMessages(ctx context.Context, roomId string, lim
 		return nil, err
 	}
 
-	msgResponse := make([]dto.Message, 0, len(messages))
+	msgResponse := make([]hub.Message, 0, len(messages))
 	for _, msg := range messages {
 		decryptedContent := msg.Content
 		if msg.Content != "" {
@@ -691,7 +692,7 @@ func (r *roomServices) TakeMediaMessages(ctx context.Context, roomId string, lim
 			}
 		}
 
-		item := dto.Message{
+		item := hub.Message{
 			ID:             msg.ID,
 			RoomID:         msg.RoomID,
 			UserID:         msg.UserID,
@@ -750,8 +751,8 @@ func (r *roomServices) KickUser(ctx context.Context, room_id string, target_id u
 		return err
 	}
 
-	kickMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	kickMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		RoomID:    room_id,
 		UserID:    target_id,
 		Username:  targetUsername,
@@ -838,8 +839,8 @@ func (r *roomServices) RemoveMessage(ctx context.Context, msgId string) error {
 		return err
 	}
 
-	removeMsg := dto.Message{
-		ID:              dto.GenerateId(),
+	removeMsg := hub.Message{
+		ID:              hub.GenerateId(),
 		EditedMessageID: existsMsg.ID,
 		RoomID:          existsMsg.RoomID,
 		UserID:          userId,
@@ -920,8 +921,8 @@ func (r *roomServices) RemoveMultipleMessages(ctx context.Context, req dto.Multi
 			return err
 		}
 
-		removeMsg := dto.Message{
-			ID:              dto.GenerateId(),
+		removeMsg := hub.Message{
+			ID:              hub.GenerateId(),
 			EditedMessageID: msg.ID,
 			RoomID:          msg.RoomID,
 			UserID:          userId,
@@ -996,8 +997,8 @@ func (r *roomServices) JoinRoom(ctx context.Context, room_id string) error {
 		return err
 	}
 
-	joinMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	joinMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		RoomID:    room_id,
 		UserID:    userId,
 		Username:  targetUsername,
@@ -1088,8 +1089,8 @@ func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id 
 		return err
 	}
 
-	joinMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	joinMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		RoomID:    room_id,
 		UserID:    target_id,
 		Username:  targetUsername,
@@ -1098,7 +1099,7 @@ func (r *roomServices) AddMember(ctx context.Context, room_id string, target_id 
 		TimeStamp: time.Now(),
 	}
 
-	notifMsg := dto.Message{
+	notifMsg := hub.Message{
 		ID:        joinMsg.ID,
 		RoomID:    joinMsg.RoomID,
 		UserID:    joinMsg.UserID,
@@ -1181,7 +1182,7 @@ func (r *roomServices) UpdateLastReadMessages(ctx context.Context, room_id strin
 			return err
 		}
 
-		r.hub.Broadcast <- dto.Message{
+		r.hub.Broadcast <- hub.Message{
 			RoomID: room_id,
 			UserID: userId,
 			Type:   "readed",
@@ -1233,8 +1234,8 @@ func (r *roomServices) UpdateMessage(ctx context.Context, msgId string, req *dto
 		return err
 	}
 
-	updateMsg := dto.Message{
-		ID:              dto.GenerateId(),
+	updateMsg := hub.Message{
+		ID:              hub.GenerateId(),
 		EditedMessageID: existsMsg.ID,
 		RoomID:          existsMsg.RoomID,
 		UserID:          userId,
@@ -1288,8 +1289,8 @@ func (r *roomServices) LeaveRoom(ctx context.Context, room_id string) error {
 		return err
 	}
 
-	leaveMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	leaveMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		RoomID:    room_id,
 		UserID:    userId,
 		Username:  targetUsername,
@@ -1356,7 +1357,7 @@ func (r *roomServices) FindMutualRooms(ctx context.Context, target_id uint) ([]d
 }
 
 // GetMessageByID implements [core.RoomServices].
-func (r *roomServices) FindMessageByID(ctx context.Context, message_id string) (*dto.Message, error) {
+func (r *roomServices) FindMessageByID(ctx context.Context, message_id string) (*hub.Message, error) {
 	message, err := r.roomRepositories.GetMessageByID(ctx, message_id)
 	if err != nil {
 		return nil, err
@@ -1381,7 +1382,7 @@ func (r *roomServices) FindMessageByID(ctx context.Context, message_id string) (
 		}
 	}
 
-	response := dto.Message{
+	response := hub.Message{
 		ID:             message.ID,
 		RoomID:         message.RoomID,
 		UserID:         message.UserID,
@@ -1479,7 +1480,7 @@ func (r *roomServices) GetMemberCount(ctx context.Context, room_id string) (int6
 }
 
 // SaveMessage implements [core.RoomServices].
-func (r *roomServices) SaveMessage(msg dto.Message) error {
+func (r *roomServices) SaveMessage(msg hub.Message) error {
 	var replyToID *string
 	if msg.ReplyToID != "" {
 		replyToID = &msg.ReplyToID

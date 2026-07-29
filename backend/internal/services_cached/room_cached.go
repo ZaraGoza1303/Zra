@@ -2,6 +2,7 @@ package services_cached
 
 import (
 	"chatapp/core"
+	"chatapp/hub"
 	"chatapp/dto"
 	"context"
 	"log"
@@ -90,7 +91,7 @@ func (r *cachedRoomServices) UploadFile(ctx context.Context, fileHeader *multipa
 }
 
 // TakeChatHistory implements [core.RoomServices].
-func (r *cachedRoomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]dto.Message, error) {
+func (r *cachedRoomServices) TakeChatHistory(ctx context.Context, room_id string, limit int, lastTimeStamp time.Time) ([]hub.Message, error) {
 	return nil, nil
 }
 
@@ -163,7 +164,7 @@ func (r *cachedRoomServices) UpdateMessage(ctx context.Context, msgId string, re
 }
 
 // FindMessageByID implements [core.RoomServices].
-func (r *cachedRoomServices) FindMessageByID(ctx context.Context, message_id string) (*dto.Message, error) {
+func (r *cachedRoomServices) FindMessageByID(ctx context.Context, message_id string) (*hub.Message, error) {
 	return r.roomServices.FindMessageByID(ctx, message_id)
 }
 
@@ -193,7 +194,7 @@ func (r *cachedRoomServices) GetMemberCount(ctx context.Context, room_id string)
 }
 
 // SaveMessage implements [core.RoomServices].
-func (r *cachedRoomServices) SaveMessage(msg dto.Message) error {
+func (r *cachedRoomServices) SaveMessage(msg hub.Message) error {
 	return nil
 }
 

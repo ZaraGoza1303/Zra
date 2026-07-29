@@ -2,6 +2,7 @@ package services
 
 import (
 	"chatapp/core"
+	"chatapp/hub"
 	"chatapp/dto"
 	"chatapp/internal/helper"
 	"chatapp/internal/models"
@@ -16,7 +17,7 @@ import (
 )
 
 type userServices struct {
-	hub              *dto.Hub
+	hub              *hub.Hub
 	UserRepositories core.UserRepositories
 	frontendUrl      string
 	backendUrl       string
@@ -25,7 +26,7 @@ type userServices struct {
 	usersPath        string
 }
 
-func NewUser(repo core.UserRepositories, hub *dto.Hub) core.UserServices {
+func NewUser(repo core.UserRepositories, hub *hub.Hub) core.UserServices {
 	return &userServices{
 		hub:              hub,
 		UserRepositories: repo,
@@ -522,8 +523,8 @@ func (u *userServices) MakeFriendRequest(ctx context.Context, target_id uint) er
 		return err
 	}
 
-	requestMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	requestMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		UserID:    userId,
 		ToID:      target_id,
 		Username:  username,
@@ -627,8 +628,8 @@ func (u *userServices) UpdateFriendRequest(ctx context.Context, target_id uint) 
 		return err
 	}
 
-	accMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	accMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		UserID:    userId,
 		ToID:      target_id,
 		Username:  username,
@@ -833,8 +834,8 @@ func (u *userServices) RejectFriendRequest(ctx context.Context, target_id uint) 
 		return err
 	}
 
-	rejectMsg := dto.Message{
-		ID:        dto.GenerateId(),
+	rejectMsg := hub.Message{
+		ID:        hub.GenerateId(),
 		UserID:    userId,
 		ToID:      target_id,
 		Username:  username,

@@ -1,4 +1,4 @@
-package dto
+package hub
 
 import (
 	"log"
@@ -47,7 +47,6 @@ func (h *Hub) Run() {
 		case message := <-h.Signal:
 			h.handleSignal(message)
 		}
-
 	}
 }
 
@@ -81,7 +80,6 @@ func (h *Hub) handleLeave(client *Client) {
 		h.RoomMu.Unlock()
 	}
 
-	// Close channel dengan safe — pastikan cuma sekali
 	client.CloseOnce.Do(func() {
 		close(client.Send)
 	})
@@ -99,7 +97,6 @@ func (h *Hub) handleBroadcast(message Message) {
 		select {
 		case client.Send <- message:
 		default:
-			// skip kalo buffer penuh, gak usah ngeprint biar gak spam log
 		}
 	}
 }
@@ -110,9 +107,6 @@ func (h *Hub) handleSignal(message Message) {
 	h.ClientMu.RUnlock()
 
 	if !ok {
-		if message.Type == "user-offline" || message.Type == "user-online" {
-			log.Printf("handleSignal [%s] aborted: User %d is not in GlobalClients", message.Type, message.ToID)
-		}
 		return
 	}
 
@@ -123,7 +117,6 @@ func (h *Hub) handleSignal(message Message) {
 	}
 }
 
-// Cek user yang lagi aktif
 func (h *Hub) IsOnline(userID uint) bool {
 	h.ClientMu.RLock()
 	defer h.ClientMu.RUnlock()
@@ -131,13 +124,11 @@ func (h *Hub) IsOnline(userID uint) bool {
 	return ok
 }
 
-// Ambil semua user id yang lagi aktif
 func (h *Hub) OnlineMembers() ([]uint, error) {
 	h.ClientMu.RLock()
 	defer h.ClientMu.RUnlock()
 
 	var onlineMember []uint
-
 	for _, member := range h.GlobalClients {
 		onlineMember = append(onlineMember, member.UserID)
 	}
@@ -145,12 +136,11 @@ func (h *Hub) OnlineMembers() ([]uint, error) {
 	return onlineMember, nil
 }
 
-// Fix: Clients map gak pernah diisi, ganti pake GlobalClients
-func (h *Hub) GetClientById(user_id uint) (*Client, bool) {
+func (h *Hub) GetClientById(userID uint) (*Client, bool) {
 	h.ClientMu.RLock()
 	defer h.ClientMu.RUnlock()
 
-	client, ok := h.GlobalClients[user_id]
+	client, ok := h.GlobalClients[userID]
 	if !ok {
 		return nil, false
 	}
@@ -158,26 +148,23 @@ func (h *Hub) GetClientById(user_id uint) (*Client, bool) {
 	return client, true
 }
 
-func (h *Hub) GetActiveMemberCount(room_id string) (int64, error) {
+func (h *Hub) GetActiveMemberCount(roomID string) (int64, error) {
 	h.RoomMu.RLock()
 	defer h.RoomMu.RUnlock()
 
-	room, ok := h.Rooms[room_id]
+	room, ok := h.Rooms[roomID]
 	if !ok {
 		return 0, nil
 	}
 
 	var count int64
-	for _, isActive := range room {
-		if isActive {
-			count++
-		}
+	for range room {
+		count++
 	}
 
 	return count, nil
 }
 
-// Pake UUID biar gak ada collision
 func GenerateId() string {
 	return uuid.New().String()
 }

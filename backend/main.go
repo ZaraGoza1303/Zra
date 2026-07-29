@@ -4,6 +4,7 @@ import (
 	"chatapp/cron"
 	"chatapp/databases"
 	"chatapp/dto"
+	"chatapp/hub"
 	"chatapp/internal/handler"
 	"chatapp/internal/helper"
 	"chatapp/internal/middleware"
@@ -102,7 +103,7 @@ func main() {
 		},
 	})
 
-	hub := dto.NewHub()
+	hub := hub.NewHub()
 	go hub.Run()
 
 	storageService := services.NewSupabaseStorage()
